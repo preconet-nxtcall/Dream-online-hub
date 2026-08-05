@@ -1,0 +1,45 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/agency_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/chat_provider.dart';
+import '../providers/game_provider.dart';
+import '../providers/theme_provider.dart';
+import '../routes/user_routes.dart';
+import '../theme/app_theme.dart';
+
+class UserApp extends StatelessWidget {
+  const UserApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AgencyProvider()),
+        ChangeNotifierProvider(create: (_) => GameProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp.router(
+            title: 'User App',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            themeMode: ThemeMode.light,
+            routerConfig: UserRoutes.router,
+            builder: (context, child) {
+              return ScrollConfiguration(
+                behavior: const ScrollBehavior().copyWith(
+                  physics: const BouncingScrollPhysics(),
+                ),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}

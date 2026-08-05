@@ -1,0 +1,10 @@
+enum AppFlavor { agency, user }
+
+class AppConstants {
+  static const String appNameAgency = 'Agency App';
+  static const String appNameUser = 'User App';
+  
+  static const int connectTimeout = 30000; // ms
+  static const int receiveTimeout = 30000; // ms
+  static const int sendTimeout = 30000; // ms
+}
