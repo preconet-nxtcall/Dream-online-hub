@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../repositories/agency_chat_repository.dart';
+import '../repositories/chat_repository.dart';
 import '../providers/agency_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
@@ -15,6 +17,7 @@ class AgencyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<ChatRepository>(create: (_) => ChatRepositoryImpl()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AgencyProvider()),
@@ -24,7 +27,7 @@ class AgencyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp.router(
-            title: 'Agency App',
+            title: 'Office Manager',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             themeMode: ThemeMode.light,

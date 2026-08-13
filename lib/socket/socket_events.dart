@@ -8,14 +8,23 @@ class SocketEvents {
   static const String ping = 'ping';
   static const String pong = 'pong';
 
-  // Real-Time Chat Messaging Events
-  static const String sendMessage = 'send_message';
-  static const String receiveMessage = 'receive_message';
+
+  // Real-Time Chat Messaging Events (Matching API Documentation)
+  static const String sendMessage = 'message:send';
+  static const String receiveMessage = 'message:new';
+  static const String messageSent = 'message:sent';
+  static const String messageQueued = 'message:queued';
   static const String messageAck = 'message_ack';
-  static const String messageDelivered = 'message_delivered';
-  static const String messageRead = 'message_read';
+  static const String messageDelivered = 'message:delivered';
+  static const String messageRead = 'message:read';
+
+  // Legacy event aliases for full compatibility
+  static const String sendMessageLegacy = 'send_message';
+  static const String receiveMessageLegacy = 'receive_message';
 
   // Presence / Online Status Events
+  static const String presenceCheck = 'presence:check';
+  static const String presenceRes = 'presence:res';
   static const String userOnline = 'user_online';
   static const String userOffline = 'user_offline';
   static const String getOnlineUsers = 'get_online_users';
@@ -33,3 +42,18 @@ class SocketEvents {
   static const String userOrderUpdate = 'user_order_update';
   static const String userServiceRequested = 'user_service_requested';
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

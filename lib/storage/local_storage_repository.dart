@@ -2,7 +2,7 @@ import 'dart:convert';
 import '../models/agency/agency_user_item_model.dart';
 import '../models/chat/chat_message_model.dart';
 import '../models/common/user_model.dart';
-import '../models/dto/chat/chat_message_dto.dart';
+import '../models/user/recharge_record_model.dart';
 import 'local_storage_service.dart';
 
 abstract class LocalStorageRepository {
@@ -34,6 +34,10 @@ abstract class LocalStorageRepository {
   int getUnreadCount(String userId);
   Future<void> incrementUnread(String userId);
   Future<void> clearUnreadCount(String userId);
+
+  // Recharge Persistence
+  Future<void> saveSubmittedRecharge(dynamic record);
+  List<dynamic> getSubmittedRecharges();
 }
 
 class LocalStorageRepositoryImpl implements LocalStorageRepository {
@@ -60,15 +64,22 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
 
   @override
   UserModel? getUser() {
-    final box = _storageService.authBox;
-    if (box == null) return null;
-    final raw = box.get(_userKey);
-    if (raw is String && raw.isNotEmpty) {
-      try {
+    try {
+      final box = _storageService.authBox;
+      if (box == null) return null;
+      final raw = box.get(_userKey);
+      if (raw == null) return null;
+
+      if (raw is String && raw.isNotEmpty) {
         final Map<String, dynamic> jsonMap = jsonDecode(raw);
         return UserModel.fromJson(jsonMap);
-      } catch (_) {}
-    }
+      } else if (raw is Map) {
+        final Map<String, dynamic> jsonMap = Map<String, dynamic>.from(raw);
+        return UserModel.fromJson(jsonMap);
+      } else if (raw is UserModel) {
+        return raw;
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -118,8 +129,11 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
       'status': m.status,
       'type': m.type,
       'image_url': m.imageUrl,
+      'audio_url': m.audioUrl,
       'voice_duration': m.voiceDuration,
       'reply_to_message': m.replyToMessage,
+      'is_me': m.isMe,
+      'local_file_path': m.localFilePath,
     }).toList();
 
     await box.put('messages_$userId', jsonEncode(jsonList));
@@ -132,10 +146,35 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
     final raw = box.get('messages_$userId');
     if (raw is String && raw.isNotEmpty) {
       try {
+        final cachedUser = getUser();
+        final authBox = _storageService.authBox;
+        final chatEmailId = authBox?.get('chat_email_id')?.toString();
+        final userIdStored = authBox?.get('user_id')?.toString();
+        final agentIdStored = authBox?.get('chat_agent_id')?.toString();
+        final userRole = authBox?.get('chat_user_role')?.toString() ??
+            authBox?.get('user_role')?.toString() ??
+            cachedUser?.role ??
+            'user';
+
+        final roleLower = userRole.trim().toLowerCase();
+        final isCurrentUserAgentOrAdmin =
+            roleLower == 'agent' || roleLower == 'agency' || roleLower == 'admin';
+
+        final userKeys = {
+          'me',
+          if (cachedUser?.email != null && cachedUser!.email.isNotEmpty) cachedUser.email.trim().toLowerCase(),
+          if (cachedUser?.id != null && cachedUser!.id.isNotEmpty) cachedUser.id.trim().toLowerCase(),
+          if (chatEmailId != null && chatEmailId.isNotEmpty) chatEmailId.trim().toLowerCase(),
+          if (userIdStored != null && userIdStored.isNotEmpty) userIdStored.trim().toLowerCase(),
+          if (isCurrentUserAgentOrAdmin && agentIdStored != null && agentIdStored.isNotEmpty)
+            agentIdStored.trim().toLowerCase(),
+        };
+
         final List jsonList = jsonDecode(raw);
-        return jsonList
-            .map((m) => ChatMessageDto.fromJson(m is Map<String, dynamic> ? m : {}).toDomainModel(currentUserId: 'me'))
-            .toList();
+        return jsonList.map((m) {
+          final map = m is Map<String, dynamic> ? m : <String, dynamic>{};
+          return ChatMessageModel.fromJson(map, userKeys: userKeys, userRole: userRole);
+        }).toList();
       } catch (_) {}
     }
     return [];
@@ -228,5 +267,48 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
   @override
   Future<void> clearUnreadCount(String userId) async {
     await setUnreadCount(userId, 0);
+  }
+
+  @override
+  Future<void> saveSubmittedRecharge(dynamic record) async {
+    final box = _storageService.chatsBox;
+    if (box == null) return;
+    final existing = getSubmittedRecharges();
+    final recId = (record is Map) ? record['id'] : record.id;
+    final recBook = (record is Map) ? record['bookName'] : record.bookName;
+    final recDetails = (record is Map) ? record['transactionDetails'] : record.transactionDetails;
+    final recAmount = (record is Map) ? record['amount'] : record.amount;
+    final recStatus = (record is Map) ? record['status'] : record.status;
+    final recDate = (record is Map) ? record['date'] : record.date;
+    final recImageUrl = (record is Map) ? (record['imageUrl'] ?? record['image_url']) : (record is RechargeRecordModel ? record.imageUrl : null);
+    final recInvoiceUrl = (record is Map) ? (record['invoiceUrl'] ?? record['invoice_url']) : (record is RechargeRecordModel ? record.invoiceUrl : null);
+
+    existing.removeWhere((r) => (r is Map ? r['id'] : r.id) == recId);
+    existing.insert(0, {
+      'id': recId,
+      'bookName': recBook,
+      'transactionDetails': recDetails,
+      'amount': recAmount,
+      'status': recStatus,
+      'date': recDate,
+      'imageUrl': recImageUrl,
+      'invoiceUrl': recInvoiceUrl,
+    });
+
+    await box.put('submitted_recharges_list', jsonEncode(existing));
+  }
+
+  @override
+  List<dynamic> getSubmittedRecharges() {
+    final box = _storageService.chatsBox;
+    if (box == null) return [];
+    final raw = box.get('submitted_recharges_list');
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        final List list = jsonDecode(raw);
+        return list;
+      } catch (_) {}
+    }
+    return [];
   }
 }

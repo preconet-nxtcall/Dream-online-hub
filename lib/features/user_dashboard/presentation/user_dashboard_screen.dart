@@ -1,9 +1,16 @@
+import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../core/constants/api_endpoints.dart';
+import '../../../core/constants/storage_keys.dart';
 import '../../../models/game/game_card_model.dart';
-import '../../../providers/auth_provider.dart';
+import '../../../models/user/recharge_record_model.dart';
 import '../../../providers/game_provider.dart';
+import '../../../network/api_client.dart';
+import '../../../storage/local_storage_repository.dart';
+import '../../../storage/secure_storage_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../widgets/common/app_logout_dialog.dart';
@@ -11,6 +18,7 @@ import '../../profile/presentation/user_profile_screen.dart';
 import 'widgets/banner_carousel_widget.dart';
 import 'widgets/game_card_widget.dart';
 import 'widgets/quick_category_widget.dart';
+import 'widgets/recharge_records_widget.dart';
 
 class UserDashboardScreen extends StatefulWidget {
   const UserDashboardScreen({super.key});
@@ -21,13 +29,151 @@ class UserDashboardScreen extends StatefulWidget {
 
 class _UserDashboardScreenState extends State<UserDashboardScreen> {
   int _currentNavIndex = 0;
+  int _displayedGamesCount = 20;
+  final GlobalKey<RechargeRecordsWidgetState> _rechargeRecordsKey = GlobalKey();
+
+  double _pendingAmount = 0.0;
+  double _successfulAmount = 0.0;
+
+  Timer? _summaryTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<GameProvider>().fetchGames();
+      _fetchRechargeSummary();
     });
+    _summaryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) _fetchRechargeSummary();
+    });
+  }
+
+  @override
+  void dispose() {
+    _summaryTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchRechargeSummary() async {
+    try {
+      final apiClient = ApiClient();
+      int userId = 22;
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
+        final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          userId = int.tryParse(digitsOnly) ?? 22;
+        }
+      }
+      if (userId == 22) {
+        final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+        if (storedUserId != null && storedUserId.isNotEmpty) {
+          final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
+          if (digitsOnly.isNotEmpty) {
+            userId = int.tryParse(digitsOnly) ?? 22;
+          }
+        }
+      }
+
+      final response = await apiClient.post(
+        ApiEndpoints.getQrCode,
+        options: Options(validateStatus: (status) => status != null && status < 500),
+        data: {
+          'action': 'recharge_records',
+          'user_id': userId,
+        },
+      );
+
+      if (!mounted) return;
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['success'] == true && data['categorized'] is Map) {
+        final cat = data['categorized'] as Map;
+        double pendingSum = 0.0;
+        double successSum = 0.0;
+
+        if (cat['pending'] is List) {
+          for (final item in (cat['pending'] as List)) {
+            pendingSum += double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
+          }
+        }
+        if (cat['successful'] is List) {
+          for (final item in (cat['successful'] as List)) {
+            successSum += double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
+          }
+        }
+
+        setState(() {
+          _pendingAmount = pendingSum;
+          _successfulAmount = successSum;
+        });
+        return;
+      }
+
+      final rawList = (data is Map<String, dynamic> && data['success'] == true)
+          ? (data['data'] is List
+              ? data['data'] as List
+              : (data['recharges'] is List ? data['recharges'] as List : null))
+          : null;
+
+      if (rawList != null) {
+        double pendingSum = 0.0;
+        double successSum = 0.0;
+
+        for (final item in rawList) {
+          final amt = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
+          final status = (item['stage_status'] ?? item['status'] ?? '').toString().toLowerCase();
+
+          if (status.contains('done') || status.contains('successful') || status.contains('approved')) {
+            successSum += amt;
+          } else if (status.contains('pending')) {
+            pendingSum += amt;
+          }
+        }
+
+        setState(() {
+          _pendingAmount = pendingSum;
+          _successfulAmount = successSum;
+        });
+      } else {
+        _calculateFromLocalStorage();
+      }
+    } catch (_) {
+      if (mounted) {
+        _calculateFromLocalStorage();
+      }
+    }
+  }
+
+  void _calculateFromLocalStorage() {
+    final localRecharges = LocalStorageRepositoryImpl().getSubmittedRecharges();
+    double pendingSum = 0.0;
+    double successSum = 0.0;
+
+    for (final item in localRecharges) {
+      double amt = 0.0;
+      String status = '';
+      if (item is Map) {
+        amt = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
+        status = (item['status'] ?? '').toString().toLowerCase();
+      } else if (item is RechargeRecordModel) {
+        amt = item.amount;
+        status = item.status.toLowerCase();
+      }
+
+      if (status.contains('done') || status.contains('successful') || status.contains('approved')) {
+        successSum += amt;
+      } else if (status.contains('pending')) {
+        pendingSum += amt;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _pendingAmount = pendingSum;
+        _successfulAmount = successSum;
+      });
+    }
   }
 
   Future<void> _onPlayGame(GameCardModel game) async {
@@ -75,9 +221,31 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     }
   }
 
-  void _onOpenChat([String? gameName]) {
+  void _onOpenChat([String? gameName]) async {
+    final secureStorage = SecureStorageService();
+    final storedAgentId = await secureStorage.read(StorageKeys.chatAgentId);
+    final currentUser = LocalStorageRepositoryImpl().getUser();
+
+    final rawUserAgency = currentUser?.agencyId;
+    final validUserAgency = (rawUserAgency != null &&
+            rawUserAgency.isNotEmpty &&
+            rawUserAgency != 'null' &&
+            rawUserAgency != '0')
+        ? rawUserAgency
+        : ((storedAgentId != null &&
+                storedAgentId.isNotEmpty &&
+                storedAgentId != 'null' &&
+                !storedAgentId.toUpperCase().contains('ADMIN'))
+            ? storedAgentId
+            : '23');
+
+    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.contains('@'))
+        ? validUserAgency
+        : 'AGENCY-$validUserAgency';
+
+    if (!mounted) return;
     context.push(
-      '/chat/agency_support',
+      '/chat/$agentId',
       extra: gameName != null ? {'gameName': gameName} : null,
     );
   }
@@ -85,7 +253,6 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final gameProvider = context.watch<GameProvider>();
-    final authProvider = context.watch<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -161,60 +328,36 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                   ),
                   const Spacer(),
 
-                  // Wallet Chip (matching screenshot: purple wallet icon + purple ₹0 text)
-                  InkWell(
-                    onTap: () => setState(() => _currentNavIndex = 1),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0E0722),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF6B39CF),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF6B39CF).withValues(alpha: 0.3),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.account_balance_wallet_rounded,
-                            color: Color(0xFF9061F9),
-                            size: 19,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            '₹0',
-                            style: TextStyle(
-                              color: Color(0xFF9061F9),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // Profile Icon Button
+                  // Notification Button
                   Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () => setState(() => _currentNavIndex = 3),
-                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.notifications_active_rounded, color: Color(0xFFFFD700)),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'No new player notifications.',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: Color(0xFF0E0921),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(14),
                       child: Container(
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(14),
                           color: const Color(0xFF0E0921),
                           border: Border.all(
                             color: const Color(0xFF3C2373),
@@ -227,7 +370,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.person_rounded, color: Colors.white, size: 20),
+                        child: const Icon(Icons.notifications_none_rounded, color: Color(0xFFA78BFA), size: 20),
                       ),
                     ),
                   ),
@@ -267,17 +410,61 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         ),
       ),
       body: SafeArea(
-        child: _currentNavIndex == 3
+        child: _currentNavIndex == 2
             ? const UserProfileScreen()
             : RefreshIndicator(
-                onRefresh: () => gameProvider.fetchGames(),
+                onRefresh: () async {
+                  await gameProvider.fetchGames();
+                  await _fetchRechargeSummary();
+                  await _rechargeRecordsKey.currentState?.refreshRecords();
+                },
                 color: const Color(0xFFFFD700),
                 child: _currentNavIndex == 0
                     ? _buildHomeBody(gameProvider, isDark)
-                    : _currentNavIndex == 1
-                        ? _buildWalletBody(authProvider, isDark)
-                        : _buildHistoryBody(isDark),
+                    : _buildHistoryBody(isDark),
               ),
+      ),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF7C3AED), Color(0xFF6366F1)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.45),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _onOpenChat(),
+            borderRadius: BorderRadius.circular(30),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.chat_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Chat Support',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -304,6 +491,9 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
               setState(() {
                 _currentNavIndex = index;
               });
+              if (index == 1) {
+                _rechargeRecordsKey.currentState?.refreshRecords();
+              }
             },
             selectedItemColor: const Color(0xFFA78BFA),
             unselectedItemColor: const Color(0xFF94A3B8),
@@ -319,14 +509,9 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                 label: 'Home',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                activeIcon: Icon(Icons.account_balance_wallet_rounded, color: Color(0xFFA78BFA)),
-                label: 'Wallet',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.history_outlined),
-                activeIcon: Icon(Icons.history_rounded, color: Color(0xFFA78BFA)),
-                label: 'History',
+                icon: Icon(Icons.subtitles_outlined),
+                activeIcon: Icon(Icons.subtitles_rounded, color: Color(0xFFA78BFA)),
+                label: 'Records',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline_rounded),
@@ -371,15 +556,28 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         // Hero Banner Carousel
         const BannerCarouselWidget(),
 
-        // Starline & Jackpot Games Section
+        // Dashboard Metric Summary Cards Section (Active & Pending Subscriptions / Recharges)
         QuickCategoryWidget(
+          activeSubscriptions: provider.games.where((g) => g.isSubscribed).length,
+          pendingSubscriptions: provider.games.where((g) => !g.isSubscribed).length,
+          pendingRecharges: '₹${_pendingAmount.toStringAsFixed(0)}',
+          successfulRecharges: '₹${_successfulAmount.toStringAsFixed(0)}',
           onSelectCategory: (category) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Selected $category Market'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            if (category == 'pending_recharges' || category == 'successful_recharges') {
+              setState(() => _currentNavIndex = 1);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    category == 'active_subscriptions'
+                        ? 'Showing ${provider.games.where((g) => g.isSubscribed).length} Active Subscribed Games below.'
+                        : 'Showing ${provider.games.where((g) => !g.isSubscribed).length} Pending Market Games below.',
+                  ),
+                  duration: const Duration(seconds: 1),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
           },
         ),
         AppSpacing.vGapLg,
@@ -403,7 +601,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '${provider.games.length} Live Games',
+                'Showing ${provider.games.take(_displayedGamesCount).length} of ${provider.games.length} Games',
                 style: const TextStyle(
                   color: Color(0xFFD97706),
                   fontWeight: FontWeight.bold,
@@ -415,74 +613,57 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         ),
         AppSpacing.vGapMd,
 
-        // Game Cards List
-        ...provider.games.map(
-          (game) => GameCardWidget(
+        // Game Cards List (Paginated: First 20 Games)
+        for (final game in provider.games.take(_displayedGamesCount))
+          GameCardWidget(
+            key: ValueKey('game_${game.id}'),
             game: game,
             onPlay: () => _onPlayGame(game),
-            onChat: () => _onOpenChat(game.name),
           ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildWalletBody(AuthProvider authProvider, bool isDark) {
-    final userName = authProvider.currentUser?.name;
-    return ListView(
-      padding: AppSpacing.pAllMd,
-      children: [
-        Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
-            padding: AppSpacing.pAllLg,
-            child: Column(
-              children: [
-                const Icon(Icons.account_balance_wallet_rounded, size: 48, color: Color(0xFFFFD700)),
-                AppSpacing.vGapSm,
-                Text(
-                  userName != null && userName.isNotEmpty
-                      ? 'Available Balance ($userName)'
-                      : 'Available Balance',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                AppSpacing.vGapXs,
-                const Text('₹0.00', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-                AppSpacing.vGapLg,
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Cash'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF198754),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                    AppSpacing.hGapMd,
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.arrow_upward),
-                        label: const Text('Withdraw'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2C2F36),
-                          foregroundColor: const Color(0xFFFFD700),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
+        // Pagination Controls / Load More Games Button
+        if (_displayedGamesCount < provider.games.length)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-              ],
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _displayedGamesCount += 20;
+                    });
+                  },
+                  icon: const Icon(Icons.expand_more_rounded, color: Colors.white),
+                  label: Text(
+                    'Load More Games (Showing ${provider.games.take(_displayedGamesCount).length} of ${provider.games.length})',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -491,20 +672,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     return ListView(
       padding: AppSpacing.pAllMd,
       children: [
-        const Text('Bid & Transaction History', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        AppSpacing.vGapMd,
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.all(40),
-            child: Column(
-              children: [
-                Icon(Icons.history_toggle_off_rounded, size: 64, color: Colors.grey[400]),
-                AppSpacing.vGapMd,
-                Text('No transaction history found', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-              ],
-            ),
-          ),
-        ),
+        RechargeRecordsWidget(key: _rechargeRecordsKey),
       ],
     );
   }
@@ -668,36 +836,36 @@ class _PlayGameModalState extends State<_PlayGameModal> {
               ),
               AppSpacing.vGapSm,
               Row(
-                children: ['Single Digit', 'Jodi Digit', 'Single Panna'].map((type) {
-                  final isSelected = _selectedMarketType == type;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedMarketType = type),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFF2C2F36)
-                              : (isDark ? Colors.grey[800] : Colors.grey[100]),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected ? const Color(0xFFFFD700) : Colors.transparent,
+                children: [
+                  for (final type in ['Single Digit', 'Jodi Digit', 'Single Panna'])
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedMarketType = type),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _selectedMarketType == type
+                                ? const Color(0xFF2C2F36)
+                                : (isDark ? Colors.grey[800] : Colors.grey[100]),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _selectedMarketType == type ? const Color(0xFFFFD700) : Colors.transparent,
+                            ),
                           ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          type,
-                          style: TextStyle(
-                            color: isSelected ? const Color(0xFFFFD700) : (isDark ? Colors.white : Colors.black87),
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            fontSize: 12,
+                          alignment: Alignment.center,
+                          child: Text(
+                            type,
+                            style: TextStyle(
+                              color: _selectedMarketType == type ? const Color(0xFFFFD700) : (isDark ? Colors.white : Colors.black87),
+                              fontWeight: _selectedMarketType == type ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  );
-                }).toList(),
+                ],
               ),
               AppSpacing.vGapLg,
 
@@ -733,19 +901,19 @@ class _PlayGameModalState extends State<_PlayGameModal> {
               ),
               AppSpacing.vGapSm,
               Row(
-                children: _pointOptions.map((pts) {
-                  final isSelected = _selectedPoints == pts;
-                  return Expanded(
-                    child: ChoiceChip(
-                      label: Text('₹${pts.toInt()}'),
-                      selected: isSelected,
-                      selectedColor: const Color(0xFFFFD700),
-                      onSelected: (val) {
-                        if (val) setState(() => _selectedPoints = pts);
-                      },
+                children: [
+                  for (final pts in _pointOptions)
+                    Expanded(
+                      child: ChoiceChip(
+                        label: Text('₹${pts.toInt()}'),
+                        selected: _selectedPoints == pts,
+                        selectedColor: const Color(0xFFFFD700),
+                        onSelected: (val) {
+                          if (val) setState(() => _selectedPoints = pts);
+                        },
+                      ),
                     ),
-                  );
-                }).toList(),
+                ],
               ),
               AppSpacing.vGapXl,
 

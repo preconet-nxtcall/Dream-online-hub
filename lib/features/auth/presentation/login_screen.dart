@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../../core/constants/test_credentials.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../theme/app_colors.dart';
 import '../../../utils/validators.dart';
@@ -46,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final success = await authProvider.login(
       _emailController.text.trim(),
       _passwordController.text,
+      portalType: _selectedRoleIndex == 0 ? 'agency' : 'user',
     );
 
     if (!mounted) return;
@@ -60,17 +60,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _populateCredential(TestUserCredential cred) {
-    setState(() {
-      _emailController.text = cred.email;
-      _passwordController.text = cred.password;
-      if (cred.role == 'AGENCY' || cred.role == 'ADMIN') {
-        _selectedRoleIndex = 0;
-      } else {
-        _selectedRoleIndex = 1;
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -440,73 +429,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-
-                    // Quick Test Accounts Section
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardBgColor.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.flash_on_rounded, size: 16, color: _activeAccentColor),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Quick Test Accounts (users.xlsx)',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: textPrimaryColor,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: TestCredentials.users.map((cred) {
-                              final isAgencyType = cred.role == 'AGENCY' || cred.role == 'ADMIN';
-                              final chipColor = isAgencyType ? AppColors.agencyAccent : AppColors.userAccent;
-
-                              return ActionChip(
-                                avatar: Icon(
-                                  cred.role == 'ADMIN'
-                                      ? Icons.admin_panel_settings_rounded
-                                      : isAgencyType
-                                          ? Icons.business_rounded
-                                          : Icons.person_rounded,
-                                  size: 15,
-                                  color: chipColor,
-                                ),
-                                label: Text(
-                                  cred.label,
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: textPrimaryColor,
-                                  ),
-                                ),
-                                backgroundColor: chipColor.withValues(alpha: 0.12),
-                                side: BorderSide(color: chipColor.withValues(alpha: 0.35)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                onPressed: () => _populateCredential(cred),
-                              );
-                            }).toList(),
-                          ),
-                        ],
                       ),
                     ),
                   ],

@@ -1,6 +1,5 @@
 import '../core/constants/api_endpoints.dart';
 import '../core/constants/storage_keys.dart';
-import '../core/constants/test_credentials.dart';
 import '../core/errors/exceptions.dart';
 import '../models/common/user_model.dart';
 import '../models/dto/auth/login_request_dto.dart';
@@ -11,7 +10,15 @@ import '../storage/secure_storage_service.dart';
 import '../utils/logger.dart';
 
 abstract class AuthRepository {
-  Future<UserModel> login(String email, String password);
+  Future<UserModel> login(String email, String password, {String portalType = 'agency'});
+  Future<UserModel> register(String fullName, String email, String phone, String password);
+  Future<UserModel> updateUser({
+    required String id,
+    required String name,
+    required String email,
+    required String phone,
+  });
+  Future<bool> deleteUser({required String id});
   Future<UserModel?> getProfile();
   Future<void> logout();
   Future<String?> getStoredToken();
@@ -33,8 +40,8 @@ class AuthRepositoryImpl implements AuthRepository {
         _localStorage = localStorage ?? LocalStorageRepositoryImpl();
 
   @override
-  Future<UserModel> login(String email, String password) async {
-    final loginDto = LoginRequestDto(email: email, password: password);
+  Future<UserModel> login(String email, String password, {String portalType = 'agency'}) async {
+    final loginDto = LoginRequestDto(action: 'login', email: email, password: password);
 
     try {
       final response = await _apiClient.post(
@@ -43,109 +50,241 @@ class AuthRepositoryImpl implements AuthRepository {
       );
 
       final data = response.data;
-      final Map<String, dynamic> responseData = (data is Map<String, dynamic> && data.containsKey('data'))
-          ? (data['data'] is Map<String, dynamic> ? data['data'] : {})
-          : (data is Map<String, dynamic> ? data : {});
+      if (data is Map<String, dynamic>) {
+        if (data.containsKey('success') && data['success'] == false) {
+          throw ServerException(
+            message: data['message']?.toString() ?? 'Invalid credentials.',
+            statusCode: 401,
+          );
+        }
+      }
+
+      // PHP returns: { success, message, user: { id, name, email, phone, role, avatar } }
+      // LoginResponseDto.fromJson handles the nested 'user' key correctly.
+      final Map<String, dynamic> responseData =
+          (data is Map<String, dynamic>) ? data : {};
 
       final loginResponseDto = LoginResponseDto.fromJson(responseData);
       final user = UserModel.fromJson(loginResponseDto.user);
 
-      // Persist secure and local storage concurrently to prevent main thread ANR freeze
-      Future.wait([
-        if (loginResponseDto.accessToken.isNotEmpty)
-          _secureStorage.write(StorageKeys.authToken, loginResponseDto.accessToken),
-        if (loginResponseDto.refreshToken.isNotEmpty)
-          _secureStorage.write(StorageKeys.refreshToken, loginResponseDto.refreshToken),
-        _secureStorage.write(StorageKeys.userRole, user.role),
-        _secureStorage.write(StorageKeys.userId, user.id),
-        _localStorage.saveTokens(
-          accessToken: loginResponseDto.accessToken,
-          refreshToken: loginResponseDto.refreshToken,
-        ),
-        _localStorage.saveUser(user),
-      ]).catchError((e) {
+      final roleUpper = user.role.trim().toUpperCase();
+
+      // Agency portal: strictly allow only AGENCY type — block USER and ADMIN
+      if (portalType == 'agency' && roleUpper != 'AGENCY') {
+        throw ServerException(
+          message: roleUpper == 'USER'
+              ? 'This is the Agency Portal. Please use the User Login instead.'
+              : 'Access restricted. Only Agency accounts can log in here.',
+          statusCode: 403,
+        );
+      }
+
+      // User portal: strictly allow only USER type — block AGENCY and ADMIN
+      if (portalType == 'user' && roleUpper != 'USER') {
+        throw ServerException(
+          message: roleUpper == 'AGENCY'
+              ? 'This is the User Portal. Please use the Agency Login instead.'
+              : 'Access restricted. Only User accounts can log in here.',
+          statusCode: 403,
+        );
+      }
+
+      // Persist session — PHP doesn't issue tokens so we store the generated session key
+      try {
+        final rawUserAgency = (user.agencyId != null && user.agencyId!.isNotEmpty) ? user.agencyId! : '23';
+        final agentIdVal = user.isAgency
+            ? (user.id.startsWith('AGENCY-') ? user.id : 'AGENCY-${user.id}')
+            : (rawUserAgency.startsWith('AGENCY-') || rawUserAgency.contains('@') ? rawUserAgency : 'AGENCY-$rawUserAgency');
+        await Future.wait([
+          if (loginResponseDto.accessToken.isNotEmpty)
+            _secureStorage.write(StorageKeys.authToken, loginResponseDto.accessToken),
+          _secureStorage.write(StorageKeys.userRole, user.role),
+          _secureStorage.write(StorageKeys.userId, user.id),
+          if (user.email.isNotEmpty)
+            _secureStorage.write(StorageKeys.chatEmailId, user.email),
+          if (agentIdVal.isNotEmpty)
+            _secureStorage.write(StorageKeys.chatAgentId, agentIdVal),
+          _localStorage.saveTokens(
+            accessToken: loginResponseDto.accessToken,
+            refreshToken: '',
+          ),
+          _localStorage.saveUser(user),
+        ]);
+      } catch (e) {
         AppLogger.warning('Background storage persistence error: $e');
-        return <void>[];
-      });
+      }
 
       return user;
     } on NetworkException catch (e) {
-      AppLogger.warning('Login NetworkException: ${e.message}. Falling back to local test login...');
-      final mockUser = await _handleMockLocalLogin(email, password);
-      if (mockUser != null) return mockUser;
-      throw ServerException(message: e.message, statusCode: e.statusCode);
+      AppLogger.error('Login NetworkException: ${e.message} (status: ${e.statusCode})');
+      if (e.statusCode != null) {
+        throw ServerException(message: e.message, statusCode: e.statusCode);
+      }
+      throw ServerException(
+        message: 'Network error. Please check your internet connection and try again.',
+        statusCode: 503,
+      );
     } catch (e) {
-      AppLogger.warning('Login error: $e. Falling back to local test login...');
-      final mockUser = await _handleMockLocalLogin(email, password);
-      if (mockUser != null) return mockUser;
-      throw ServerException(message: 'Unexpected login error: ${e.toString()}');
+      if (e is ServerException) rethrow;
+      AppLogger.error('Login error: $e');
+      throw ServerException(message: 'Unexpected login error. Please try again.');
     }
-  }
-
-  Future<UserModel?> _handleMockLocalLogin(String email, String password) async {
-    final cleanEmail = email.trim().toLowerCase();
-    final cred = TestCredentials.users.firstWhere(
-      (c) => c.email.toLowerCase() == cleanEmail && c.password == password,
-      orElse: () => TestCredentials.users.firstWhere(
-        (c) => c.email.toLowerCase() == cleanEmail,
-        orElse: () => const TestUserCredential(label: '', email: '', password: '', role: ''),
-      ),
-    );
-
-    String roleStr = cred.role.isEmpty ? '' : cred.role.toLowerCase();
-    if (roleStr.isEmpty) {
-      roleStr = (cleanEmail.contains('agency') || cleanEmail.contains('admin')) ? 'agency' : 'user';
-    }
-    final mappedRole = (roleStr == 'admin' || roleStr == 'agency' || roleStr == 'superadmin') ? 'agency' : 'user';
-
-    final user = UserModel(
-      id: cred.uniqueId ?? 'user-${DateTime.now().millisecondsSinceEpoch}',
-      email: cred.email.isNotEmpty ? cred.email : email,
-      name: cred.label.isNotEmpty ? cred.label : email.split('@').first,
-      role: mappedRole,
-      phone: cred.mobile,
-    );
-
-    const mockToken = 'mock_jwt_access_token_testing';
-    await _secureStorage.write(StorageKeys.authToken, mockToken);
-    await _secureStorage.write(StorageKeys.refreshToken, mockToken);
-    await _secureStorage.write(StorageKeys.userRole, user.role);
-    await _secureStorage.write(StorageKeys.userId, user.id);
-    await _localStorage.saveTokens(accessToken: mockToken, refreshToken: mockToken);
-    await _localStorage.saveUser(user);
-
-    AppLogger.info('Successfully logged in locally with test user: ${user.name} (${user.role})');
-    return user;
   }
 
   @override
-  Future<UserModel?> getProfile() async {
+  Future<UserModel> register(String fullName, String email, String phone, String password) async {
+    // PHP api.php does not have a 'register' action.
+    // We use the 'create_user' action instead (inserts with type='USER').
     try {
-      final token = await getStoredToken();
-      if (token == null || token.isEmpty) return null;
-
-      final response = await _apiClient.get(ApiEndpoints.profile);
+      final response = await _apiClient.post(
+        ApiEndpoints.register, // same api.php file
+        data: {
+          'action': 'create_user',
+          'name': fullName,
+          'email': email,
+          'mob': phone,
+          'password': password,
+        },
+      );
       final data = response.data;
-      final Map<String, dynamic> userJson = (data is Map<String, dynamic> && data.containsKey('data'))
-          ? (data['data'] is Map<String, dynamic> ? data['data'] : {})
-          : (data is Map<String, dynamic> ? data : {});
+      if (data is Map<String, dynamic> && data.containsKey('success') && data['success'] == false) {
+        throw ServerException(
+          message: data['message']?.toString() ?? 'Registration failed',
+          statusCode: 400,
+        );
+      }
 
-      final user = UserModel.fromJson(userJson);
-      await _secureStorage.write(StorageKeys.userRole, user.role);
-      await _secureStorage.write(StorageKeys.userId, user.id);
-      await _localStorage.saveUser(user);
+      // PHP create_user returns { success, message, id } — build a minimal UserModel
+      final newId = (data is Map<String, dynamic>)
+          ? (data['id'] ?? data['user_id'] ?? '').toString()
+          : '';
+
+      final user = UserModel(
+        id: newId,
+        name: fullName,
+        email: email,
+        role: 'USER',
+        phone: phone,
+      );
+
+      // Generate a local session key (PHP has no token for create_user)
+      final sessionToken = 'session_${newId}_${DateTime.now().millisecondsSinceEpoch}';
+
+      try {
+        await Future.wait([
+          _secureStorage.write(StorageKeys.authToken, sessionToken),
+          _secureStorage.write(StorageKeys.userRole, user.role),
+          _secureStorage.write(StorageKeys.userId, user.id),
+          _localStorage.saveTokens(accessToken: sessionToken, refreshToken: ''),
+          _localStorage.saveUser(user),
+        ]);
+      } catch (e) {
+        AppLogger.warning('Background storage persistence error: $e');
+      }
+
       return user;
     } on NetworkException catch (e) {
-      AppLogger.error('getProfile NetworkException: ${e.message}');
-      if (e.statusCode == 401) {
-        await logout();
-        return null;
+      AppLogger.error('Register NetworkException: ${e.message} (status: ${e.statusCode})');
+      if (e.statusCode != null) {
+        throw ServerException(message: e.message, statusCode: e.statusCode);
       }
-      return getCachedUser();
+      throw ServerException(
+        message: 'Network error. Please check your internet connection and try again.',
+        statusCode: 503,
+      );
     } catch (e) {
-      AppLogger.error('getProfile error: $e');
-      return getCachedUser();
+      if (e is ServerException) rethrow;
+      AppLogger.error('Register error: $e');
+      throw ServerException(message: 'Registration failed. Please try again.');
     }
+  }
+
+  @override
+  Future<UserModel> updateUser({
+    required String id,
+    required String name,
+    required String email,
+    required String phone,
+  }) async {
+    try {
+      final numericId = int.tryParse(id.replaceAll(RegExp(r'\D'), '')) ?? id;
+      final response = await _apiClient.post(
+        ApiEndpoints.login,
+        data: {
+          'action': 'update_user',
+          'id': numericId,
+          'name': name,
+          'email': email,
+          'mob': phone,
+        },
+      );
+
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['success'] == false) {
+        throw ServerException(
+          message: data['message']?.toString() ?? 'Failed to update user profile.',
+          statusCode: 400,
+        );
+      }
+
+      final existing = getCachedUser();
+      final updatedUser = UserModel(
+        id: id,
+        name: name,
+        email: email,
+        phone: phone,
+        role: existing?.role ?? 'USER',
+        agencyId: existing?.agencyId,
+        avatarUrl: existing?.avatarUrl,
+      );
+
+      await _localStorage.saveUser(updatedUser);
+      return updatedUser;
+    } on NetworkException catch (e) {
+      throw ServerException(message: e.message, statusCode: e.statusCode);
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      throw ServerException(message: 'Failed to update profile. Please try again.');
+    }
+  }
+
+  @override
+  Future<bool> deleteUser({required String id}) async {
+    try {
+      final numericId = int.tryParse(id.replaceAll(RegExp(r'\D'), '')) ?? id;
+      final response = await _apiClient.post(
+        ApiEndpoints.login,
+        data: {
+          'action': 'delete_user',
+          'id': numericId,
+        },
+      );
+
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['success'] == false) {
+        throw ServerException(
+          message: data['message']?.toString() ?? 'Failed to delete user account.',
+          statusCode: 400,
+        );
+      }
+
+      await logout();
+      return true;
+    } on NetworkException catch (e) {
+      throw ServerException(message: e.message, statusCode: e.statusCode);
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      throw ServerException(message: 'Failed to delete account. Please try again.');
+    }
+  }
+
+
+
+  @override
+  Future<UserModel?> getProfile() async {
+    // PHP api.php has no 'profile' action — return from local cache only.
+    AppLogger.info('getProfile: PHP has no profile endpoint. Returning cached user.');
+    return getCachedUser();
   }
 
   UserModel? getCachedUser() {
@@ -157,13 +296,15 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
-    try {
-      await _apiClient.post(ApiEndpoints.logout);
-    } catch (_) {}
+    // PHP api.php has no 'logout' action — just clear local storage.
+    AppLogger.info('logout: Clearing local session (PHP has no logout endpoint).');
     await _secureStorage.delete(StorageKeys.authToken);
     await _secureStorage.delete(StorageKeys.refreshToken);
     await _secureStorage.delete(StorageKeys.userId);
     await _secureStorage.delete(StorageKeys.userRole);
+    await _secureStorage.delete(StorageKeys.chatToken);
+    await _secureStorage.delete(StorageKeys.chatEmailId);
+    await _secureStorage.delete(StorageKeys.chatAgentId);
     await _localStorage.clearAuthData();
   }
 

@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'app/agency_app.dart';
 import 'app/user_app.dart';
-import 'notifications/fcm_service.dart';
+
 import 'storage/local_storage_repository.dart';
 import 'storage/local_storage_service.dart';
 import 'utils/logger.dart';
@@ -30,12 +30,6 @@ void main() {
       AppLogger.error('Hive initialization error: $e', stack);
     }
 
-    // Initialize Firebase Cloud Messaging asynchronously
-    try {
-      await FCMService.instance.init();
-    } catch (e, stack) {
-      AppLogger.error('FCM initialization error: $e', stack);
-    }
 
     // Determine user role preference (Agency vs User App)
     bool isUserApp = false;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../core/constants/api_endpoints.dart';
 import '../../../models/agency/agency_user_item_model.dart';
 import '../../../providers/agency_provider.dart';
 import '../../../providers/auth_provider.dart';
@@ -88,6 +89,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     SocketService.instance.sendTypingStop(targetUserId);
     SocketService.instance.sendChatMessage(
+      conversationId: ApiEndpoints.buildConversationId('AGENCY-23', widget.userId),
       receiverId: targetUserId,
       message: text,
       type: stagedPath != null ? 'image' : type,
@@ -157,7 +159,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final isHigherAdmin = chatProvider.isHigherAuthorityActive;
     final isClientUser = widget.userItem != null;
 
-    final agencyData = chatProvider.assignedAgency;
+    final Map<String, dynamic>? agencyData = null;
     final partnerName = widget.userItem?.name ??
         (agencyData?['name'] ?? 'Agency Support');
     final activeTitle =
@@ -680,14 +682,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: chatProvider.isRecording
               ? VoiceRecorderWidget(
-                  durationSeconds: chatProvider.recordingSeconds,
-                  onCancel: () => chatProvider.cancelRecording(),
-                  onSend: () {
-                    final targetUserId = chatProvider.isHigherAuthorityActive
-                        ? 'admin_higher_authority'
-                        : widget.userId;
-                    chatProvider.stopRecordingAndSend(targetUserId,
-                        isAgencyAdmin: isClientUser);
+                  onCancel: () {},
+                  onSend: (filePath, durationStr) {
+                    final sendToId = chatProvider.activeRecipientId ?? widget.userId;
+                    chatProvider.sendVoiceMessage(sendToId, filePath, durationStr);
                     _scrollToBottom();
                   },
                 )
@@ -825,7 +823,24 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   Widget _buildMicButton(ChatProvider chatProvider, Color accentColor) {
     return GestureDetector(
       key: const ValueKey('mic'),
-      onTap: () => chatProvider.startRecording(),
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) => Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: VoiceRecorderWidget(
+              onSend: (path, dur) {
+                Navigator.pop(ctx);
+                final sendToId = chatProvider.activeRecipientId ?? widget.userId;
+                chatProvider.sendVoiceMessage(sendToId, path, dur);
+                _scrollToBottom();
+              },
+              onCancel: () => Navigator.pop(ctx),
+            ),
+          ),
+        );
+      },
       child: Container(
         width: 42,
         height: 42,
@@ -1654,6 +1669,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         : widget.userId;
 
     SocketService.instance.sendChatMessage(
+      conversationId: ApiEndpoints.buildConversationId('AGENCY-23', widget.userId),
       receiverId: targetUserId,
       message: text,
       type: 'text',

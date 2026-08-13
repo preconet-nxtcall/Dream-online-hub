@@ -7,14 +7,15 @@ class DateSeparatorWidget extends StatelessWidget {
   const DateSeparatorWidget({super.key, required this.date});
 
   String _formatDateSeparator(DateTime date) {
+    final localDate = date.toLocal();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final msgDate = DateTime(date.year, date.month, date.day);
+    final msgDate = DateTime(localDate.year, localDate.month, localDate.day);
 
     if (msgDate == today) return 'Today';
     if (msgDate == yesterday) return 'Yesterday';
-    return DateFormatter.formatShortDate(date);
+    return DateFormatter.formatShortDate(localDate);
   }
 
   @override

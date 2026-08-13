@@ -65,7 +65,7 @@ class TokenInterceptor extends Interceptor {
 
           final refreshResponse = await _refreshTokenDio.post(
             refreshUrl,
-            data: {'refresh_token': refreshToken},
+            data: {'action': 'refresh_token', 'refresh_token': refreshToken},
             options: Options(headers: {'Content-Type': 'application/json'}),
           );
 

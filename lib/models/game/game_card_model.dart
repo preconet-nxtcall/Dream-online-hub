@@ -9,6 +9,7 @@ class GameCardModel {
   final String closeTime;
   final String? imageUrl;
   final String category; // 'Main Markets', 'Starline', 'Jackpot'
+  final bool isSubscribed;
 
   const GameCardModel({
     required this.id,
@@ -21,12 +22,13 @@ class GameCardModel {
     required this.closeTime,
     this.imageUrl,
     this.category = 'Main Markets',
+    this.isSubscribed = false,
   });
 
   factory GameCardModel.fromJson(Map<String, dynamic> json) {
     return GameCardModel(
-      id: (json['id'] ?? json['_id'] ?? '').toString(),
-      name: (json['name'] ?? json['title'] ?? 'Game Market').toString(),
+      id: (json['id'] ?? json['_id'] ?? json['book_id'] ?? '').toString(),
+      name: (json['name'] ?? json['book_name'] ?? json['title'] ?? 'Game Market').toString(),
       code: (json['code'] ?? (json['name'] != null && json['name'].toString().length >= 2
           ? json['name'].toString().substring(0, 2).toUpperCase()
           : 'GM')).toString(),
@@ -37,6 +39,7 @@ class GameCardModel {
       closeTime: (json['close_time'] ?? json['closeTime'] ?? '11:30 AM').toString(),
       imageUrl: json['image_url'] ?? json['imageUrl'],
       category: (json['category'] ?? 'Main Markets').toString(),
+      isSubscribed: json['is_subscribed'] == true || json['already_subscribed'] == true || json['subscribed'] == true,
     );
   }
 
@@ -52,6 +55,7 @@ class GameCardModel {
       'close_time': closeTime,
       if (imageUrl != null) 'image_url': imageUrl,
       'category': category,
+      'is_subscribed': isSubscribed,
     };
   }
 }

@@ -27,16 +27,16 @@ class AttachmentSheetWidget extends StatelessWidget {
         'label': 'Gallery Photo',
         'sub': 'Choose image from device gallery',
         'color': const Color(0xFF3B82F6),
-        'type': 'image',
-        'path': 'https://picsum.photos/800/600',
+        'type': 'gallery',
+        'path': '',
       },
       {
         'icon': Icons.camera_alt_rounded,
         'label': 'Camera Photo',
         'sub': 'Capture live photo with camera',
         'color': const Color(0xFF10B981),
-        'type': 'image',
-        'path': 'https://picsum.photos/800/601',
+        'type': 'camera',
+        'path': '',
       },
       {
         'icon': Icons.mic_rounded,
@@ -44,7 +44,7 @@ class AttachmentSheetWidget extends StatelessWidget {
         'sub': 'Record audio message',
         'color': const Color(0xFF8B5CF6),
         'type': 'voice',
-        'path': '0:20',
+        'path': '',
       },
     ];
 

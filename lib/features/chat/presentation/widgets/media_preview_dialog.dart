@@ -1,18 +1,21 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 class MediaPreviewDialog extends StatelessWidget {
   final String imageUrl;
   final String senderName;
   final String timeString;
+  final String heroTag;
 
   const MediaPreviewDialog({
     super.key,
     required this.imageUrl,
     required this.senderName,
     required this.timeString,
+    required this.heroTag,
   });
 
-  static void show(BuildContext context, {required String imageUrl, String senderName = 'Attachment', String timeString = ''}) {
+  static void show(BuildContext context, {required String imageUrl, String senderName = 'Attachment', String timeString = '', String? heroTag}) {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -21,6 +24,7 @@ class MediaPreviewDialog extends StatelessWidget {
           imageUrl: imageUrl,
           senderName: senderName,
           timeString: timeString,
+          heroTag: heroTag ?? imageUrl,
         ),
       ),
     );
@@ -85,7 +89,7 @@ class MediaPreviewDialog extends StatelessWidget {
           minScale: 0.5,
           maxScale: 4.0,
           child: Hero(
-            tag: imageUrl,
+            tag: heroTag,
             child: isNetwork
                 ? Image.network(
                     imageUrl,
@@ -113,14 +117,14 @@ class MediaPreviewDialog extends StatelessWidget {
                       );
                     },
                   )
-                : Image.asset(
-                    imageUrl,
+                : Image.file(
+                    File(imageUrl),
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
                         color: Colors.grey[900],
                         child: const Center(
-                          child: Icon(Icons.image, size: 80, color: Colors.white54),
+                          child: Icon(Icons.broken_image_rounded, size: 80, color: Colors.white54),
                         ),
                       );
                     },

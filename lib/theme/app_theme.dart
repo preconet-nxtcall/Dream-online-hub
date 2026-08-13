@@ -13,6 +13,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      splashFactory: InkRipple.splashFactory,
       fontFamily: GoogleFonts.inter().fontFamily,
       brightness: Brightness.light,
       primaryColor: AppColors.primary,

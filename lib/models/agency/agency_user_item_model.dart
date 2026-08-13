@@ -1,3 +1,5 @@
+import '../../utils/date_formatter.dart';
+
 class AgencyUserItem {
   final String id;
   final String name;
@@ -7,6 +9,7 @@ class AgencyUserItem {
   final int unreadCount;
   final String? lastMessage;
   final DateTime? lastActiveTime;
+  final String? agentId; // The agency's agentId/agency_unq_id (e.g. AGENCY-23)
 
   AgencyUserItem({
     required this.id,
@@ -17,28 +20,48 @@ class AgencyUserItem {
     this.unreadCount = 0,
     this.lastMessage,
     this.lastActiveTime,
+    this.agentId,
   });
 
   factory AgencyUserItem.fromJson(Map<String, dynamic> json) {
-    DateTime? parsedDate;
-    if (json['last_active'] != null || json['lastActiveTime'] != null || json['updated_at'] != null) {
-      final dateVal = json['last_active'] ?? json['lastActiveTime'] ?? json['updated_at'];
-      if (dateVal is String) {
-        parsedDate = DateTime.tryParse(dateVal);
-      } else if (dateVal is int) {
-        parsedDate = DateTime.fromMillisecondsSinceEpoch(dateVal);
+    final dateVal = json['last_active'] ?? json['lastActiveTime'] ?? json['lastMessageAt'] ?? json['updated_at'];
+    final DateTime? parsedDate = dateVal != null ? DateFormatter.parseToLocal(dateVal) : null;
+
+    int unread = 0;
+    if (json['unread'] != null) {
+      if (json['unread'] is int) {
+        unread = json['unread'];
+      } else if (json['unread'] is Map) {
+        unread = json['unread']['agent'] ?? json['unread']['user'] ?? 0;
+      }
+    } else {
+      unread = json['unread_count'] ?? json['unreadCount'] ?? 0;
+    }
+
+    final targetId = (json['userId'] ?? json['user_id'] ?? json['id'] ?? json['_id'] ?? '').toString();
+    final targetName = (json['name'] ?? json['username'] ?? json['full_name'] ?? targetId).toString();
+
+    final rawAvatar = json['avatar_url'] ?? json['avatarUrl'] ?? json['avatar'] ?? json['img'];
+    String? avatarStr;
+    if (rawAvatar != null && rawAvatar.toString().isNotEmpty) {
+      final str = rawAvatar.toString();
+      if (str.startsWith('http')) {
+        avatarStr = str;
+      } else {
+        avatarStr = 'https://telewiz.in/officemanage/uploads/photos/$str';
       }
     }
 
     return AgencyUserItem(
-      id: (json['id'] ?? json['user_id'] ?? json['_id'] ?? '').toString(),
-      name: (json['name'] ?? json['username'] ?? json['full_name'] ?? 'Agency User').toString(),
+      id: targetId,
+      name: targetName.isEmpty ? 'Agency Client' : targetName,
       email: (json['email'] ?? '').toString(),
-      avatarUrl: json['avatar_url'] ?? json['avatarUrl'] ?? json['avatar'],
+      avatarUrl: avatarStr,
       isOnline: json['is_online'] ?? json['isOnline'] ?? json['online'] ?? false,
-      unreadCount: json['unread_count'] ?? json['unreadCount'] ?? json['unread'] ?? 0,
+      unreadCount: unread,
       lastMessage: json['last_message'] ?? json['lastMessage'] ?? json['message'],
       lastActiveTime: parsedDate,
+      agentId: (json['agentId'] ?? json['agent_id'] ?? '').toString(),
     );
   }
 
@@ -64,6 +87,7 @@ class AgencyUserItem {
     int? unreadCount,
     String? lastMessage,
     DateTime? lastActiveTime,
+    String? agentId,
   }) {
     return AgencyUserItem(
       id: id ?? this.id,
@@ -74,6 +98,7 @@ class AgencyUserItem {
       unreadCount: unreadCount ?? this.unreadCount,
       lastMessage: lastMessage ?? this.lastMessage,
       lastActiveTime: lastActiveTime ?? this.lastActiveTime,
+      agentId: agentId ?? this.agentId,
     );
   }
 }

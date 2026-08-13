@@ -1,10 +1,12 @@
 class LoginRequestDto {
+  final String action;
   final String email;
   final String password;
   final String? role;
   final Map<String, dynamic>? deviceInfo;
 
   const LoginRequestDto({
+    this.action = 'login',
     required this.email,
     required this.password,
     this.role,
@@ -13,6 +15,7 @@ class LoginRequestDto {
 
   Map<String, dynamic> toJson() {
     return {
+      'action': action,
       'email': email.trim(),
       'password': password,
       if (role != null) 'role': role,

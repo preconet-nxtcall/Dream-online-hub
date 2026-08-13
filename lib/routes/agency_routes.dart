@@ -3,7 +3,7 @@ import '../features/agency_dashboard/presentation/agency_dashboard_screen.dart';
 import '../features/auth/presentation/agency_login_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/presentation/user_login_screen.dart';
-import '../features/chat/presentation/chat_screen.dart';
+import '../features/chat/presentation/agency_chat_screen.dart';
 import '../features/profile/presentation/agency_profile_screen.dart';
 import '../features/profile/presentation/user_profile_screen.dart';
 import '../features/user_dashboard/presentation/user_dashboard_screen.dart';
@@ -60,7 +60,7 @@ class AgencyRoutes {
             initialGameName = (extra['gameName'] ?? extra['initialGameName']) as String?;
           }
 
-          return ChatScreen(
+          return AgencyChatScreen(
             userId: userId,
             userItem: userItem,
             initialGameName: initialGameName,

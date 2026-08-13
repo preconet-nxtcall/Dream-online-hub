@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/agency_provider.dart';
-import '../../../providers/chat_provider.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/common/app_logout_dialog.dart';
 
-class AgencyProfileScreen extends StatelessWidget {
+class AgencyProfileScreen extends StatefulWidget {
   const AgencyProfileScreen({super.key});
 
+  @override
+  State<AgencyProfileScreen> createState() => _AgencyProfileScreenState();
+}
+
+class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
   void _showLogoutDialog(BuildContext context) {
     AppLogoutDialog.show(context);
   }
@@ -16,28 +21,135 @@ class AgencyProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final agencyProvider = context.watch<AgencyProvider>();
-    final chatProvider = context.watch<ChatProvider>();
+    final authProvider = context.watch<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final user = authProvider.currentUser;
 
-    final agency = chatProvider.assignedAgency;
-    final agencyName = agency?['name'] ?? 'Apex Premier Agency Support';
-    final agencyId = agency?['id'] ?? 'AGENCY-APEX-01';
+    final agencyName = (user?.name != null && user!.name.isNotEmpty)
+        ? user.name
+        : 'Agency Support';
+    final userEmail = (user?.email != null && user!.email.isNotEmpty) ? user.email : '';
+    final userPhone = (user?.phone != null && user!.phone!.isNotEmpty) ? user.phone! : 'Not Provided';
+    final agencyId = (user?.id != null && user!.id.isNotEmpty)
+        ? (user.id.startsWith('AGENCY') ? user.id : 'AGENCY-${user.id}')
+        : '';
+    final avatarUrl = user?.avatarUrl;
+    final initialLetter = agencyName.isNotEmpty ? agencyName[0].toUpperCase() : 'A';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agency Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, color: AppColors.error),
-            tooltip: 'Logout',
-            onPressed: () => _showLogoutDialog(context),
-          ),
-        ],
-      ),
+      backgroundColor: isDark ? const Color(0xFF0F0C20) : const Color(0xFFF7F7FD),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(
+          children: [
+            // Dark Header Banner matching Dashboard & Chat tabs
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0C0720),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
+              ),
+              child: Row(
+                children: [
+                  if (context.canPop()) ...[
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => context.pop(),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1D0D45),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF3C2373),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF26105E),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF8B5CF6).withValues(alpha: 0.6),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        color: Color(0xFFA78BFA),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Agency Profile',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        SizedBox(height: 1),
+                        Text(
+                          'Account settings and agency details',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showLogoutDialog(context),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1D0D45),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF3C2373),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.logout_rounded,
+                          size: 17,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           children: [
             // 1. Agency Header Banner & Logo Card
             Container(
@@ -72,11 +184,19 @@ class AgencyProfileScreen extends StatelessWidget {
                         child: CircleAvatar(
                           radius: 42,
                           backgroundColor: isDark ? const Color(0xFF2C2F36) : const Color(0xFFF1F5F9),
-                          child: const Icon(
-                            Icons.business_center_rounded,
-                            size: 44,
-                            color: AppColors.agencyAccent,
-                          ),
+                          backgroundImage: (avatarUrl != null && avatarUrl.startsWith('http'))
+                              ? NetworkImage(avatarUrl)
+                              : null,
+                          child: (avatarUrl == null || !avatarUrl.startsWith('http'))
+                              ? Text(
+                                  initialLetter,
+                                  style: const TextStyle(
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.agencyAccent,
+                                  ),
+                                )
+                              : null,
                         ),
                       ),
                       Positioned(
@@ -177,10 +297,25 @@ class AgencyProfileScreen extends StatelessWidget {
               child: Column(
                 children: [
                   _buildInfoTile(
-                    icon: Icons.support_agent_rounded,
-                    label: 'Support Helpline',
-                    value: '+91 1800 888 999',
+                    icon: Icons.email_rounded,
+                    label: 'Email Address',
+                    value: userEmail,
                     isDark: isDark,
+                  ),
+                  const Divider(height: 1, indent: 56),
+                  _buildInfoTile(
+                    icon: Icons.phone_rounded,
+                    label: 'Phone Number',
+                    value: userPhone,
+                    isDark: isDark,
+                  ),
+                  const Divider(height: 1, indent: 56),
+                  _buildInfoTile(
+                    icon: Icons.badge_rounded,
+                    label: 'Account Role',
+                    value: user?.role.toUpperCase() ?? 'AGENCY',
+                    isDark: isDark,
+                    valueColor: AppColors.agencyAccent,
                   ),
                   const Divider(height: 1, indent: 56),
                   _buildInfoTile(
@@ -188,14 +323,6 @@ class AgencyProfileScreen extends StatelessWidget {
                     label: 'Operating Hours',
                     value: '24/7 Live Payouts & Support',
                     isDark: isDark,
-                  ),
-                  const Divider(height: 1, indent: 56),
-                  _buildInfoTile(
-                    icon: Icons.star_rounded,
-                    label: 'Rating & Tier',
-                    value: '4.9 ⭐ • PREMIER AGENCY',
-                    isDark: isDark,
-                    valueColor: const Color(0xFFFFD700),
                   ),
                   const Divider(height: 1, indent: 56),
                   _buildInfoTile(
@@ -216,43 +343,6 @@ class AgencyProfileScreen extends StatelessWidget {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-
-            // Higher Authority Channel Action
-            InkWell(
-              onTap: () => context.push('/chat/admin_higher_authority'),
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDC3545).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFDC3545).withValues(alpha: 0.2)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.shield_rounded, color: Color(0xFFDC3545), size: 24),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Admin Higher Authority',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFFDC3545)),
-                          ),
-                          Text(
-                            'Direct escalation channel to system admin',
-                            style: TextStyle(fontSize: 11, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right_rounded, color: Color(0xFFDC3545)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
 
             // Logout Action Button
             InkWell(
@@ -293,7 +383,10 @@ class AgencyProfileScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ],
+  ),
+),
+);
   }
 
   Widget _buildOverviewCard({

@@ -1,51 +1,359 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../core/constants/api_endpoints.dart';
 import '../models/chat/chat_message_model.dart';
+import '../models/dto/chat/send_message_request_dto.dart';
 import '../repositories/chat_repository.dart';
+import '../socket/socket_events.dart';
+import '../socket/socket_service.dart';
+import '../core/constants/storage_keys.dart';
+import '../storage/local_storage_repository.dart';
+import '../storage/secure_storage_service.dart';
+import '../utils/date_formatter.dart';
+import '../utils/logger.dart';
 
 class ChatProvider extends ChangeNotifier {
   final ChatRepository _chatRepository;
+  final SocketService _socketService;
+  StreamSubscription<ChatMessageModel>? _messageSub;
+  StreamSubscription<Map<String, bool>>? _typingSub;
+  StreamSubscription<Map<String, dynamic>>? _messageSentSub;
+  StreamSubscription<Map<String, dynamic>>? _messageQueuedSub;
+  StreamSubscription<Map<String, dynamic>>? _messageStatusSub;
+  // H3: Track all active upload-progress timers so they can be cancelled on dispose.
+  final Map<String, Timer> _uploadTimers = {};
+  String? _activeConversationId; // real conversationId from server
+  String? _activeRecipientId;    // recipientId (emailId or agentId)
+  // Incremented whenever the visible chat changes.  Responses from a previous
+  // chat must never be allowed to replace the current chat's messages.
+  int _conversationLoadEpoch = 0;
+  String? _prevConversationId;   // saved before switching to Higher Authority
+  String? _prevRecipientId;      // saved before switching to Higher Authority
 
   List<ChatMessageModel> _messages = [];
   bool _isLoading = false;
   bool _isSending = false;
   bool _isAgencyTyping = false;
+  Timer? _typingTimeoutTimer;
   String? _errorMessage;
-  Map<String, dynamic>? _assignedAgency;
+  List<Map<String, dynamic>> _conversations = [];
   ChatMessageModel? _replyingToMessage;
   bool _isHigherAuthorityActive = false;
 
-  // Voice Recording state
-  bool _isRecording = false;
-  int _recordingSeconds = 0;
-  Timer? _recordingTimer;
-
+  // Voice — no local state needed; recording is handled in the widget layer.
   // Image Staging state
   String? _stagedImagePath;
   String? _stagedImageCaption;
 
-  ChatProvider({ChatRepository? chatRepository})
-      : _chatRepository = chatRepository ?? ChatRepositoryImpl();
+  ChatProvider({ChatRepository? chatRepository, SocketService? socketService})
+      : _chatRepository = chatRepository ?? ChatRepositoryImpl(),
+        _socketService = socketService ?? SocketService.instance {
+    _messageSub = _socketService.messageStream.listen(_handleIncomingMessage);
+    _typingSub = _socketService.typingStream.listen(_handleTypingEvent);
+    // Subscribe to API-aligned status confirmation streams
+    _messageSentSub =
+        _socketService.messageSentStream.listen(_handleMessageSent);
+    _messageQueuedSub =
+        _socketService.messageQueuedStream.listen(_handleMessageQueued);
+    _messageStatusSub =
+        _socketService.messageStatusStream.listen(_handleMessageStatus);
+  }
+
+  /// Handles a fully-formed incoming message from `message:new`.
+  /// Only `message:new` (and the legacy alias) is a full message payload.
+  void _handleIncomingMessage(ChatMessageModel message) {
+    if (_activeConversationId == null || _activeConversationId!.isEmpty) return;
+
+    final recipientLower = (_activeRecipientId ?? '').trim().toLowerCase();
+    final senderLower = message.senderId.trim().toLowerCase();
+    final receiverLower = message.receiverId.trim().toLowerCase();
+
+    final isAdminChat = recipientLower == ApiEndpoints.adminEmailId.toLowerCase() ||
+        recipientLower == ApiEndpoints.adminAgencyUnqId.toLowerCase() ||
+        _isHigherAuthorityActive;
+
+    final conversationMatch = (message.id.isNotEmpty && _activeConversationId != null) &&
+        (message.conversationId.trim().toLowerCase() == _activeConversationId!.trim().toLowerCase());
+
+    final isRelevant = conversationMatch ||
+        !message.isMe ||
+        (recipientLower.isNotEmpty &&
+            (senderLower == recipientLower ||
+                receiverLower == recipientLower ||
+                (isAdminChat &&
+                    (senderLower == ApiEndpoints.adminEmailId.toLowerCase() ||
+                        senderLower == ApiEndpoints.adminAgencyUnqId.toLowerCase() ||
+                        receiverLower == ApiEndpoints.adminEmailId.toLowerCase() ||
+                        receiverLower == ApiEndpoints.adminAgencyUnqId.toLowerCase()))));
+
+    if (!isRelevant) return;
+    AppLogger.info('💡 [ChatProvider] Incoming message event: ${message.toJson()}');
+    addRealtimeMessage(message);
+
+    // If an incoming message from the partner arrives while viewing the active chat,
+    // auto-send read receipt immediately so sender gets Blue Ticks (seen status)
+    if (!message.isMe && _activeConversationId != null && recipientLower.isNotEmpty) {
+      _socketService.sendReadReceipt(
+        _activeConversationId!,
+        _activeRecipientId ?? '',
+        messageIds: message.id.isNotEmpty ? [message.id] : null,
+      );
+    }
+  }
+
+  void _handleTypingEvent(Map<String, bool> typingMap) {
+    final recipient = _activeRecipientId ?? '';
+    if (recipient.isEmpty) return;
+
+    final isTyping = typingMap[recipient] ?? false;
+    if (_isAgencyTyping != isTyping) {
+      _isAgencyTyping = isTyping;
+      notifyListeners();
+    }
+
+    if (isTyping) {
+      _typingTimeoutTimer?.cancel();
+      _typingTimeoutTimer = Timer(const Duration(seconds: 3), () {
+        _isAgencyTyping = false;
+        notifyListeners();
+      });
+    } else {
+      _typingTimeoutTimer?.cancel();
+      _typingTimeoutTimer = null;
+    }
+  }
+
+  /// `message:sent` — server confirmed the message was written to MongoDB.
+  /// Payload: `{ _id, conversationId, status: 'sent', createdAt }`
+  /// Find the oldest temp 'sending'/'queued' message and promote it.
+  void _handleMessageSent(Map<String, dynamic> data) {
+    final ackConversationId =
+        (data['conversationId'] ?? data['conversation_id'] ?? '').toString();
+    if (ackConversationId.isNotEmpty && ackConversationId != _activeConversationId) {
+      return;
+    }
+    AppLogger.info('💡 [ChatProvider] message:sent ACK received: $data');
+    final realId = (data['_id'] ?? data['id'] ?? data['messageId'] ?? '').toString();
+    final createdAtStr = (data['createdAt'] ?? data['timestamp'] ?? '').toString();
+    if (realId.isEmpty) {
+      // If server ack didn't return an ID, still promote the oldest temp message to 'sent'
+      final idx = _messages.lastIndexWhere(
+        (m) => m.isMe && (m.status == 'sending' || m.status == 'queued'),
+      );
+      if (idx != -1) {
+        _messages[idx] = _messages[idx].copyWith(status: 'sent', uploadProgress: 1.0);
+        notifyListeners();
+      }
+      return;
+    }
+
+    // Don't process if we already have this message ID in the list
+    if (_messages.any((m) => m.id == realId)) return;
+
+    // Find the oldest unconfirmed temp message (sending or queued)
+    final idx = _messages.lastIndexWhere(
+      (m) => m.isMe && (m.status == 'sending' || m.status == 'queued'),
+    );
+    if (idx != -1) {
+      final statusStr = (data['status'] ?? 'delivered').toString();
+      final confirmed = _messages[idx].copyWith(
+        id: realId,
+        status: statusStr == 'queued' ? 'delivered' : statusStr,
+        timestamp: createdAtStr.isNotEmpty
+            ? DateFormatter.parseToLocal(createdAtStr)
+            : _messages[idx].timestamp,
+        uploadProgress: 1.0,
+      );
+      _messages[idx] = confirmed;
+      if (_activeConversationId != null && _activeConversationId!.isNotEmpty) {
+        _chatRepository.saveLocalMessages(_activeConversationId!, _messages);
+      }
+      notifyListeners();
+    }
+  }
+
+  /// `message:queued` — immediate server ack that the message entered the Redis queue.
+  /// Payload: `{ messageId, conversationId, status: 'queued', createdAt }`
+  /// Update the most recent 'sending' temp message to 'queued'.
+  void _handleMessageQueued(Map<String, dynamic> data) {
+    final queuedConversationId =
+        (data['conversationId'] ?? data['conversation_id'] ?? '').toString();
+    if (queuedConversationId.isNotEmpty &&
+        queuedConversationId != _activeConversationId) {
+      return;
+    }
+    final idx = _messages.lastIndexWhere((m) => m.isMe && m.status == 'sending');
+    if (idx != -1) {
+      _messages[idx] = _messages[idx].copyWith(status: 'queued');
+      notifyListeners();
+    }
+  }
+
+  /// `message:delivered` / `message:read` relayed by server back to the sender.
+  /// Updates the status of matching messages in the active conversation.
+  void _handleMessageStatus(Map<String, dynamic> data) {
+    final statusConversationId =
+        (data['conversationId'] ?? data['conversation_id'] ?? '').toString();
+    if (statusConversationId.isNotEmpty &&
+        _activeConversationId != null &&
+        statusConversationId.trim().toLowerCase() != _activeConversationId!.trim().toLowerCase()) {
+      return;
+    }
+    final type = (data['type'] as String?) ?? '';
+
+    if (type == 'delivered') {
+      // Payload: { messageId, conversationId, deliveredAt }
+      final messageId = (data['messageId'] ?? '').toString();
+      if (messageId.isEmpty) return;
+      final idx = _messages.indexWhere((m) => m.id == messageId);
+      if (idx != -1 && _messages[idx].status != 'read') {
+        _messages[idx] = _messages[idx].copyWith(status: 'delivered');
+        notifyListeners();
+      }
+    } else if (type == 'read') {
+      // Payload: { conversationId, readBy, messageIds, modifiedCount, readAt }
+      final rawIds = data['messageIds'];
+      final messageIds = rawIds is List
+          ? rawIds.map((e) => e.toString()).toList()
+          : <String>[];
+
+      bool changed = false;
+      if (messageIds.isNotEmpty) {
+        for (final msgId in messageIds) {
+          final idx = _messages.indexWhere((m) => m.id == msgId);
+          if (idx != -1) {
+            _messages[idx] = _messages[idx].copyWith(status: 'read');
+            changed = true;
+          }
+        }
+      } else {
+        // No specific IDs — mark all my sent/delivered messages as read
+        for (int i = 0; i < _messages.length; i++) {
+          if (_messages[i].isMe && _messages[i].status != 'read') {
+            _messages[i] = _messages[i].copyWith(status: 'read');
+            changed = true;
+          }
+        }
+      }
+      if (changed) notifyListeners();
+    }
+  }
+
+  bool _hasMoreMessages = true;
+  bool _isLoadingMore = false;
+  bool _loadMoreError = false;
 
   List<ChatMessageModel> get messages => _messages;
   bool get isLoading => _isLoading;
   bool get isSending => _isSending;
   bool get isAgencyTyping => _isAgencyTyping;
   String? get errorMessage => _errorMessage;
-  Map<String, dynamic>? get assignedAgency => _assignedAgency;
+  List<Map<String, dynamic>> get conversations => _conversations;
+  String? get activeConversationId => _activeConversationId;
   ChatMessageModel? get replyingToMessage => _replyingToMessage;
   bool get isHigherAuthorityActive => _isHigherAuthorityActive;
-
-  bool get isRecording => _isRecording;
-  int get recordingSeconds => _recordingSeconds;
+  bool get hasMoreMessages => _hasMoreMessages;
+  bool get isLoadingMore => _isLoadingMore;
+  bool get loadMoreError => _loadMoreError;
+  // isRecording is always false — recording is managed in VoiceRecorderWidget
+  bool get isRecording => false;
   String? get stagedImagePath => _stagedImagePath;
   String? get stagedImageCaption => _stagedImageCaption;
+  String? get activeRecipientId => _activeRecipientId;
 
-  /// Toggle conversation source between Agency and Admin Higher Authority
-  Future<void> toggleHigherAuthority(String defaultUserId) async {
-    _isHigherAuthorityActive = !_isHigherAuthorityActive;
-    final targetId = _isHigherAuthorityActive ? 'admin_higher_authority' : defaultUserId;
-    await fetchMessages(targetId);
+  /// Clears the visible conversation before a new chat route resolves its
+  /// recipient. This prevents the previous client/Admin messages appearing
+  /// during asynchronous route initialization.
+  void clearActiveConversation() {
+    ++_conversationLoadEpoch;
+    _activeConversationId = null;
+    _activeRecipientId = null;
+    _messages = [];
+    _isLoading = false;
+    _isLoadingMore = false;
+    _loadMoreError = false;
+    _isSending = false;
+    _hasMoreMessages = true;
+    _isAgencyTyping = false;
+    _isHigherAuthorityActive = false;
+    _prevConversationId = null;
+    _prevRecipientId = null;
+    _replyingToMessage = null;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Toggle or set state between agency and admin conversations.
+  /// [defaultConversationId] is only used as a fallback when restoring agency chat.
+  Future<void> setHigherAuthority(bool active, String defaultConversationId,
+      {String? chatEmailId}) async {
+    _isHigherAuthorityActive = active;
+    if (_isHigherAuthorityActive) {
+      // Save the current conversation so we can restore it later.
+      _prevConversationId = _activeConversationId;
+      _prevRecipientId = _activeRecipientId;
+
+      final secureStorage = SecureStorageService();
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      final storedEmail = await secureStorage.read(StorageKeys.chatEmailId);
+      final userEmail = (chatEmailId != null && chatEmailId.isNotEmpty)
+          ? chatEmailId
+          : ((storedEmail != null && storedEmail.isNotEmpty)
+              ? storedEmail
+              : (currentUser?.email ?? ''));
+
+      if (currentUser != null && currentUser.isAgency) {
+        // Agency chatting with Admin Higher Authority
+        final storedAgentId = await secureStorage.read(StorageKeys.chatAgentId);
+        final realAgencyId = (storedAgentId != null && storedAgentId.isNotEmpty)
+            ? storedAgentId
+            : (currentUser.id.startsWith('AGENCY') ? currentUser.id : 'AGENCY-${currentUser.id}');
+        final adminConvId = ApiEndpoints.buildConversationId(
+            ApiEndpoints.adminAgencyUnqId, realAgencyId);
+        await fetchMessages(adminConvId,
+            recipientId: ApiEndpoints.adminAgencyUnqId, limit: 20);
+      } else {
+        // User chatting with Admin Higher Authority (conv-ADMIN-1-userEmail)
+        final adminConvId = ApiEndpoints.buildConversationId(
+            ApiEndpoints.adminAgencyUnqId, userEmail);
+        await fetchMessages(adminConvId,
+            recipientId: ApiEndpoints.adminAgencyUnqId, limit: 20);
+      }
+    } else {
+      // Restore previous agency conversation, or fall back to defaultConversationId.
+      final restoreConvId = (_prevConversationId?.isNotEmpty == true)
+          ? _prevConversationId!
+          : defaultConversationId;
+      final restoreRecipientId = (_prevRecipientId?.isNotEmpty == true)
+          ? _prevRecipientId!
+          : _activeRecipientId;
+      _prevConversationId = null;
+      _prevRecipientId = null;
+      if (restoreConvId.isNotEmpty) {
+        await fetchMessages(restoreConvId, recipientId: restoreRecipientId, limit: 20);
+      } else {
+        // C3: restoreConvId is empty — reset active IDs so the next outgoing
+        // message is NOT routed to the old admin conversation.
+        _activeConversationId = null;
+        _activeRecipientId = null;
+        _messages = [];
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Reset higher authority state to false synchronously
+  void resetHigherAuthority() {
+    _isHigherAuthorityActive = false;
+    _prevConversationId = null;
+    _prevRecipientId = null;
+    notifyListeners();
+  }
+
+  Future<void> toggleHigherAuthority(String defaultConversationId,
+      {String? chatEmailId}) async {
+    await setHigherAuthority(!_isHigherAuthorityActive, defaultConversationId,
+        chatEmailId: chatEmailId);
   }
 
   void setReplyingTo(ChatMessageModel? message) {
@@ -58,47 +366,22 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Voice Recording Methods
-  void startRecording() {
-    _isRecording = true;
-    _recordingSeconds = 0;
-    notifyListeners();
-
-    _recordingTimer?.cancel();
-    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _recordingSeconds++;
-      notifyListeners();
-    });
-  }
-
-  String formatRecordingDuration(int totalSeconds) {
-    final mins = (totalSeconds ~/ 60).toString().padLeft(2, '0');
-    final secs = (totalSeconds % 60).toString().padLeft(2, '0');
-    return '$mins:$secs';
-  }
-
-  void stopRecordingAndSend(String userId, {bool isAgencyAdmin = false}) {
-    if (!_isRecording) return;
-    _recordingTimer?.cancel();
-    final durationStr = formatRecordingDuration(_recordingSeconds);
-    _isRecording = false;
-    _recordingSeconds = 0;
-    notifyListeners();
-
-    sendMessage(
+  // ── Real Voice Note Upload & Send ────────────────────────────────────────
+  /// Called by the UI after the user records a voice note.
+  /// [filePath] = local M4A file, [durationStr] = "mm:ss" string.
+  Future<void> sendVoiceMessage(
+    String userId,
+    String filePath,
+    String durationStr,
+  ) async {
+    // Build the temp bubble immediately so the user sees it right away
+    await sendMessage(
       userId,
       '',
       type: 'voice',
-      voiceDuration: durationStr.length == 5 ? durationStr.substring(1) : durationStr,
-      isAgencyAdmin: isAgencyAdmin,
+      voiceDuration: durationStr,
+      localVoicePath: filePath,
     );
-  }
-
-  void cancelRecording() {
-    _recordingTimer?.cancel();
-    _isRecording = false;
-    _recordingSeconds = 0;
-    notifyListeners();
   }
 
   // Image Staging Methods
@@ -114,38 +397,189 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Auto fetch user's assigned agency profile
+  /// Auto fetch agency assigned to this user — kept for backward compat with existing screens.
   Future<Map<String, dynamic>> fetchAssignedAgency() async {
+    // Return generic fallback — real agency info comes from conversations list.
+    // Default to agency_support, NOT admin_higher_authority.
+    return {
+      'id': 'agency_support',
+      'name': 'Agency Support',
+      'is_online': true,
+    };
+  }
+
+  /// Authenticate with the Node.js chat server.
+  /// Called right after PHP login succeeds, using the user's email + password.
+  Future<bool> loginToChat(String emailId, String password) async {
     try {
-      _assignedAgency = await _chatRepository.fetchAssignedAgency();
+      await _chatRepository.loginToChat(emailId, password);
+      // Connect socket with the new chat token
+      await _socketService.connect();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Chat server connection failed. Messages may not be real-time.';
       notifyListeners();
-      return _assignedAgency!;
-    } catch (_) {
-      return {
-        'id': 'agency_support_1',
-        'name': 'Apex Premier Agency Support',
-        'is_online': true,
-      };
+      return false;
     }
   }
 
-  Future<void> fetchMessages(String userId) async {
-    _isLoading = true;
-    _messages = [];
+  /// Load all conversations for the current agent/user.
+  Future<void> fetchConversations() async {
+    try {
+      _conversations = await _chatRepository.fetchConversations();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Load initial messages for a conversation.
+  /// Loads local Hive cache instantly so existing history renders without flickering,
+  /// then merges fresh server messages seamlessly.
+  Future<void> fetchMessages(String conversationId,
+      {String? recipientId, int limit = 20}) async {
+    if (conversationId.trim().isEmpty || recipientId?.trim().isEmpty != false) {
+      _messages = [];
+      _activeConversationId = null;
+      _activeRecipientId = null;
+      _errorMessage = 'Unable to open this conversation.';
+      notifyListeners();
+      return;
+    }
+    final loadEpoch = ++_conversationLoadEpoch;
+    _activeConversationId = conversationId;
+    _activeRecipientId = recipientId;
+    _messages = []; // Instantly clear memory to prevent stale screen bleeding
+    // Automatically sync _isHigherAuthorityActive with the conversation target
+    // to prevent stale admin flags from overriding user message destinations.
+    _isHigherAuthorityActive = (recipientId == ApiEndpoints.adminEmailId ||
+        recipientId == ApiEndpoints.adminAgencyUnqId);
+    _isLoadingMore = false;
+    _hasMoreMessages = true;
     _replyingToMessage = null;
     _errorMessage = null;
+
+    // 1. Instantly load cached local messages from Hive
+    final cached = _chatRepository.getCachedMessages(conversationId);
+    _messages = cached;
+    // Show full shimmer skeleton only when no local cache exists
+    _isLoading = cached.isEmpty;
     notifyListeners();
 
     try {
-      if (_assignedAgency == null) {
-        await fetchAssignedAgency();
+      final loaded = await _chatRepository.fetchMessages(
+        conversationId,
+        recipientId: recipientId,
+        limit: limit,
+      );
+
+      // A newer user/admin chat was opened while this request was in flight.
+      // Do not merge, cache, mark read, or notify for the obsolete result.
+      if (loadEpoch != _conversationLoadEpoch ||
+          _activeConversationId != conversationId ||
+          _activeRecipientId != recipientId) {
+        return;
       }
-      _messages = await _chatRepository.fetchMessages(userId);
+
+      // M6: Preserve locally-queued/sent messages that haven't been confirmed
+      // by the server yet — merge them in regardless of whether the server
+      // returned any messages.
+      final localMsgs = _messages.where((m) => m.isMe).toList();
+
+      final mergedList = <ChatMessageModel>[...loaded];
+      for (final local in localMsgs) {
+        // De-duplicate by ID first, then by exact-text within 10 s.
+        // H2 note: we keep strict ID-based check; content+time fallback only
+        // applies to temp messages (no real ID yet).
+        final hasRealId = local.id.isNotEmpty &&
+            !RegExp(r'^\d{13}$').hasMatch(local.id); // temp IDs are epoch ms
+        final exists = mergedList.any((m) =>
+            m.id == local.id ||
+            (!hasRealId &&
+                m.message == local.message &&
+                m.timestamp.difference(local.timestamp).abs().inSeconds < 10));
+        if (!exists) {
+          mergedList.add(local);
+        }
+      }
+      mergedList.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      _messages = mergedList;
+
+      await _chatRepository.saveLocalMessages(conversationId, _messages);
+      _hasMoreMessages = loaded.length >= limit;
+      
+      // Emit read receipt with all unread message IDs from the other party
+      if (recipientId != null && recipientId.isNotEmpty) {
+        final unreadIds = _messages
+            .where((m) => !m.isMe && m.status != 'read' && m.id.isNotEmpty)
+            .map((m) => m.id)
+            .toList();
+        _socketService.sendReadReceipt(
+          conversationId,
+          recipientId,
+          messageIds: unreadIds.isNotEmpty ? unreadIds : null,
+        );
+      }
     } catch (e) {
-      _errorMessage = 'Failed to load conversation history.';
+      if (loadEpoch != _conversationLoadEpoch) return;
+      if (_messages.isEmpty) {
+        _errorMessage = 'Failed to load conversation history.';
+      }
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (loadEpoch == _conversationLoadEpoch) {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Load older messages (pagination) as user scrolls up
+  Future<void> loadMoreMessages({int limit = 30}) async {
+    if (_isLoadingMore || !_hasMoreMessages || _activeConversationId == null || _messages.isEmpty) {
+      return;
+    }
+
+    final conversationId = _activeConversationId;
+    final recipientId = _activeRecipientId;
+    final loadEpoch = _conversationLoadEpoch;
+    _isLoadingMore = true;
+    _loadMoreError = false;
+    notifyListeners();
+
+    try {
+      // API expects cursor as ISO date string of the oldest message, not its _id
+      final oldestTimestamp = _messages.first.timestamp.toIso8601String();
+      final olderMsgs = await _chatRepository.fetchMessages(
+        conversationId!,
+        recipientId: recipientId,
+        limit: limit,
+        cursor: oldestTimestamp,
+      );
+
+      if (loadEpoch != _conversationLoadEpoch ||
+          _activeConversationId != conversationId ||
+          _activeRecipientId != recipientId) {
+        return;
+      }
+
+      if (olderMsgs.isEmpty) {
+        _hasMoreMessages = false;
+      } else {
+        final newMsgs = olderMsgs.where((m) => !_messages.any((ex) => ex.id == m.id)).toList();
+        if (newMsgs.isEmpty) {
+          _hasMoreMessages = false;
+        } else {
+          _messages.insertAll(0, newMsgs);
+          _hasMoreMessages = olderMsgs.length >= limit;
+        }
+      }
+    } catch (e) {
+      if (loadEpoch == _conversationLoadEpoch) {
+        _loadMoreError = true;
+      }
+    } finally {
+      if (loadEpoch == _conversationLoadEpoch) {
+        _isLoadingMore = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -155,32 +589,59 @@ class ChatProvider extends ChangeNotifier {
     String type = 'text',
     String? imageUrl,
     String? voiceDuration,
+    String? localVoicePath,  // local file path for immediate playback
     bool isAgencyAdmin = false,
   }) async {
-    if (text.trim().isEmpty && imageUrl == null && voiceDuration == null && _stagedImagePath == null) {
+    final conversationId = _activeConversationId;
+    final recipientId = _activeRecipientId;
+    final safeRecipient = (recipientId ?? '').trim().toLowerCase();
+    final safeUser = userId.trim().toLowerCase();
+
+    final isRecipientMatch = (safeUser == safeRecipient) ||
+        ((recipientId == ApiEndpoints.adminAgencyUnqId ||
+                recipientId == ApiEndpoints.adminEmailId ||
+                recipientId == 'admin_higher_authority') &&
+            (userId == ApiEndpoints.adminAgencyUnqId ||
+                userId == ApiEndpoints.adminEmailId ||
+                userId == 'admin_higher_authority'));
+
+    if (conversationId == null || conversationId.isEmpty ||
+        recipientId == null || recipientId.isEmpty ||
+        !isRecipientMatch) {
+      return false;
+    }
+    final sendEpoch = _conversationLoadEpoch;
+    final isVoice = type == 'voice' || type == 'audio' || voiceDuration != null;
+    final isImage = type == 'image' || imageUrl != null || _stagedImagePath != null;
+    final hasText = text.trim().isNotEmpty;
+    // Guard: must have text, or image, or be a voice message
+    if (!hasText && !isImage && !isVoice) {
       return false;
     }
 
-    final finalImageUrl = imageUrl ?? _stagedImagePath;
+    final effectiveLocalVoicePath = localVoicePath ?? (isVoice ? imageUrl : null);
+    final finalImageUrl = isVoice ? null : (imageUrl ?? _stagedImagePath);
     final finalMessage = text.isNotEmpty
         ? text.trim()
         : (_stagedImageCaption ??
-            (finalImageUrl != null
-                ? '📷 Image Attachment'
-                : (voiceDuration != null ? '🎤 Voice Note ($voiceDuration)' : '')));
+            (isVoice
+                ? ''
+                : (finalImageUrl != null
+                    ? '📷 Image Attachment'
+                    : '')));
 
     final String? replyText = _replyingToMessage?.message;
-    final String actualType = _replyingToMessage != null ? 'reply' : type;
+    final String actualType = _replyingToMessage != null ? 'reply' : (isVoice ? 'voice' : type);
 
     clearStagedImage();
 
-    final isMedia = actualType == 'image' || actualType == 'voice' || finalImageUrl != null || voiceDuration != null;
+    final isMedia = actualType == 'image' || actualType == 'voice' || isVoice || finalImageUrl != null || voiceDuration != null;
     final msgId = DateTime.now().millisecondsSinceEpoch.toString();
 
     final tempMsg = ChatMessageModel(
       id: msgId,
       senderId: 'me',
-      receiverId: userId,
+      receiverId: recipientId,
       message: finalMessage,
       timestamp: DateTime.now(),
       isMe: true,
@@ -190,72 +651,266 @@ class ChatProvider extends ChangeNotifier {
       voiceDuration: voiceDuration,
       replyToMessage: replyText,
       fileSize: finalImageUrl != null ? '2.4 MB' : (voiceDuration != null ? '350 KB' : null),
-      uploadProgress: isMedia ? 0.05 : null,
+      uploadProgress: isMedia ? 0.0 : null,
       isDownloaded: true,
+      localFilePath: effectiveLocalVoicePath,  // store local path for immediate playback & S3 upload
     );
 
     _messages.add(tempMsg);
+    final saveKeys = {
+      conversationId,
+    };
+    for (final k in saveKeys) {
+      _chatRepository.saveLocalMessages(k, _messages);
+    }
     _isSending = true;
     _replyingToMessage = null;
     notifyListeners();
 
-    // Stream upload progress simulation if media
-    if (isMedia) {
-      _simulateUploadProgress(msgId);
-    }
-
     try {
-      final sentMsg = await _chatRepository.sendMessage(
-        userId: userId,
-        message: tempMsg.message,
-        type: tempMsg.type,
-        imageUrl: finalImageUrl,
-        voiceDuration: voiceDuration,
+      final recipient = recipientId;
+
+      // Construct SendMessageRequestDto matching backend API Documentation spec
+      String msgType = 'text';
+      String? imageKey;
+      String? audioKey;
+      int? audioDurationSec;
+
+      if (tempMsg.type == 'voice' || isVoice || voiceDuration != null) {
+        msgType = 'voice';
+        if (voiceDuration != null && voiceDuration.contains(':')) {
+          final parts = voiceDuration.split(':');
+          audioDurationSec = (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+        } else if (voiceDuration != null) {
+          audioDurationSec = int.tryParse(voiceDuration) ?? 10;
+        }
+
+        // Step 1: Request presigned upload URL from REST API
+        final presignedRes = await _chatRepository.getPresignedVoiceUrl(
+          conversationId,
+          mimeType: 'audio/mp4',
+        );
+        final uploadUrl = presignedRes['uploadUrl']?.toString();
+        final fileKey = presignedRes['fileKey']?.toString();
+
+        if (uploadUrl != null && effectiveLocalVoicePath != null) {
+          // Step 2: Real binary HTTP PUT upload to Wasabi / S3 uploadUrl with onProgress
+          final uploadSuccess = await _chatRepository.uploadMediaFile(
+            uploadUrl,
+            effectiveLocalVoicePath,
+            mimeType: 'audio/mp4',
+            onProgress: (sentBytes, totalBytes) {
+              if (totalBytes > 0) {
+                final pct = (sentBytes / totalBytes).clamp(0.0, 0.99);
+                updateUploadProgress(msgId, pct);
+              }
+            },
+          );
+
+          if (!uploadSuccess) {
+            final idx = _messages.indexWhere((m) => m.id == msgId);
+            if (idx != -1) {
+              _messages[idx] = _messages[idx].copyWith(status: 'failed', uploadProgress: null);
+              for (final k in saveKeys) {
+                _chatRepository.saveLocalMessages(k, _messages);
+              }
+              notifyListeners();
+            }
+            return false;
+          }
+          audioKey = fileKey;
+          final idx = _messages.indexWhere((m) => m.id == msgId);
+          if (idx != -1) {
+            _messages[idx] = _messages[idx].copyWith(
+              audioUrl: fileKey,
+              uploadProgress: 1.0,
+            );
+            for (final k in saveKeys) {
+              _chatRepository.saveLocalMessages(k, _messages);
+            }
+            notifyListeners();
+          }
+        } else {
+          audioKey = fileKey ?? 'voice-${DateTime.now().millisecondsSinceEpoch}.m4a';
+        }
+      } else if (tempMsg.type == 'image' || finalImageUrl != null) {
+        msgType = 'image';
+        final rawPath = finalImageUrl ?? '';
+        final isPng = rawPath.toLowerCase().endsWith('.png');
+
+        // Step 1: Request presigned upload URL for image
+        final presignedRes = await _chatRepository.getPresignedImageUrl(
+          conversationId,
+          mimeType: isPng ? 'image/png' : 'image/jpeg',
+        );
+        final uploadUrl = presignedRes['uploadUrl']?.toString();
+        final fileKey = presignedRes['fileKey']?.toString();
+
+        if (uploadUrl != null && rawPath.isNotEmpty && !rawPath.startsWith('http')) {
+          // Step 2: Real binary HTTP PUT upload to Wasabi / S3 uploadUrl with onProgress
+          final uploadSuccess = await _chatRepository.uploadMediaFile(
+            uploadUrl,
+            rawPath,
+            mimeType: isPng ? 'image/png' : 'image/jpeg',
+            onProgress: (sentBytes, totalBytes) {
+              if (totalBytes > 0) {
+                final pct = (sentBytes / totalBytes).clamp(0.0, 0.99);
+                updateUploadProgress(msgId, pct);
+              }
+            },
+          );
+
+          if (!uploadSuccess) {
+            final idx = _messages.indexWhere((m) => m.id == msgId);
+            if (idx != -1) {
+              _messages[idx] = _messages[idx].copyWith(status: 'failed', uploadProgress: null);
+              for (final k in saveKeys) {
+                _chatRepository.saveLocalMessages(k, _messages);
+              }
+              notifyListeners();
+            }
+            return false;
+          }
+          imageKey = fileKey;
+        } else {
+          imageKey = fileKey ?? (rawPath.contains('/') ? rawPath.split('/').last : rawPath);
+        }
+      }
+
+      final effectiveRecipient = recipient;
+
+      final requestDto = SendMessageRequestDto(
+        conversationId: conversationId,
+        recipientId: effectiveRecipient,
+        type: msgType,
+        text: msgType == 'text' ? finalMessage : null,
+        imageKey: imageKey,
+        audioKey: audioKey,
+        audioDuration: audioDurationSec,
         replyToMessage: replyText,
       );
 
-      final index = _messages.indexWhere((m) => m.id == msgId);
-      if (index != -1) {
-        _messages[index] = sentMsg.copyWith(
-          status: 'seen',
-          uploadProgress: 1.0,
-          fileSize: tempMsg.fileSize,
-        );
+      // Ensure WebSocket connection is active before emitting message
+      if (!_socketService.isConnected) {
+        AppLogger.info('💡 [ChatProvider] WebSocket disconnected, reconnecting...');
+        await _socketService.connect();
       }
 
-      if (!isAgencyAdmin && !_isHigherAuthorityActive) {
-        _triggerAgencyTypingSimulation(userId);
+      AppLogger.info('💡 [ChatProvider] Emitting message: ${requestDto.toJson()}');
+
+      void onAck(dynamic res) {
+        if (sendEpoch != _conversationLoadEpoch ||
+            _activeConversationId != conversationId ||
+            _activeRecipientId != recipientId) {
+          return;
+        }
+        AppLogger.info('💡 [ChatProvider] Socket ACK callback received: $res');
+
+        Map<String, dynamic> payload = {};
+        if (res is Map<String, dynamic>) {
+          payload = res;
+        } else if (res is Map) {
+          payload = Map<String, dynamic>.from(res);
+        } else if (res is List) {
+          for (final item in res) {
+            if (item is Map<String, dynamic>) {
+              payload = item;
+              break;
+            } else if (item is Map) {
+              payload = Map<String, dynamic>.from(item);
+              break;
+            }
+          }
+        } else if (res != null) {
+          payload = {'id': res.toString()};
+        }
+
+        _handleMessageSent(payload);
+      }
+
+      // Send via Socket.IO using real server event format with ACK callback
+      _socketService.emit(SocketEvents.sendMessage, requestDto.toJson(), ack: onAck);
+      _socketService.emit(SocketEvents.sendMessageLegacy, requestDto.toJson(), ack: onAck);
+
+      // Fallback Timer: Ensure single tick (sent) appears within 1.0s even if server ACK is delayed
+      Timer(const Duration(milliseconds: 1000), () {
+        if (sendEpoch != _conversationLoadEpoch ||
+            _activeConversationId != conversationId ||
+            _activeRecipientId != recipientId) {
+          return;
+        }
+        final idx = _messages.indexWhere((m) => m.id == msgId);
+        if (idx != -1 && (_messages[idx].status == 'sending' || _messages[idx].status == 'queued' || _messages[idx].status == 'uploading')) {
+          AppLogger.info('💡 [ChatProvider] Fallback timer promoting message $msgId to sent');
+          _messages[idx] = _messages[idx].copyWith(status: 'sent', uploadProgress: null);
+          for (final k in saveKeys) {
+            _chatRepository.saveLocalMessages(k, _messages);
+          }
+          notifyListeners();
+        }
+      });
+
+      final index = _messages.indexWhere((m) => m.id == msgId);
+      if (index != -1) {
+        for (final k in saveKeys) {
+          _chatRepository.saveLocalMessages(k, _messages);
+        }
       }
 
       return true;
     } catch (e) {
+      // Mark the message as failed so the user can see and retry
       final index = _messages.indexWhere((m) => m.id == msgId);
       if (index != -1) {
-        _messages[index] = _messages[index].copyWith(status: 'sent', uploadProgress: 1.0);
+        _messages[index] = _messages[index].copyWith(status: 'failed', uploadProgress: null);
       }
       return false;
     } finally {
-      _isSending = false;
+      if (sendEpoch == _conversationLoadEpoch) {
+        _isSending = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  void updateUploadProgress(String messageId, double progress) {
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx != -1) {
+      _messages[idx] = _messages[idx].copyWith(
+        uploadProgress: progress.clamp(0.0, 0.99),
+        status: 'uploading',
+      );
       notifyListeners();
     }
   }
 
-  void _simulateUploadProgress(String messageId) {
-    double progress = 0.1;
-    Timer.periodic(const Duration(milliseconds: 250), (timer) {
-      progress += 0.25;
-      final index = _messages.indexWhere((m) => m.id == messageId);
-      if (index == -1 || progress >= 1.0) {
-        timer.cancel();
-        if (index != -1) {
-          _messages[index] = _messages[index].copyWith(uploadProgress: 1.0, status: 'sent');
-          notifyListeners();
-        }
-      } else {
-        _messages[index] = _messages[index].copyWith(uploadProgress: progress);
-        notifyListeners();
-      }
-    });
+  Future<void> retryFailedMessage(String messageId) async {
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx == -1) return;
+    final failedMsg = _messages[idx];
+    _messages.removeAt(idx);
+    notifyListeners();
+
+    if (failedMsg.type == 'voice' && failedMsg.localFilePath != null) {
+      await sendVoiceMessage(
+        failedMsg.receiverId,
+        failedMsg.localFilePath!,
+        failedMsg.voiceDuration ?? '0:15',
+      );
+    } else if (failedMsg.imageUrl != null) {
+      await sendMessage(
+        failedMsg.receiverId,
+        failedMsg.message,
+        type: 'image',
+        imageUrl: failedMsg.imageUrl,
+      );
+    } else {
+      await sendMessage(
+        failedMsg.receiverId,
+        failedMsg.message,
+        type: 'text',
+      );
+    }
   }
 
   void simulateMediaDownload(String messageId) {
@@ -266,11 +921,16 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
 
     double progress = 0.1;
-    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+    // H3 (companion): Track download timers the same way as upload timers
+    // so they are cancelled on dispose and cannot fire after provider is gone.
+    final timerKey = 'dl-$messageId';
+    _uploadTimers[timerKey]?.cancel();
+    _uploadTimers[timerKey] = Timer.periodic(const Duration(milliseconds: 200), (timer) {
       progress += 0.3;
       final idx = _messages.indexWhere((m) => m.id == messageId);
       if (idx == -1 || progress >= 1.0) {
         timer.cancel();
+        _uploadTimers.remove(timerKey);
         if (idx != -1) {
           _messages[idx] = _messages[idx].copyWith(downloadProgress: 1.0, isDownloaded: true);
           notifyListeners();
@@ -291,38 +951,28 @@ class ChatProvider extends ChangeNotifier {
     final exists = _messages.any((m) => m.id == message.id);
     if (!exists) {
       _messages.add(message);
+      if (_activeConversationId != null && _activeConversationId!.isNotEmpty) {
+        _chatRepository.saveLocalMessages(_activeConversationId!, _messages);
+      }
       notifyListeners();
     }
   }
 
-  void _triggerAgencyTypingSimulation(String userId) {
-    Future.delayed(const Duration(seconds: 1), () {
-      if (!hasListeners) return;
-      _isAgencyTyping = true;
-      notifyListeners();
-    });
-
-    Future.delayed(const Duration(seconds: 3), () {
-      if (!hasListeners) return;
-      _isAgencyTyping = false;
-      _messages.add(
-        ChatMessageModel(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          senderId: userId,
-          receiverId: 'me',
-          message: 'Thank you for contacting agency support! Your request has been acknowledged by our team.',
-          timestamp: DateTime.now(),
-          isMe: false,
-          status: 'delivered',
-        ),
-      );
-      notifyListeners();
-    });
-  }
 
   @override
   void dispose() {
-    _recordingTimer?.cancel();
+    _typingTimeoutTimer?.cancel();
+    _messageSub?.cancel();
+    _typingSub?.cancel();
+    _messageSentSub?.cancel();
+    _messageQueuedSub?.cancel();
+    _messageStatusSub?.cancel();
+    // H3: Cancel all in-flight upload progress timers to prevent
+    // notifyListeners() being called after the provider is disposed.
+    for (final timer in _uploadTimers.values) {
+      timer.cancel();
+    }
+    _uploadTimers.clear();
     super.dispose();
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -99,10 +100,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                   color: widget.accentColor,
                   isDark: isDark,
                   onTap: () {
+                    final messenger = ScaffoldMessenger.of(context);
                     Clipboard.setData(
                         ClipboardData(text: widget.message.message));
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(
                         content: const Text('Copied to clipboard'),
                         behavior: SnackBarBehavior.floating,
@@ -134,6 +136,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                       MediaPreviewDialog.show(
                         context,
                         imageUrl: widget.message.imageUrl!,
+                        heroTag: 'img_${widget.message.id}',
                         timeString:
                             DateFormatter.formatTime(widget.message.timestamp),
                       );
@@ -196,16 +199,40 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
   }
 
   Widget _buildStatusTicks(String status) {
-    if (status == 'uploading' || status == 'sending') {
-      return const Icon(Icons.access_time_rounded,
-          size: 13, color: Colors.white60);
-    } else if (status == 'sent') {
-      return const Icon(Icons.check_rounded, size: 14, color: Colors.white60);
-    } else if (status == 'delivered') {
-      return const Icon(Icons.done_all_rounded, size: 14, color: Colors.white60);
-    } else {
-      return Icon(Icons.done_all_rounded,
-          size: 14, color: widget.accentColor.withValues(alpha: 0.9));
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final tickColor = isDarkTheme
+        ? const Color(0xFF8696A0)
+        : (widget.message.isMe ? const Color(0xFF667781) : const Color(0xFF667781));
+
+    switch (status) {
+      case 'sending':
+      case 'uploading':
+        return const _AnimatedClockIcon();
+
+      case 'queued':
+        return Icon(Icons.hourglass_top_rounded,
+            size: 13, color: tickColor);
+
+      case 'failed':
+        return const Icon(Icons.error_outline_rounded,
+            size: 13, color: Color(0xFFFF6B6B));
+
+      case 'sent':
+        // Single tick — message reached server
+        return Icon(Icons.check_rounded,
+            size: 15, color: tickColor);
+
+      case 'delivered':
+        // Double grey tick — arrived on recipient device
+        return _DoubleTick(color: tickColor);
+
+      case 'read':
+        // Double CYAN BLUE tick — recipient opened and read message
+        return const _DoubleTick(color: Color(0xFF34B7F1));
+
+      default:
+        return Icon(Icons.check_rounded,
+            size: 15, color: tickColor);
     }
   }
 
@@ -216,20 +243,34 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
     final timeStr = DateFormatter.formatTime(msg.timestamp);
     final accent = widget.accentColor;
 
-    final isUploading = msg.status == 'uploading' ||
+    final isUploading = msg.status == 'uploading' &&
         (msg.uploadProgress != null && msg.uploadProgress! < 1.0);
+    final isFailed = msg.status == 'failed';
     final isDownloading =
         msg.downloadProgress != null && msg.downloadProgress! < 1.0;
-    final isImage = msg.imageUrl != null || msg.type == 'image';
-    final isVoice = msg.voiceDuration != null || msg.type == 'voice';
+    final isVoice = msg.type == 'voice' || msg.type == 'audio' || msg.voiceDuration != null;
     final isDoc = msg.type == 'document';
+    final isImage = !isVoice &&
+        !isDoc &&
+        (msg.type == 'image' ||
+            (msg.imageUrl != null &&
+                !msg.imageUrl!.toLowerCase().endsWith('.m4a') &&
+                !msg.imageUrl!.toLowerCase().endsWith('.mp3') &&
+                !msg.imageUrl!.toLowerCase().endsWith('.aac') &&
+                !msg.imageUrl!.toLowerCase().endsWith('.wav')));
 
-    // Bubble colors
-    final myBubbleBg = accent;
-    final theirBubbleBg = isDark ? const Color(0xFF1E1B3A) : Colors.white;
+    // WhatsApp Signature Bubble Colors
+    final myBubbleBg = isDark ? const Color(0xFF005C4B) : const Color(0xFFE2F7CB);
+    final theirBubbleBg = isDark ? const Color(0xFF202C33) : Colors.white;
     final theirBubbleBorder = isDark
-        ? Colors.white.withValues(alpha: 0.07)
-        : const Color(0xFFE8E7FF);
+        ? Colors.white.withValues(alpha: 0.05)
+        : const Color(0xFFE6E5EA);
+
+    final isSimpleText = !isImage &&
+        !isVoice &&
+        !isDoc &&
+        msg.replyToMessage == null &&
+        msg.message.isNotEmpty;
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -238,7 +279,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
         child: GestureDetector(
           onLongPress: () => _showContextMenu(context),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
+            padding: const EdgeInsets.symmetric(vertical: 2.5),
             child: Align(
               alignment:
                   msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -248,55 +289,84 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                     : MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Tail for incoming messages
+                  // Tail spacing
                   if (!msg.isMe) ...[
                     const SizedBox(width: 4),
                   ],
 
-                  // Bubble
+                  // WhatsApp Message Container
                   Container(
                     constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.78,
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
                     ),
                     decoration: BoxDecoration(
                       color: msg.isMe ? myBubbleBg : theirBubbleBg,
-                      gradient: msg.isMe
-                          ? LinearGradient(
-                              colors: [
-                                accent,
-                                accent.withValues(alpha: 0.85),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            )
-                          : null,
                       borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(20),
-                        topRight: const Radius.circular(20),
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
                         bottomLeft:
-                            Radius.circular(msg.isMe ? 20 : 4),
+                            Radius.circular(msg.isMe ? 16 : 3),
                         bottomRight:
-                            Radius.circular(msg.isMe ? 4 : 20),
+                            Radius.circular(msg.isMe ? 3 : 16),
                       ),
                       border: msg.isMe
                           ? null
-                          : Border.all(color: theirBubbleBorder),
+                          : Border.all(color: theirBubbleBorder, width: 0.8),
                       boxShadow: [
                         BoxShadow(
-                          color: msg.isMe
-                              ? accent.withValues(alpha: 0.25)
-                              : Colors.black.withValues(
-                                  alpha: isDark ? 0.2 : 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
                         ),
                       ],
                     ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                        horizontal: 10, vertical: 7),
+                    child: isSimpleText
+                        ? Wrap(
+                            alignment: WrapAlignment.end,
+                            crossAxisAlignment: WrapCrossAlignment.end,
+                            spacing: 8,
+                            runSpacing: 2,
+                            children: [
+                              Text(
+                                msg.message,
+                                style: TextStyle(
+                                  color: isDark
+                                      ? const Color(0xFFE9EDEF)
+                                      : const Color(0xFF111B21),
+                                  fontSize: 14.2,
+                                  height: 1.35,
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 1),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      timeStr,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: isDark
+                                            ? const Color(0xFF8696A0)
+                                            : const Color(0xFF667781),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    if (msg.isMe) ...[
+                                      const SizedBox(width: 3),
+                                      _buildStatusTicks(msg.status),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                         // Quoted Reply Preview
                         if (msg.replyToMessage != null)
                           Container(
@@ -351,16 +421,14 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                         if (isImage)
                           GestureDetector(
                             onTap: () {
-                              if (msg.imageUrl != null && msg.isDownloaded) {
+                              final imgPath = msg.imageUrl ?? msg.localFilePath;
+                              if (imgPath != null && imgPath.isNotEmpty) {
                                 MediaPreviewDialog.show(
                                   context,
-                                  imageUrl: msg.imageUrl!,
+                                  imageUrl: imgPath,
+                                  heroTag: 'img_${msg.id}',
                                   timeString: timeStr,
                                 );
-                              } else if (!msg.isDownloaded) {
-                                context
-                                    .read<ChatProvider>()
-                                    .simulateMediaDownload(msg.id);
                               }
                             },
                             child: ClipRRect(
@@ -374,9 +442,9 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                                   alignment: Alignment.center,
                                   children: [
                                     Hero(
-                                      tag: msg.imageUrl ?? msg.id,
-                                      child: msg.imageUrl != null &&
-                                              msg.imageUrl!.startsWith('http')
+                                      // Use a unique tag per message to prevent Hero tag collision
+                                      tag: 'img_${msg.id}',
+                                      child: (msg.imageUrl != null && msg.imageUrl!.startsWith('http'))
                                           ? Image.network(
                                               msg.imageUrl!,
                                               width: double.infinity,
@@ -387,7 +455,17 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                                               errorBuilder: (ctx, _, __) =>
                                                   _buildPlaceholderImage(),
                                             )
-                                          : _buildPlaceholderImage(),
+                                          : ((msg.localFilePath ?? msg.imageUrl) != null &&
+                                                  (msg.localFilePath ?? msg.imageUrl)!.isNotEmpty)
+                                              ? Image.file(
+                                                  File(msg.localFilePath ?? msg.imageUrl!),
+                                                  width: double.infinity,
+                                                  height: 190,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (ctx, _, __) =>
+                                                      _buildPlaceholderImage(),
+                                                )
+                                              : _buildPlaceholderImage(),
                                     ),
                                     // Upload overlay
                                     if (isUploading)
@@ -521,6 +599,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                         // Voice Note
                         if (isVoice)
                           Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (isUploading)
                                 Padding(
@@ -544,8 +623,51 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                                     ],
                                   ),
                                 ),
+                              if (isFailed)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.error_outline_rounded,
+                                          color: Color(0xFFFF6B6B), size: 14),
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        'Upload failed',
+                                        style: TextStyle(
+                                            color: Color(0xFFFF6B6B),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: () {
+                                          context
+                                              .read<ChatProvider>()
+                                              .retryFailedMessage(msg.id);
+                                        },
+                                        child: const Text(
+                                          'Retry',
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              decoration:
+                                                  TextDecoration.underline),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               VoicePlayerWidget(
                                 durationStr: msg.voiceDuration ?? '0:15',
+                                audioUrl: msg.audioUrl ?? msg.imageUrl,
+                                localFilePath: msg.localFilePath ??
+                                    (msg.imageUrl != null &&
+                                            (msg.imageUrl!.startsWith('/data/') ||
+                                                msg.imageUrl!.startsWith('/storage/') ||
+                                                msg.imageUrl!.startsWith('file://'))
+                                        ? msg.imageUrl
+                                        : null),
                                 isMe: msg.isMe,
                               ),
                             ],
@@ -637,45 +759,47 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                         // Text message
                         if (msg.message.isNotEmpty &&
                             !isDoc &&
-                            (isImage
-                                ? msg.message != '📷 Image Attachment'
-                                : true))
+                            !isVoice &&
+                            msg.message != '📷 Image Attachment' &&
+                            !msg.message.startsWith('🎤 Voice Note'))
                           Text(
                             msg.message,
                             style: TextStyle(
-                              color: msg.isMe
-                                  ? Colors.white
-                                  : (isDark
-                                      ? Colors.white.withValues(alpha: 0.9)
-                                      : const Color(0xFF1E293B)),
-                              fontSize: 14.5,
-                              height: 1.4,
+                              color: isDark
+                                  ? const Color(0xFFE9EDEF)
+                                  : const Color(0xFF111B21),
+                              fontSize: 14.2,
+                              height: 1.35,
                             ),
                           ),
 
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 3),
 
-                        // Timestamp + Status
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(
-                              timeStr,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: msg.isMe
-                                    ? Colors.white.withValues(alpha: 0.65)
-                                    : (isDark
-                                        ? Colors.white.withValues(alpha: 0.35)
-                                        : Colors.black38),
-                              ),
+                        // Timestamp + Status Ticks (WhatsApp bottom-right alignment)
+                        Align(
+                          alignment: Alignment.bottomRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  timeStr,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isDark
+                                        ? const Color(0xFF8696A0)
+                                        : const Color(0xFF667781),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (msg.isMe) ...[
+                                  const SizedBox(width: 4),
+                                  _buildStatusTicks(msg.status),
+                                ],
+                              ],
                             ),
-                            if (msg.isMe) ...[
-                              const SizedBox(width: 4),
-                              _buildStatusTicks(msg.status),
-                            ],
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -711,3 +835,76 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
     );
   }
 }
+
+// ── WhatsApp Style Double Tick Widget ──────────────────────────────────────────
+class _DoubleTick extends StatelessWidget {
+  final Color color;
+
+  const _DoubleTick({
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 15.0;
+    return SizedBox(
+      width: size * 1.25,
+      height: size,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            child: Icon(Icons.check_rounded, size: size, color: color),
+          ),
+          Positioned(
+            left: 4.5,
+            top: 0,
+            child: Icon(Icons.check_rounded, size: size, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── WhatsApp Style Animated Clock Icon for Sending state ─────────────────────
+class _AnimatedClockIcon extends StatefulWidget {
+  const _AnimatedClockIcon();
+
+  @override
+  State<_AnimatedClockIcon> createState() => _AnimatedClockIconState();
+}
+
+class _AnimatedClockIconState extends State<_AnimatedClockIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(
+      turns: _controller,
+      child: const Icon(
+        Icons.access_time_rounded,
+        size: 13,
+        color: Colors.white60,
+      ),
+    );
+  }
+}
+

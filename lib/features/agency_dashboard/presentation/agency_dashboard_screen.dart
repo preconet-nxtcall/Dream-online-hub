@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../models/agency/agency_user_item_model.dart';
 import '../../../providers/agency_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/common/app_buttons.dart';
-import '../../../widgets/common/app_loading.dart';
 import '../../../widgets/common/app_logout_dialog.dart';
+import '../../profile/presentation/agency_profile_screen.dart';
 import 'widgets/agency_user_skeleton_tile.dart';
 import 'widgets/agency_user_tile.dart';
+import '../../user_dashboard/presentation/widgets/recharge_records_widget.dart';
 
 class AgencyDashboardScreen extends StatefulWidget {
   const AgencyDashboardScreen({super.key});
@@ -20,6 +22,8 @@ class AgencyDashboardScreen extends StatefulWidget {
 class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+
+  int _currentNavIndex = 0; // 0: Dashboard, 1: Chat, 2: Profile
 
   @override
   void initState() {
@@ -40,13 +44,28 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      context.read<AgencyProvider>().loadNextPage();
+    if (_scrollController.hasClients &&
+        _scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200) {
+      final provider = context.read<AgencyProvider>();
+      if (!provider.isLoading && !provider.isLoadingMore && provider.hasMore) {
+        provider.loadNextPage();
+      }
     }
   }
 
-  int _currentNavIndex = 0;
+  Map<String, Color> _getPastelAvatarColor(String name) {
+    final colors = [
+      {'bg': const Color(0xFFECE6FF), 'text': const Color(0xFF6366F1)}, // Soft Purple
+      {'bg': const Color(0xFFFFEAD5), 'text': const Color(0xFFF97316)}, // Soft Orange
+      {'bg': const Color(0xFFFFE4E6), 'text': const Color(0xFFF43F5E)}, // Soft Pink
+      {'bg': const Color(0xFFFEF3C7), 'text': const Color(0xFFD97706)}, // Soft Yellow
+      {'bg': const Color(0xFFE0F2FE), 'text': const Color(0xFF0284C7)}, // Soft Blue
+      {'bg': const Color(0xFFDCFCE7), 'text': const Color(0xFF16A34A)}, // Soft Green
+    ];
+    if (name.isEmpty) return colors[0];
+    return colors[name.codeUnitAt(0) % colors.length];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,109 +83,448 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F0C20) : const Color(0xFFF7F7FD),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header with Stack for overlapping Stat Card
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Dark Header Container
-                _buildHeaderBackground(
-                  context: context,
-                  user: user,
-                  isDark: isDark,
-                ),
-
-                // Floating Stat Summary Card
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: -32,
-                  child: _buildFloatingStatCard(agencyProvider, isDark),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 42),
-
-            // Body Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Search Input & Filter Button Row
-                    _buildSearchAndFilterRow(
-                      surfaceColor: surfaceColor,
-                      borderColor: borderColor,
-                      isDark: isDark,
-                      agencyProvider: agencyProvider,
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Filter Pills
-                    _buildFilterRow(agencyProvider: agencyProvider, isDark: isDark),
-                    const SizedBox(height: 16),
-
-                    // Client Conversations Section Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Client Conversations',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                        Text(
-                          '${agencyProvider.filteredUsers.length} clients',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF6366F1),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Main User List Body
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: () =>
-                            agencyProvider.fetchUsers(isRefresh: true),
-                        color: const Color(0xFF6366F1),
-                        child: _buildUserListBody(
-                          agencyProvider,
-                          isDark,
-                          surfaceColor,
-                          surfaceHigh,
-                          borderColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+        child: _currentNavIndex == 0
+            ? _buildDashboardHomeTab(agencyProvider, user, isDark, surfaceColor, surfaceHigh, borderColor)
+            : _currentNavIndex == 1
+                ? _buildChatDirectoryTab(agencyProvider, isDark, surfaceColor, surfaceHigh, borderColor)
+                : const AgencyProfileScreen(),
       ),
-
-      // Bottom Navigation Bar with Floating '+' Button
       bottomNavigationBar: _buildAgencyBottomNavBar(isDark),
     );
   }
 
-  // ─── Header Container ──────────────────────────────────────────────────────
+  // ─── TAB 0: DASHBOARD HOME (Matching user layout) ──────────────────────────
+  Widget _buildDashboardHomeTab(
+    AgencyProvider agencyProvider,
+    dynamic user,
+    bool isDark,
+    Color surfaceColor,
+    Color surfaceHigh,
+    Color borderColor,
+  ) {
+    return Column(
+      children: [
+        // Header with Stack for overlapping Stat Card
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Dark Header Container
+            _buildHeaderBackground(
+              context: context,
+              user: user,
+              isDark: isDark,
+            ),
+
+            // Floating Stat Summary Card
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: -32,
+              child: _buildFloatingStatCard(agencyProvider, isDark),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 42),
+
+        // Body Content
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Search Input & Filter Button Row
+                _buildSearchAndFilterRow(
+                  surfaceColor: surfaceColor,
+                  borderColor: borderColor,
+                  isDark: isDark,
+                  agencyProvider: agencyProvider,
+                ),
+                const SizedBox(height: 16),
+
+                // Section Header: Assigned Clients List
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Assigned Clients',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    Text(
+                      '${agencyProvider.filteredUsers.length} clients',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6366F1),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Main User List Body
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () =>
+                        agencyProvider.fetchUsers(isRefresh: true),
+                    color: const Color(0xFF6366F1),
+                    child: _buildUserListBody(
+                      agencyProvider,
+                      isDark,
+                      surfaceColor,
+                      surfaceHigh,
+                      borderColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Client Complete Detail & Recharge Modal ──────────────────────────────
+  void _showClientDetailModal(BuildContext context, AgencyUserItem client) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final avatarColors = _getPastelAvatarColor(client.name);
+            final initials = client.name.isNotEmpty ? client.name[0].toUpperCase() : 'U';
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF14102B) : Colors.white,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  border: Border.all(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                    width: 1.5,
+                  ),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Handle bar
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // User Info Header Block
+                      Row(
+                        children: [
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 28,
+                                backgroundColor: avatarColors['bg'],
+                                child: Text(
+                                  initials,
+                                  style: TextStyle(
+                                    color: avatarColors['text'],
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 22,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 14,
+                                  height: 14,
+                                  decoration: BoxDecoration(
+                                    color: client.isOnline
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFF94A3B8),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF14102B) : Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  client.name,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  client.email.isNotEmpty ? client.email : 'Client ID: ${client.id}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: (client.isOnline ? const Color(0xFF10B981) : const Color(0xFF6366F1))
+                                            .withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        client.isOnline ? 'Online Now' : 'Offline',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: client.isOnline ? const Color(0xFF10B981) : const Color(0xFF6366F1),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (client.unreadCount > 0)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          '${client.unreadCount} unread',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFFF59E0B),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            color: isDark ? Colors.white60 : Colors.grey[600],
+                            onPressed: () => Navigator.pop(modalContext),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 12),
+
+                      // User Detail Cards Section
+                      Text(
+                        'User Complete Information',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF4338CA),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1C1838) : const Color(0xFFF8F7FF),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF2E2756) : const Color(0xFFECEAFE),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildUserDetailRow(
+                              icon: Icons.badge_outlined,
+                              label: 'Client ID',
+                              value: '#${client.id}',
+                              isDark: isDark,
+                            ),
+                            const Divider(height: 16),
+                            _buildUserDetailRow(
+                              icon: Icons.person_outline_rounded,
+                              label: 'Full Name',
+                              value: client.name,
+                              isDark: isDark,
+                            ),
+                            const Divider(height: 16),
+                            _buildUserDetailRow(
+                              icon: Icons.mail_outline_rounded,
+                              label: 'Email Address',
+                              value: client.email.isNotEmpty ? client.email : 'Not registered',
+                              isDark: isDark,
+                            ),
+                            const Divider(height: 16),
+                            _buildUserDetailRow(
+                              icon: Icons.check_circle_outline_rounded,
+                              label: 'Account Status',
+                              value: 'ACTIVE CLIENT',
+                              valueColor: const Color(0xFF10B981),
+                              isDark: isDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // User Specific Recharge Requests Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.history_rounded, color: Color(0xFF6366F1), size: 20),
+                              const SizedBox(width: 6),
+                              Text(
+                                'User Recharge Requests',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Fetched from DB',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF6366F1),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Live DB Fetched User Recharge Records Widget for this specific client
+                      RechargeRecordsWidget(
+                        userId: client.id,
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Action Button: Open Chat
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(modalContext);
+                            final targetChatId = client.email.isNotEmpty ? client.email : client.id;
+                            context.push('/chat/$targetChatId', extra: client);
+                          },
+                          icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                          label: const Text(
+                            'Open Chat Thread',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6366F1),
+                            foregroundColor: Colors.white,
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildUserDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required bool isDark,
+    Color? valueColor,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFF6366F1), size: 18),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.bold,
+            color: valueColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Header Background Widget ──────────────────────────────────────────────
   Widget _buildHeaderBackground({
     required BuildContext context,
     required dynamic user,
     required bool isDark,
   }) {
+    final avatarUrl = user?.avatarUrl as String?;
+    final String initialLetter = (user?.name != null && user.name.toString().isNotEmpty)
+        ? user.name.toString()[0].toUpperCase()
+        : 'A';
+
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 52),
       decoration: const BoxDecoration(
@@ -176,7 +534,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Circular Logo Avatar 'A'
+          // Circular Logo Avatar
           Container(
             width: 46,
             height: 46,
@@ -195,14 +553,31 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
               ],
             ),
             alignment: Alignment.center,
-            child: const Text(
-              'A',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                fontSize: 22,
-              ),
-            ),
+            child: (avatarUrl != null && avatarUrl.startsWith('http'))
+                ? ClipOval(
+                    child: Image.network(
+                      avatarUrl,
+                      width: 46,
+                      height: 46,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Text(
+                        initialLetter,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 22,
+                        ),
+                      ),
+                    ),
+                  )
+                : Text(
+                    initialLetter,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                    ),
+                  ),
           ),
           const SizedBox(width: 12),
 
@@ -240,25 +615,75 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
             ),
           ),
 
-          // Right Profile Button
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => context.push('/agency-profile'),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
+          // Right Notification Button
+          Builder(
+            builder: (context) {
+              final agencyProvider = context.watch<AgencyProvider>();
+              final unreadCount = agencyProvider.totalUnreadCount;
+
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                unreadCount > 0
+                                    ? 'You have $unreadCount unread client message${unreadCount > 1 ? "s" : ""}.'
+                                    : 'No new notifications right now.',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: const Color(0xFF1D0D45),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
                   borderRadius: BorderRadius.circular(12),
-                  color: const Color(0xFF1D0D45),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.12),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: const Color(0xFF1D0D45),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Icon(
+                          Icons.notifications_none_rounded,
+                          color: Color(0xFFA78BFA),
+                          size: 20,
+                        ),
+                        if (unreadCount > 0)
+                          Positioned(
+                            top: 7,
+                            right: 7,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF43F5E),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-                child: const Icon(Icons.person_outline_rounded, color: Color(0xFFA78BFA), size: 20),
-              ),
-            ),
+              );
+            },
           ),
           const SizedBox(width: 8),
 
@@ -290,7 +715,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   // ─── Floating Stat Summary Card ────────────────────────────────────────────
   Widget _buildFloatingStatCard(AgencyProvider provider, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1B1836) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -307,33 +732,56 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
           // Total Clients Stat
           _buildMetricColumn(
             icon: Icons.people_rounded,
-            iconBg: const Color(0xFFEEF2FF),
+            iconBg: isDark ? const Color(0xFF26214C) : const Color(0xFFEEF2FF),
             iconColor: const Color(0xFF6366F1),
             value: '${provider.users.length}',
-            label: 'Total Clients',
+            label: 'Total',
             isDark: isDark,
+            onTap: () {
+              provider.setFilter(AgencyUserFilterTab.all);
+            },
           ),
-          Container(width: 1, height: 36, color: Colors.grey.withValues(alpha: 0.15)),
+          Container(width: 1, height: 32, color: Colors.grey.withValues(alpha: 0.15)),
 
-          // Unread Stat
+          // Online Clients Stat
           _buildMetricColumn(
-            icon: Icons.description_rounded,
-            iconBg: const Color(0xFFFFF7ED),
-            iconColor: const Color(0xFFF59E0B),
-            value: '${provider.totalUnreadCount}',
-            label: 'Unread',
-            isDark: isDark,
-          ),
-          Container(width: 1, height: 36, color: Colors.grey.withValues(alpha: 0.15)),
-
-          // Online Stat
-          _buildMetricColumn(
-            icon: Icons.circle,
-            iconBg: const Color(0xFFECFDF5),
+            icon: Icons.wifi_rounded,
+            iconBg: isDark ? const Color(0xFF173827) : const Color(0xFFECFDF5),
             iconColor: const Color(0xFF10B981),
             value: '${provider.onlineUsersCount}',
             label: 'Online',
             isDark: isDark,
+            onTap: () {
+              provider.setFilter(AgencyUserFilterTab.online);
+            },
+          ),
+          Container(width: 1, height: 32, color: Colors.grey.withValues(alpha: 0.15)),
+
+          // Requests Stat (Total Database Recharge Requests)
+          _buildMetricColumn(
+            icon: Icons.receipt_long_rounded,
+            iconBg: isDark ? const Color(0xFF382A15) : const Color(0xFFFFF7ED),
+            iconColor: const Color(0xFFF59E0B),
+            value: '${provider.totalRechargeRequestsCount}',
+            label: 'Requests',
+            isDark: isDark,
+            onTap: () {
+              provider.setFilter(AgencyUserFilterTab.all);
+            },
+          ),
+          Container(width: 1, height: 32, color: Colors.grey.withValues(alpha: 0.15)),
+
+          // Pending Stat (Total Pending Database Recharge Requests)
+          _buildMetricColumn(
+            icon: Icons.hourglass_top_rounded,
+            iconBg: isDark ? const Color(0xFF3B1B29) : const Color(0xFFFFEEF0),
+            iconColor: const Color(0xFFF43F5E),
+            value: '${provider.pendingRechargeRequestsCount}',
+            label: 'Pending',
+            isDark: isDark,
+            onTap: () {
+              provider.setFilter(AgencyUserFilterTab.unread);
+            },
           ),
         ],
       ),
@@ -347,48 +795,62 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     required String value,
     required String label,
     required bool isDark,
+    VoidCallback? onTap,
   }) {
     return Expanded(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: icon == Icons.circle ? 12 : 18),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(10),
                 ),
+                child: Icon(icon, color: iconColor, size: icon == Icons.circle ? 12 : 18),
               ),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.5)
-                      : const Color(0xFF64748B),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.5)
+                            : const Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
+
+
 
   // ─── Search Field ───────────────────────────────────────────────────────────
   Widget _buildSearchAndFilterRow({
@@ -453,79 +915,146 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     );
   }
 
-  // ─── Filter Chips Row ──────────────────────────────────────────────────────
-  Widget _buildFilterRow({
-    required AgencyProvider agencyProvider,
-    required bool isDark,
-  }) {
-    final filters = [
-      (AgencyUserFilterTab.all, 'All Clients', agencyProvider.users.length, Icons.people_rounded),
-      (AgencyUserFilterTab.unread, 'Unread', agencyProvider.totalUnreadCount, Icons.mail_outline_rounded),
-      (AgencyUserFilterTab.online, 'Online', agencyProvider.onlineUsersCount, Icons.circle),
-    ];
-
-    return Row(
-      children: filters.map((f) {
-        final tab = f.$1;
-        final label = f.$2;
-        final count = f.$3;
-        final icon = f.$4;
-        final isSelected = agencyProvider.selectedFilter == tab;
-
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: InkWell(
-              onTap: () => agencyProvider.setFilter(tab),
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF0F092E)
-                      : (isDark ? const Color(0xFF1B1836) : Colors.white),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFF0F092E)
-                        : const Color(0xFFE2E0FF),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      icon,
-                      size: icon == Icons.circle ? 8 : 14,
-                      color: isSelected
-                          ? Colors.white
-                          : (icon == Icons.circle
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFF6366F1)),
+  // ─── TAB 1: DEDICATED CHAT DIRECTORY ──────────────────────────────────────
+  Widget _buildChatDirectoryTab(
+    AgencyProvider agencyProvider,
+    bool isDark,
+    Color surfaceColor,
+    Color surfaceHigh,
+    Color borderColor,
+  ) {
+    return Column(
+      children: [
+        // Dedicated Chat Directory Header Banner
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          decoration: const BoxDecoration(
+            color: Color(0xFF0C0720),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF26105E),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.6),
+                        width: 1.2,
+                      ),
                     ),
-                    const SizedBox(width: 5),
+                    child: const Icon(
+                      Icons.chat_bubble_rounded,
+                      color: Color(0xFFA78BFA),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Agency Client Chats',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        SizedBox(height: 1),
+                        Text(
+                          'Real-time messages and assigned client threads',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // Search & Filter Section
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Search Input
+                _buildSearchAndFilterRow(
+                  surfaceColor: surfaceColor,
+                  borderColor: borderColor,
+                  isDark: isDark,
+                  agencyProvider: agencyProvider,
+                ),
+                const SizedBox(height: 14),
+
+                // Directory Header Label
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     Text(
-                      '$label ($count)',
+                      'Assigned Client Threads',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    Text(
+                      'Showing ${agencyProvider.filteredUsers.length} clients',
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                        color: isSelected
-                            ? Colors.white
-                            : (isDark ? Colors.white.withValues(alpha: 0.7) : const Color(0xFF475569)),
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
                       ),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 10),
+
+                // Main User List Body
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () => agencyProvider.fetchUsers(isRefresh: true),
+                    color: const Color(0xFF6366F1),
+                    child: _buildUserListBody(
+                      agencyProvider,
+                      isDark,
+                      surfaceColor,
+                      surfaceHigh,
+                      borderColor,
+                      onUserTap: (user) {
+                        // Chat tab: tap user → open chat immediately with user email
+                        final targetChatId = user.email.isNotEmpty ? user.email : user.id;
+                        context.push('/chat/$targetChatId', extra: user);
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      }).toList(),
+        ),
+      ],
     );
   }
 
-  // ─── Floating Dark Pill Bottom Navigation Bar (Matching User Dashboard) ────
+  // ─── Floating Dark Pill Bottom Navigation Bar ─────────────────────────────
   Widget _buildAgencyBottomNavBar(bool isDark) {
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -552,53 +1081,22 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(
-                icon: Icons.home_rounded,
+                icon: Icons.dashboard_rounded,
                 label: 'Dashboard',
                 isSelected: _currentNavIndex == 0,
                 onTap: () => setState(() => _currentNavIndex = 0),
               ),
               _buildNavItem(
-                icon: Icons.people_outline_rounded,
-                label: 'Clients',
+                icon: Icons.chat_bubble_rounded,
+                label: 'Chat',
                 isSelected: _currentNavIndex == 1,
                 onTap: () => setState(() => _currentNavIndex = 1),
               ),
-
-              // Floating Center Circular Action Button (+)
-              Transform.translate(
-                offset: const Offset(0, -4),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF6366F1).withValues(alpha: 0.5),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.add_rounded, color: Colors.white, size: 26),
-                    onPressed: () {},
-                  ),
-                ),
-              ),
-
               _buildNavItem(
-                icon: Icons.chat_bubble_outline_rounded,
-                label: 'Messages',
+                icon: Icons.person_rounded,
+                label: 'Profile',
                 isSelected: _currentNavIndex == 2,
                 onTap: () => setState(() => _currentNavIndex = 2),
-              ),
-              _buildNavItem(
-                icon: Icons.person_outline_rounded,
-                label: 'Profile',
-                isSelected: _currentNavIndex == 3,
-                onTap: () => context.push('/agency-profile'),
               ),
             ],
           ),
@@ -653,12 +1151,14 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     bool isDark,
     Color surfaceColor,
     Color surfaceHigh,
-    Color borderColor,
-  ) {
+    Color borderColor, {
+    void Function(AgencyUserItem user)? onUserTap,
+  }) {
     if (provider.isLoading) {
       return ListView.builder(
-        itemCount: 6,
-        padding: const EdgeInsets.only(top: 4),
+        itemCount: 8,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(top: 4, bottom: 20),
         itemBuilder: (_, __) => const AgencyUserSkeletonTile(),
       );
     }
@@ -768,19 +1268,18 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     return ListView.builder(
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
-      itemCount: displayList.length + (provider.isLoadingMore ? 1 : 0),
+      itemCount: displayList.length + (provider.isLoadingMore ? 2 : 0),
       padding: const EdgeInsets.only(top: 4, bottom: 32),
       itemBuilder: (context, index) {
-        if (index == displayList.length) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: AppLoadingSpinner(size: 28),
-          );
+        if (index >= displayList.length) {
+          return const AgencyUserSkeletonTile();
         }
         final user = displayList[index];
         return AgencyUserTile(
           user: user,
-          onTap: () => context.push('/chat/${user.id}', extra: user),
+          onTap: () => onUserTap != null
+              ? onUserTap(user)
+              : _showClientDetailModal(context, user),
         );
       },
     );

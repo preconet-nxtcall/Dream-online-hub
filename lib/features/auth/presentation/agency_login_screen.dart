@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../../core/constants/test_credentials.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../theme/app_colors.dart';
 import '../../../utils/validators.dart';
@@ -37,6 +36,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
     final success = await authProvider.login(
       _emailController.text.trim(),
       _passwordController.text,
+      portalType: 'agency',
     );
 
     if (!mounted) return;
@@ -51,12 +51,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
     }
   }
 
-  void _populateCredential(TestUserCredential cred) {
-    setState(() {
-      _emailController.text = cred.email;
-      _passwordController.text = cred.password;
-    });
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +61,6 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
     final cardBgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final bodyBgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
     final textPrimaryColor = isDark ? Colors.white : const Color(0xFF0F172A);
-
-    final agencyCredentials = TestCredentials.users.where((c) => c.role == 'AGENCY' || c.role == 'ADMIN').toList();
 
     return Scaffold(
       backgroundColor: bodyBgColor,
@@ -372,66 +365,6 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-
-                    // Quick Agency Test Accounts
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardBgColor.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.flash_on_rounded, size: 16, color: accentColor),
-                              SizedBox(width: 6),
-                              Text(
-                                'Quick Agency Test Accounts',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: agencyCredentials.map((cred) {
-                              return ActionChip(
-                                avatar: Icon(
-                                  cred.role == 'ADMIN'
-                                      ? Icons.admin_panel_settings_rounded
-                                      : Icons.business_rounded,
-                                  size: 15,
-                                  color: accentColor,
-                                ),
-                                label: Text(
-                                  cred.label,
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: textPrimaryColor,
-                                  ),
-                                ),
-                                backgroundColor: accentColor.withValues(alpha: 0.12),
-                                side: BorderSide(color: accentColor.withValues(alpha: 0.35)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                onPressed: () => _populateCredential(cred),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
