@@ -7,6 +7,7 @@ class RechargeRecordModel {
   final String date;
   final String? imageUrl;
   final String? invoiceUrl;
+  final String? userName;
 
   const RechargeRecordModel({
     required this.id,
@@ -17,6 +18,7 @@ class RechargeRecordModel {
     required this.date,
     this.imageUrl,
     this.invoiceUrl,
+    this.userName,
   });
 
   factory RechargeRecordModel.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class RechargeRecordModel {
       date: (json['formatted_date'] ?? json['date'] ?? '08 Aug 2026').toString(),
       imageUrl: json['image_url']?.toString(),
       invoiceUrl: json['invoice_url']?.toString(),
+      userName: (json['user_name'] ?? json['userName'] ?? json['user'] ?? json['name'] ?? json['email'])?.toString(),
     );
   }
 
@@ -42,6 +45,7 @@ class RechargeRecordModel {
       'date': date,
       'image_url': imageUrl,
       'invoice_url': invoiceUrl,
+      'user_name': userName,
     };
   }
 }

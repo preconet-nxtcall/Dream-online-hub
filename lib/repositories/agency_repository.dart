@@ -137,13 +137,8 @@ class AgencyRepositoryImpl implements AgencyRepository {
         }).toList();
       }
 
-      // Try strict agency matching first
-      var filtered = extractAssignedUsers(rawList, strictAgencyCheck: true);
-
-      // If strict filter yields no users, fallback to showing all valid USER accounts
-      if (filtered.isEmpty && rawList.isNotEmpty) {
-        filtered = extractAssignedUsers(rawList, strictAgencyCheck: false);
-      }
+      // Filter only users assigned to this agency
+      final filtered = extractAssignedUsers(rawList, strictAgencyCheck: currentAgencyId.isNotEmpty);
 
       // Apply pagination
       final offset = (page - 1) * limit;

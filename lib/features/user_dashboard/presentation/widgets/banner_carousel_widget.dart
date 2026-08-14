@@ -7,6 +7,7 @@ class BannerItemData {
   final String title;
   final String badgeText;
   final IconData icon;
+  final String? networkImageUrl;
   final String? assetImagePath;
   final List<Color> gradientColors;
   final Color accentColor;
@@ -16,6 +17,7 @@ class BannerItemData {
     required this.title,
     required this.badgeText,
     required this.icon,
+    this.networkImageUrl,
     this.assetImagePath,
     required this.gradientColors,
     required this.accentColor,
@@ -23,7 +25,8 @@ class BannerItemData {
 }
 
 class BannerCarouselWidget extends StatefulWidget {
-  const BannerCarouselWidget({super.key});
+  final List<String>? networkBannerUrls;
+  const BannerCarouselWidget({super.key, this.networkBannerUrls});
 
   @override
   State<BannerCarouselWidget> createState() => _BannerCarouselWidgetState();
@@ -40,6 +43,7 @@ class _BannerCarouselWidgetState extends State<BannerCarouselWidget> {
       title: 'ONLINE',
       badgeText: 'INSTANT PAYOUTS',
       icon: Icons.casino_rounded,
+      networkImageUrl: 'https://telewiz.in/officemanage/uploads/photos/1784883728_Slider.png',
       assetImagePath: 'assets/images/satta_matka_banner.png',
       gradientColors: [
         Color(0xFF1F222A),
@@ -72,15 +76,28 @@ class _BannerCarouselWidgetState extends State<BannerCarouselWidget> {
 
   void _startAutoScroll() {
     _autoScrollTimer?.cancel();
-    _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (!mounted || !_pageController.hasClients) return;
-      final nextIndex = (_currentIndex + 1) % _bannerItems.length;
+      final totalCount = (widget.networkBannerUrls != null && widget.networkBannerUrls!.isNotEmpty)
+          ? (widget.networkBannerUrls!.length > 4 ? 4 : widget.networkBannerUrls!.length)
+          : _bannerItems.length;
+      if (totalCount <= 1) return;
+      final nextIndex = (_currentIndex + 1) % totalCount;
       _pageController.animateToPage(
         nextIndex,
         duration: const Duration(milliseconds: 600),
         curve: Curves.easeInOut,
       );
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant BannerCarouselWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.networkBannerUrls != widget.networkBannerUrls) {
+      _currentIndex = 0;
+      _startAutoScroll();
+    }
   }
 
   @override
@@ -92,10 +109,14 @@ class _BannerCarouselWidgetState extends State<BannerCarouselWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final hasCustomBanners = widget.networkBannerUrls != null && widget.networkBannerUrls!.isNotEmpty;
+    final displayBanners = hasCustomBanners ? widget.networkBannerUrls!.take(4).toList() : null;
+    final bannerCount = displayBanners != null ? displayBanners.length : _bannerItems.length;
+
     return Column(
       children: [
         SizedBox(
-          height: 145,
+          height: 155,
           child: PageView.builder(
             controller: _pageController,
             onPageChanged: (index) {
@@ -103,8 +124,11 @@ class _BannerCarouselWidgetState extends State<BannerCarouselWidget> {
                 _currentIndex = index;
               });
             },
-            itemCount: _bannerItems.length,
+            itemCount: bannerCount,
             itemBuilder: (context, index) {
+              if (displayBanners != null) {
+                return _buildNetworkImageBanner(displayBanners[index]);
+              }
               final banner = _bannerItems[index];
               return _buildBannerCard(banner);
             },
@@ -115,16 +139,17 @@ class _BannerCarouselWidgetState extends State<BannerCarouselWidget> {
         // Indicator Dots
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_bannerItems.length, (index) {
+          children: List.generate(bannerCount, (index) {
             final isSelected = index == _currentIndex;
+            final activeColor = hasCustomBanners ? const Color(0xFFFFD700) : _bannerItems[index].accentColor;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               margin: const EdgeInsets.symmetric(horizontal: 4),
               height: 6,
-              width: isSelected ? 20 : 6,
+              width: isSelected ? 22 : 6,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? _bannerItems[index].accentColor
+                    ? activeColor
                     : Colors.grey.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(3),
               ),
@@ -136,7 +161,53 @@ class _BannerCarouselWidgetState extends State<BannerCarouselWidget> {
     );
   }
 
+  Widget _buildNetworkImageBanner(String imageUrl) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFFFD700).withValues(alpha: 0.35),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildBannerCard(_bannerItems.first);
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: const Color(0xFF14161C),
+            alignment: Alignment.center,
+            child: const CircularProgressIndicator(
+              color: Color(0xFFFFD700),
+              strokeWidth: 2,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildBannerCard(BannerItemData banner) {
+    if (banner.networkImageUrl != null && banner.networkImageUrl!.isNotEmpty) {
+      return _buildNetworkImageBanner(banner.networkImageUrl!);
+    }
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 2),

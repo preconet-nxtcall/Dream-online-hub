@@ -13,11 +13,13 @@ import '../../../../widgets/skeleton_loader.dart';
 class RechargeRecordsWidget extends StatefulWidget {
   final List<RechargeRecordModel>? initialRecords;
   final dynamic userId;
+  final bool isCompactSingleLine;
 
   const RechargeRecordsWidget({
     super.key,
     this.initialRecords,
     this.userId,
+    this.isCompactSingleLine = false,
   });
 
   @override
@@ -169,6 +171,13 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           final rawImageUrl = item['image_url']?.toString();
           final rawInvoiceUrl = item['invoice_url']?.toString();
 
+          final rawUserName = item['user_name']?.toString() ??
+              item['userName']?.toString() ??
+              item['user']?.toString() ??
+              item['name']?.toString() ??
+              item['email']?.toString() ??
+              (item['user_id'] != null ? 'User ${item['user_id']}' : null);
+
           fetched.add(
             RechargeRecordModel(
               id: idStr.startsWith('#') ? idStr : '#$idStr',
@@ -179,6 +188,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               date: formattedDate,
               imageUrl: rawImageUrl,
               invoiceUrl: rawInvoiceUrl,
+              userName: rawUserName,
             ),
           );
         }
@@ -219,6 +229,12 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           final rawDetail = item['deatil']?.toString() ?? item['detail']?.toString() ?? item['description']?.toString() ?? 'Withdrawal Request';
           final formattedDate = item['formatted_date']?.toString() ??
               _formatDate(item['date_ts'] ?? item['created_at'], item['date']);
+          final rawWUserName = item['user_name']?.toString() ??
+              item['userName']?.toString() ??
+              item['user']?.toString() ??
+              item['name']?.toString() ??
+              item['email']?.toString() ??
+              (item['user_id'] != null ? 'User ${item['user_id']}' : null);
 
           fetched.add(
             RechargeRecordModel(
@@ -229,6 +245,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               status: rawStatus,
               date: formattedDate,
               imageUrl: item['image_url']?.toString() ?? item['image']?.toString(),
+              userName: rawWUserName,
             ),
           );
         }
@@ -413,352 +430,358 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
     final displayedRecords = (startIndex < totalRecords) ? filtered.sublist(startIndex, endIndex) : <RechargeRecordModel>[];
 
     return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF13111C) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFF97316).withValues(alpha: 0.4),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: widget.isCompactSingleLine
+          ? null
+          : BoxDecoration(
+              color: isDark ? const Color(0xFF13111C) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFFF97316).withValues(alpha: 0.4),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. Header: Icon, Dynamic Title ("Recharge Records" / "Withdrawal Records") & Sync Button
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 16, 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _selectedRecordType == 'RECHARGE'
-                          ? const [Color(0xFFFF6B00), Color(0xFFF59E0B)]
-                          : const [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_selectedRecordType == 'RECHARGE'
-                                ? const Color(0xFFF97316)
-                                : const Color(0xFF8B5CF6))
-                            .withValues(alpha: 0.35),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    _selectedRecordType == 'RECHARGE'
-                        ? Icons.flash_on_rounded
-                        : Icons.account_balance_wallet_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _selectedRecordType == 'RECHARGE' ? 'Recharge Records' : 'Withdrawal Records',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: _isRefreshing
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFFF97316),
-                          ),
-                        )
-                      : const Icon(
-                          Icons.refresh_rounded,
-                          color: Color(0xFFF97316),
-                          size: 22,
-                        ),
-                  tooltip: 'Sync Database Records',
-                  onPressed: _isRefreshing ? null : refreshRecords,
-                ),
-              ],
-            ),
-          ),
-
-          // 2. Record Type Chips Row (Recharge vs Withdraw)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildTypePill(
-                    label: 'Recharge',
-                    icon: Icons.flash_on_rounded,
-                    typeValue: 'RECHARGE',
-                    isSelected: _selectedRecordType == 'RECHARGE',
-                    activeGradient: const LinearGradient(
-                      colors: [Color(0xFFFF6B00), Color(0xFFF59E0B)],
-                    ),
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildTypePill(
-                    label: 'Withdraw',
-                    icon: Icons.account_balance_wallet_rounded,
-                    typeValue: 'WITHDRAW',
-                    isSelected: _selectedRecordType == 'WITHDRAW',
-                    activeGradient: const LinearGradient(
-                      colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-                    ),
-                    isDark: isDark,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // 2. Status Tabs Row: All, Pending, Successful & Rejected
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                // All Tab Pill
-                _buildStatusPill(
-                  label: 'All',
-                  icon: Icons.grid_view_rounded,
-                  statusValue: 'all',
-                  isSelected: _selectedStatusFilter == 'all',
-                  activeBg: const Color(0xFF232530),
-                  activeFg: const Color(0xFF38BDF8),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-
-                // Pending Tab Pill
-                _buildStatusPill(
-                  label: 'Pending',
-                  icon: Icons.access_time_rounded,
-                  statusValue: 'pending',
-                  isSelected: _selectedStatusFilter == 'pending',
-                  activeBg: const Color(0xFF232530),
-                  activeFg: const Color(0xFFFFB800),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-
-                // Successful Tab Pill
-                _buildStatusPill(
-                  label: 'Successful',
-                  icon: Icons.check_circle_outline_rounded,
-                  statusValue: 'successful',
-                  isSelected: _selectedStatusFilter == 'successful',
-                  activeBg: const Color(0xFF232530),
-                  activeFg: const Color(0xFF10B981),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-
-                // Rejected Tab Pill
-                _buildStatusPill(
-                  label: 'Rejected',
-                  icon: Icons.cancel_outlined,
-                  statusValue: 'rejected',
-                  isSelected: _selectedStatusFilter == 'rejected',
-                  activeBg: const Color(0xFF232530),
-                  activeFg: const Color(0xFFEF4444),
-                  isDark: isDark,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          const Divider(height: 1, thickness: 0.8),
-          const SizedBox(height: 16),
-
-          // 3. Search & Showing Dropdown Controls
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                // Search Input Field
-                Expanded(
-                  child: Container(
-                    height: 42,
+          if (!widget.isCompactSingleLine) ...[
+            // 1. Header: Icon, Dynamic Title ("Recharge Records" / "Withdrawal Records") & Sync Button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 16, 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF8FAFC),
+                      gradient: LinearGradient(
+                        colors: _selectedRecordType == 'RECHARGE'
+                            ? const [Color(0xFFFF6B00), Color(0xFFF59E0B)]
+                            : const [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
-                        width: 1,
-                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_selectedRecordType == 'RECHARGE'
+                                  ? const Color(0xFFF97316)
+                                  : const Color(0xFF8B5CF6))
+                              .withValues(alpha: 0.35),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (val) {
-                        setState(() {
-                          _searchQuery = val;
-                          _currentPage = 1;
-                        });
-                      },
+                    child: Icon(
+                      _selectedRecordType == 'RECHARGE'
+                          ? Icons.flash_on_rounded
+                          : Icons.account_balance_wallet_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _selectedRecordType == 'RECHARGE' ? 'Recharge Records' : 'Withdrawal Records',
                       style: TextStyle(
-                        fontSize: 13.5,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Search...',
-                        hintStyle: TextStyle(
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                          fontSize: 13.5,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search_rounded,
-                          size: 18,
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
+                  IconButton(
+                    icon: _isRefreshing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFFF97316),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.refresh_rounded,
+                            color: Color(0xFFF97316),
+                            size: 22,
+                          ),
+                    tooltip: 'Sync Database Records',
+                    onPressed: _isRefreshing ? null : refreshRecords,
+                  ),
+                ],
+              ),
+            ),
 
-                // Showing Dropdown
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Showing',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
+            // 2. Record Type Chips Row (Recharge vs Withdraw)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildTypePill(
+                      label: 'Recharge',
+                      icon: Icons.flash_on_rounded,
+                      typeValue: 'RECHARGE',
+                      isSelected: _selectedRecordType == 'RECHARGE',
+                      activeGradient: const LinearGradient(
+                        colors: [Color(0xFFFF6B00), Color(0xFFF59E0B)],
                       ),
+                      isDark: isDark,
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildTypePill(
+                      label: 'Withdraw',
+                      icon: Icons.account_balance_wallet_rounded,
+                      typeValue: 'WITHDRAW',
+                      isSelected: _selectedRecordType == 'WITHDRAW',
+                      activeGradient: const LinearGradient(
+                        colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+                      ),
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 2. Status Tabs Row: All, Pending, Successful & Rejected
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  // All Tab Pill
+                  _buildStatusPill(
+                    label: 'All',
+                    icon: Icons.grid_view_rounded,
+                    statusValue: 'all',
+                    isSelected: _selectedStatusFilter == 'all',
+                    activeBg: const Color(0xFF232530),
+                    activeFg: const Color(0xFF38BDF8),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Pending Tab Pill
+                  _buildStatusPill(
+                    label: 'Pending',
+                    icon: Icons.access_time_rounded,
+                    statusValue: 'pending',
+                    isSelected: _selectedStatusFilter == 'pending',
+                    activeBg: const Color(0xFF232530),
+                    activeFg: const Color(0xFFFFB800),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Successful Tab Pill
+                  _buildStatusPill(
+                    label: 'Successful',
+                    icon: Icons.check_circle_outline_rounded,
+                    statusValue: 'successful',
+                    isSelected: _selectedStatusFilter == 'successful',
+                    activeBg: const Color(0xFF232530),
+                    activeFg: const Color(0xFF10B981),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Rejected Tab Pill
+                  _buildStatusPill(
+                    label: 'Rejected',
+                    icon: Icons.cancel_outlined,
+                    statusValue: 'rejected',
+                    isSelected: _selectedStatusFilter == 'rejected',
+                    activeBg: const Color(0xFF232530),
+                    activeFg: const Color(0xFFEF4444),
+                    isDark: isDark,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          if (!widget.isCompactSingleLine) ...[
+            const Divider(height: 1, thickness: 0.8),
+            const SizedBox(height: 16),
+
+            // 3. Search & Showing Dropdown Controls
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  // Search Input Field
+                  Expanded(
+                    child: Container(
+                      height: 42,
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
+                          color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
                           width: 1,
                         ),
                       ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
-                          value: _pageSize,
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-                          style: TextStyle(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (val) {
+                          setState(() {
+                            _searchQuery = val;
+                            _currentPage = 1;
+                          });
+                        },
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Search...',
+                          hintStyle: TextStyle(
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                             fontSize: 13.5,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
                           ),
-                          dropdownColor: isDark ? const Color(0xFF1E1B2E) : Colors.white,
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                _pageSize = val;
-                                _currentPage = 1;
-                              });
-                            }
-                          },
-                          items: [
-                            for (final size in [5, 10, 15, 25, 50])
-                              DropdownMenuItem<int>(
-                                value: size,
-                                child: Text('$size'),
-                              ),
-                          ],
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            size: 18,
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+                  ),
+                  const SizedBox(width: 16),
 
-          // 4. Table Header Row
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A1828) : const Color(0xFFFAF7F2),
-              border: Border.symmetric(
-                horizontal: BorderSide(
-                  color: isDark ? const Color(0xFF2D293E) : const Color(0xFFF1EFE9),
-                  width: 1,
-                ),
+                  // Showing Dropdown
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Showing',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
+                            width: 1,
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _pageSize,
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                            dropdownColor: isDark ? const Color(0xFF1E1B2E) : Colors.white,
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _pageSize = val;
+                                  _currentPage = 1;
+                                });
+                              }
+                            },
+                            items: [
+                              for (final size in [5, 10, 15, 25, 50])
+                                DropdownMenuItem<int>(
+                                  value: size,
+                                  child: Text('$size'),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    '# / BOOK NAME',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                      letterSpacing: 0.5,
-                    ),
+            const SizedBox(height: 16),
+
+            // 4. Table Header Row
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A1828) : const Color(0xFFFAF7F2),
+                border: Border.symmetric(
+                  horizontal: BorderSide(
+                    color: isDark ? const Color(0xFF2D293E) : const Color(0xFFF1EFE9),
+                    width: 1,
                   ),
                 ),
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    'TRANSACTION DETAILS',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                      letterSpacing: 0.5,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      '# / BOOK NAME',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    'STATUS & DATE',
-                    textAlign: TextAlign.end,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                      letterSpacing: 0.5,
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      'TRANSACTION DETAILS',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      'STATUS & DATE',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
 
           // 5. Shimmer Skeleton Loading / Empty State / Table Rows
           if (_isLoadingRecords)
@@ -789,6 +812,103 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               ),
               itemBuilder: (ctx, index) {
                 final item = displayedRecords[index];
+
+                if (widget.isCompactSingleLine) {
+                  final statusLower = item.status.toLowerCase();
+                  final isDone = statusLower.contains('done') ||
+                      statusLower.contains('successful') ||
+                      statusLower.contains('approved');
+                  final isReject = statusLower.contains('reject') ||
+                      statusLower.contains('failed') ||
+                      statusLower.contains('declined');
+
+                  String displayLabel = 'Pending';
+                  Color badgeFg = const Color(0xFFF59E0B);
+                  if (isDone) {
+                    displayLabel = 'Approved';
+                    badgeFg = const Color(0xFF10B981);
+                  } else if (isReject) {
+                    displayLabel = 'Rejected';
+                    badgeFg = const Color(0xFFEF4444);
+                  }
+
+                  final clientName = item.userName?.isNotEmpty == true
+                      ? item.userName!
+                      : 'User ${index + 1}';
+                  final amountStr = '₹${item.amount.toStringAsFixed(0)}';
+
+                  String notificationText = '';
+                  if (_selectedRecordType == 'RECHARGE') {
+                    if (isDone) {
+                      notificationText = '$clientName recharge $amountStr approved on ${item.bookName}';
+                    } else if (isReject) {
+                      notificationText = '$clientName recharge $amountStr rejected on ${item.bookName}';
+                    } else {
+                      notificationText = '$clientName requested $amountStr recharge on ${item.bookName}';
+                    }
+                  } else {
+                    if (isDone) {
+                      notificationText = '$clientName withdrawal $amountStr approved on ${item.bookName}';
+                    } else if (isReject) {
+                      notificationText = '$clientName withdrawal $amountStr rejected on ${item.bookName}';
+                    } else {
+                      notificationText = '$clientName requested $amountStr withdrawal on ${item.bookName}';
+                    }
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF13102B) : const Color(0xFFF8F7FF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2E2756) : const Color(0xFFECEAFE),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _selectedRecordType == 'RECHARGE' ? Icons.flash_on_rounded : Icons.account_balance_wallet_rounded,
+                          color: badgeFg,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        // Single Line Notification Format
+                        Expanded(
+                          child: Text(
+                            notificationText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Single Line Status Pill Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: badgeFg.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            displayLabel,
+                            style: TextStyle(
+                              color: badgeFg,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   child: Row(

@@ -16,6 +16,9 @@ class GameProvider extends ChangeNotifier {
       : _gameRepository = gameRepository ?? GameRepositoryImpl();
 
   List<GameCardModel> get games => _games;
+  List<String> get bannerUrls => (_gameRepository is GameRepositoryImpl)
+      ? (_gameRepository as GameRepositoryImpl).bannerUrls
+      : const [];
   bool get isLoading => _isLoading;
   bool get isPlayingGame => _isPlayingGame;
   bool get isLaunchingGame => _isLaunchingGame;

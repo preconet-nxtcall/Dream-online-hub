@@ -159,7 +159,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final isHigherAdmin = chatProvider.isHigherAuthorityActive;
     final isClientUser = widget.userItem != null;
 
-    final Map<String, dynamic>? agencyData = null;
+    const Map<String, dynamic>? agencyData = null;
     final partnerName = widget.userItem?.name ??
         (agencyData?['name'] ?? 'Agency Support');
     final activeTitle =

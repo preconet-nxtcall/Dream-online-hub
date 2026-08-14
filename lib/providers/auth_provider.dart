@@ -176,6 +176,34 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Perform password update
+  Future<bool> updatePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final success = await _authRepository.updatePassword(
+        oldPassword: oldPassword,
+        newPassword: newPassword,
+        confirmPassword: confirmPassword,
+      );
+      notifyListeners();
+      return success;
+    } on ServerException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to update password: ${e.toString()}';
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Perform user deletion
   Future<bool> deleteUserAccount() async {
     if (_currentUser == null) return false;

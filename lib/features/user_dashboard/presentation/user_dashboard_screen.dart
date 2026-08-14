@@ -91,9 +91,12 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         final cat = data['categorized'] as Map;
         double pendingSum = 0.0;
         double successSum = 0.0;
+        int pendingCount = 0;
 
         if (cat['pending'] is List) {
-          for (final item in (cat['pending'] as List)) {
+          final pendingList = cat['pending'] as List;
+          pendingCount = pendingList.length;
+          for (final item in pendingList) {
             pendingSum += double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
           }
         }
@@ -106,6 +109,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         setState(() {
           _pendingAmount = pendingSum;
           _successfulAmount = successSum;
+          if (pendingCount > _rechargeNotificationCount) {
+            _hasSeenNotifications = false;
+          }
+          _rechargeNotificationCount = pendingCount;
         });
         return;
       }
@@ -119,6 +126,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       if (rawList != null) {
         double pendingSum = 0.0;
         double successSum = 0.0;
+        int pendingCount = 0;
 
         for (final item in rawList) {
           final amt = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
@@ -128,12 +136,17 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             successSum += amt;
           } else if (status.contains('pending')) {
             pendingSum += amt;
+            pendingCount++;
           }
         }
 
         setState(() {
           _pendingAmount = pendingSum;
           _successfulAmount = successSum;
+          if (pendingCount > _rechargeNotificationCount) {
+            _hasSeenNotifications = false;
+          }
+          _rechargeNotificationCount = pendingCount;
         });
       } else {
         _calculateFromLocalStorage();
@@ -150,6 +163,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     double pendingSum = 0.0;
     double successSum = 0.0;
 
+    int pendingCount = 0;
     for (final item in localRecharges) {
       double amt = 0.0;
       String status = '';
@@ -165,6 +179,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         successSum += amt;
       } else if (status.contains('pending')) {
         pendingSum += amt;
+        pendingCount++;
       }
     }
 
@@ -172,8 +187,147 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       setState(() {
         _pendingAmount = pendingSum;
         _successfulAmount = successSum;
+        _rechargeNotificationCount = pendingCount > 0 ? pendingCount : localRecharges.length;
       });
     }
+  }
+
+  int _rechargeNotificationCount = 0;
+  bool _hasSeenNotifications = false;
+
+  void _showUserRechargeNotificationsModal(BuildContext context, bool isDark) {
+    _fetchRechargeSummary();
+    if (mounted) {
+      setState(() {
+        _hasSeenNotifications = true;
+      });
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.70,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0A091A) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.4),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 14, 16, 14),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark ? const Color(0xFF2E2756) : const Color(0xFFECEAFE),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: Color(0xFFFFD700),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Recharge Status',
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w900,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  if (_rechargeNotificationCount > 0) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.4)),
+                                      ),
+                                      child: Text(
+                                        _rechargeNotificationCount > 99
+                                            ? '99+ Total'
+                                            : '$_rechargeNotificationCount Total',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF7C3AED),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              Text(
+                                'Order Game Name & Recharge Status',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          color: isDark ? Colors.white60 : Colors.grey[600],
+                          onPressed: () => Navigator.pop(modalContext),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Single Line Notifications List
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _UserRechargeSingleLineNotificationsWidget(isDark: isDark),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _onPlayGame(GameCardModel game) async {
@@ -328,49 +482,68 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                   ),
                   const Spacer(),
 
-                  // Notification Button
+                  // Notification Button (Shows Only Recharge Status Notifications for User)
                   Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Row(
-                              children: [
-                                Icon(Icons.notifications_active_rounded, color: Color(0xFFFFD700)),
-                                SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    'No new player notifications.',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
-                                  ),
+                      onTap: () => _showUserRechargeNotificationsModal(context, isDark),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              color: const Color(0xFF0E0921),
+                              border: Border.all(
+                                color: (_rechargeNotificationCount > 0 && !_hasSeenNotifications) ? const Color(0xFFF59E0B) : const Color(0xFF3C2373),
+                                width: 1.2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (_rechargeNotificationCount > 0 && !_hasSeenNotifications)
+                                      ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
+                                      : const Color(0xFF6B39CF).withValues(alpha: 0.2),
+                                  blurRadius: 6,
                                 ),
                               ],
                             ),
-                            backgroundColor: Color(0xFF0E0921),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          color: const Color(0xFF0E0921),
-                          border: Border.all(
-                            color: const Color(0xFF3C2373),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF6B39CF).withValues(alpha: 0.2),
-                              blurRadius: 6,
+                            child: Icon(
+                              (_rechargeNotificationCount > 0 && !_hasSeenNotifications)
+                                  ? Icons.notifications_active_rounded
+                                  : Icons.notifications_none_rounded,
+                              color: (_rechargeNotificationCount > 0 && !_hasSeenNotifications)
+                                  ? const Color(0xFFFFD700)
+                                  : const Color(0xFFA78BFA),
+                              size: 20,
                             ),
-                          ],
-                        ),
-                        child: const Icon(Icons.notifications_none_rounded, color: Color(0xFFA78BFA), size: 20),
+                          ),
+                          if (_rechargeNotificationCount > 0 && !_hasSeenNotifications)
+                            Positioned(
+                              top: -4,
+                              right: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEF4444),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF04020A), width: 1.5),
+                                ),
+                                child: Text(
+                                  _rechargeNotificationCount > 99
+                                      ? '99+'
+                                      : '$_rechargeNotificationCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -550,11 +723,34 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       );
     }
 
-    return ListView(
-      padding: AppSpacing.pAllMd,
-      children: [
-        // Hero Banner Carousel
-        const BannerCarouselWidget(),
+    return RefreshIndicator(
+      color: const Color(0xFFFFD700),
+      backgroundColor: const Color(0xFF1F222A),
+      onRefresh: () => provider.fetchGames(),
+      child: ListView(
+        padding: AppSpacing.pAllMd,
+        children: [
+        // Hero Banner Carousel (Randomly displays max 4 images on load/refresh)
+        Builder(
+          builder: (context) {
+            final gameImages = provider.games
+                .where((g) => g.imageUrl != null && g.imageUrl!.isNotEmpty)
+                .map((g) => g.imageUrl!)
+                .toList();
+
+            final allBanners = <String>{
+              ...provider.bannerUrls,
+              ...gameImages,
+            }.toList();
+
+            allBanners.shuffle();
+            final random4Banners = allBanners.take(4).toList();
+
+            return BannerCarouselWidget(
+              networkBannerUrls: random4Banners.isNotEmpty ? random4Banners : null,
+            );
+          },
+        ),
 
         // Dashboard Metric Summary Cards Section (Active & Pending Subscriptions / Recharges)
         QuickCategoryWidget(
@@ -665,6 +861,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             ),
           ),
       ],
+      ),
     );
   }
 
@@ -951,4 +1148,351 @@ class _PlayGameModalState extends State<_PlayGameModal> {
     );
   }
 }
+
+class _UserRechargeSingleLineNotificationsWidget extends StatefulWidget {
+  final bool isDark;
+  const _UserRechargeSingleLineNotificationsWidget({required this.isDark});
+
+  @override
+  State<_UserRechargeSingleLineNotificationsWidget> createState() => _UserRechargeSingleLineNotificationsWidgetState();
+}
+
+class _UserRechargeSingleLineNotificationsWidgetState extends State<_UserRechargeSingleLineNotificationsWidget> {
+  bool _isLoading = true;
+  List<RechargeRecordModel> _records = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
+
+  Future<void> _loadRecords() async {
+    try {
+      final apiClient = ApiClient();
+      int userId = 22;
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
+        final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          userId = int.tryParse(digitsOnly) ?? 22;
+        }
+      }
+      if (userId == 22) {
+        final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+        if (storedUserId != null && storedUserId.isNotEmpty) {
+          final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
+          if (digitsOnly.isNotEmpty) {
+            userId = int.tryParse(digitsOnly) ?? 22;
+          }
+        }
+      }
+
+      final response = await apiClient.post(
+        ApiEndpoints.getQrCode,
+        options: Options(validateStatus: (status) => status != null && status < 500),
+        data: {
+          'action': 'recharge_records',
+          'user_id': userId,
+        },
+      );
+
+      if (!mounted) return;
+      final List<RechargeRecordModel> fetched = [];
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['success'] == true) {
+        List rawList = [];
+        if (data['data'] is List && (data['data'] as List).isNotEmpty) {
+          rawList.addAll(data['data'] as List);
+        } else if (data['recharges'] is List && (data['recharges'] as List).isNotEmpty) {
+          rawList.addAll(data['recharges'] as List);
+        } else if (data['categorized'] is Map) {
+          final cat = data['categorized'] as Map;
+          if (cat['pending'] is List) rawList.addAll(cat['pending'] as List);
+          if (cat['successful'] is List) rawList.addAll(cat['successful'] as List);
+          if (cat['rejected'] is List) rawList.addAll(cat['rejected'] as List);
+        }
+
+        for (final item in rawList) {
+          final idVal = item['recharge_id'] ?? item['id'] ?? '';
+          final bookIdVal = item['book_id']?.toString();
+          final rawBookName = item['book_name']?.toString() ?? item['book']?.toString();
+
+          String resolvedBookName = 'Lucky Vault';
+          if (rawBookName != null && rawBookName.isNotEmpty) {
+            resolvedBookName = rawBookName;
+          } else if (bookIdVal != null) {
+            switch (bookIdVal) {
+              case '324': resolvedBookName = 'Lucky Vault'; break;
+              case '323': resolvedBookName = 'Dice Verse'; break;
+              case '322': resolvedBookName = 'Jackpot Spin'; break;
+              case '321': resolvedBookName = 'Gold Rush Pro'; break;
+              case '310': resolvedBookName = 'Infinity Fortune'; break;
+              case '309': resolvedBookName = 'Crown Riches'; break;
+            }
+          }
+
+          final rawAmount = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
+          final rawStatus = item['stage_status']?.toString() ?? item['status']?.toString() ?? 'PENDING';
+
+          fetched.add(
+            RechargeRecordModel(
+              id: idVal.toString(),
+              bookName: resolvedBookName,
+              transactionDetails: '₹${rawAmount.toStringAsFixed(0)}',
+              amount: rawAmount,
+              status: rawStatus,
+              date: item['date']?.toString() ?? 'Recent',
+            ),
+          );
+        }
+      }
+
+      if (fetched.isEmpty) {
+        final local = LocalStorageRepositoryImpl().getSubmittedRecharges();
+        for (final item in local) {
+          if (item is RechargeRecordModel) {
+            fetched.add(item);
+          } else if (item is Map) {
+            fetched.add(
+              RechargeRecordModel(
+                id: (item['id'] ?? '').toString(),
+                bookName: (item['bookName'] ?? 'Lucky Vault').toString(),
+                transactionDetails: '₹${item['amount']}',
+                amount: double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0,
+                status: (item['status'] ?? 'PENDING').toString(),
+                date: (item['date'] ?? 'Recent').toString(),
+              ),
+            );
+          }
+        }
+      }
+
+      setState(() {
+        _records = fetched;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  int _visibleCount = 20;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return _NotificationSkeletonList(isDark: widget.isDark);
+    }
+
+    if (_records.isEmpty) {
+      return Center(
+        child: Text(
+          'No recharge status notifications.',
+          style: TextStyle(
+            fontSize: 13,
+            color: widget.isDark ? Colors.white60 : Colors.black54,
+          ),
+        ),
+      );
+    }
+
+    final displayRecords = _records.take(_visibleCount).toList();
+    final remainingCount = _records.length - displayRecords.length;
+
+    return ListView.builder(
+      itemCount: displayRecords.length + (remainingCount > 0 ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == displayRecords.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _visibleCount += 20;
+                  });
+                },
+                icon: const Icon(Icons.add_circle_outline_rounded, size: 16, color: Color(0xFFFFD700)),
+                label: Text(
+                  'Load More Notifications ($remainingCount remaining)',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFFD700),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFFFD700)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final record = displayRecords[index];
+        final st = record.status.toLowerCase();
+
+        Color statusColor = const Color(0xFFF59E0B);
+        String statusText = 'Pending';
+
+        if (st.contains('done') || st.contains('successful') || st.contains('approved')) {
+          statusColor = const Color(0xFF10B981);
+          statusText = 'Approved';
+        } else if (st.contains('reject') || st.contains('fail') || st.contains('cancel')) {
+          statusColor = const Color(0xFFEF4444);
+          statusText = 'Rejected';
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: widget.isDark ? const Color(0xFF13102B) : const Color(0xFFF8F7FF),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: widget.isDark ? const Color(0xFF2E2756) : const Color(0xFFECEAFE),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.sports_esports_rounded, color: Color(0xFFFFD700), size: 18),
+              const SizedBox(width: 10),
+              // Single Line Format: Game Name • ₹Amount
+              Expanded(
+                child: Text(
+                  '${record.bookName} • ₹${record.amount.toStringAsFixed(0)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: widget.isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Single Line Status Pill
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _NotificationSkeletonList extends StatefulWidget {
+  final bool isDark;
+  const _NotificationSkeletonList({required this.isDark});
+
+  @override
+  State<_NotificationSkeletonList> createState() => _NotificationSkeletonListState();
+}
+
+class _NotificationSkeletonListState extends State<_NotificationSkeletonList>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _opacityAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..repeat(reverse: true);
+    _opacityAnim = Tween<double>(begin: 0.25, end: 0.75).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = widget.isDark ? const Color(0xFF231E40) : const Color(0xFFEBE9FE);
+    final borderColor = widget.isDark ? const Color(0xFF2E2756) : const Color(0xFFDDD6FE);
+
+    return AnimatedBuilder(
+      animation: _opacityAnim,
+      builder: (context, child) {
+        return ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          itemCount: 5,
+          itemBuilder: (context, index) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: widget.isDark ? const Color(0xFF13102B) : const Color(0xFFF8F7FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  // Icon Circle Skeleton
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: baseColor.withValues(alpha: _opacityAnim.value),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Title Line Skeleton
+                  Expanded(
+                    child: Container(
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: baseColor.withValues(alpha: _opacityAnim.value),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  // Status Pill Skeleton
+                  Container(
+                    width: 68,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: baseColor.withValues(alpha: _opacityAnim.value),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 

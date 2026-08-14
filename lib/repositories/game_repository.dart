@@ -19,9 +19,14 @@ abstract class GameRepository {
 
 class GameRepositoryImpl implements GameRepository {
   final ApiClient _apiClient;
+  List<String> _bannerUrls = [
+    'https://telewiz.in/officemanage/uploads/photos/1784883728_Slider.png',
+  ];
 
   GameRepositoryImpl({ApiClient? apiClient})
       : _apiClient = apiClient ?? ApiClient();
+
+  List<String> get bannerUrls => _bannerUrls;
 
   @override
   Future<Map<String, dynamic>> launchGame(String gameId) async {
@@ -117,6 +122,35 @@ class GameRepositoryImpl implements GameRepository {
         final data = response.data;
         final List<GameCardModel> dynamicGames = [];
         final Set<String> processedBookIds = {};
+
+        // Extract backend slider banner images if present
+        final List<String> extractedBanners = [];
+        for (final key in ['banners', 'slider', 'sliders', 'photos', 'banner_images', 'images']) {
+          if (data[key] is List) {
+            for (final item in (data[key] as List)) {
+              String? url;
+              if (item is String) url = item;
+              if (item is Map) {
+                url = item['url']?.toString() ??
+                    item['image']?.toString() ??
+                    item['image_url']?.toString() ??
+                    item['photo']?.toString() ??
+                    item['src']?.toString();
+              }
+              if (url != null && url.isNotEmpty) {
+                if (!url.startsWith('http')) {
+                  url = url.startsWith('/')
+                      ? 'https://telewiz.in/officemanage$url'
+                      : 'https://telewiz.in/officemanage/$url';
+                }
+                extractedBanners.add(url);
+              }
+            }
+          }
+        }
+        if (extractedBanners.isNotEmpty) {
+          _bannerUrls = extractedBanners;
+        }
 
         // 1. Parse subscribed_books array from server
         if (data['subscribed_books'] is List) {
@@ -240,9 +274,25 @@ class GameRepositoryImpl implements GameRepository {
     final rawId = item['id']?.toString() ?? item['book_id']?.toString() ?? '';
     final name = item['book_name']?.toString() ?? item['name']?.toString() ?? 'Game Market';
     final code = item['book_code']?.toString() ?? item['code']?.toString() ?? (name.length >= 2 ? name.substring(0, 2).toUpperCase() : 'GM');
-    final result = item['result']?.toString() ?? '***-**-***';
+    final result = item['result']?.toString() ?? item['numbers']?.toString() ?? '***-**-***';
     final statusStr = item['status']?.toString() ?? item['stage_status']?.toString() ?? 'Running Open';
     final isOpen = !statusStr.toLowerCase().contains('close');
+
+    String? imageUrl = item['image_url']?.toString() ??
+        item['imageUrl']?.toString() ??
+        item['image']?.toString() ??
+        item['book_image']?.toString() ??
+        item['icon']?.toString() ??
+        item['logo']?.toString() ??
+        item['photo']?.toString();
+
+    if (imageUrl != null && imageUrl.isNotEmpty && !imageUrl.startsWith('http')) {
+      if (imageUrl.startsWith('/')) {
+        imageUrl = 'https://telewiz.in/officemanage$imageUrl';
+      } else {
+        imageUrl = 'https://telewiz.in/officemanage/$imageUrl';
+      }
+    }
 
     final isSub = forceSubscribed ?? (item['is_subscribed'] == true || item['already_subscribed'] == true || item['subscribed'] == true || item['subscription_status']?.toString().toUpperCase() == 'ACTIVE');
 
@@ -255,6 +305,7 @@ class GameRepositoryImpl implements GameRepository {
       isOpen: isOpen,
       openTime: item['open_time']?.toString() ?? '10:00 AM',
       closeTime: item['close_time']?.toString() ?? '10:00 PM',
+      imageUrl: imageUrl,
       category: 'Main Markets',
       isSubscribed: isSub,
     );

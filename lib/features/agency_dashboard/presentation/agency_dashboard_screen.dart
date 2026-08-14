@@ -514,6 +514,639 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     );
   }
 
+  void _showNotificationModal(BuildContext context, AgencyProvider agencyProvider, bool isDark) {
+    // Refresh recharge stats & mark all notifications as seen when opening modal
+    agencyProvider.fetchRechargeStats();
+    agencyProvider.markNotificationsAsSeen();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        bool showOnlyLast7Days = true;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Consumer<AgencyProvider>(
+              builder: (context, provider, child) {
+                final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+
+                final unreadCount = provider.totalUnreadCount;
+                final pendingRecharges = provider.pendingRechargeRequestsCount;
+                final totalNotifications = unreadCount + pendingRecharges;
+
+                final unreadClients = provider.users.where((u) {
+                  if (u.unreadCount <= 0) return false;
+                  if (!showOnlyLast7Days) return true;
+                  if (u.lastActiveTime == null) return true;
+                  return u.lastActiveTime!.isAfter(sevenDaysAgo);
+                }).toList();
+
+                return Container(
+                  height: MediaQuery.of(context).size.height * 0.78,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF14102B) : Colors.white,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                    border: Border.all(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Modal Header
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 16, 12),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: isDark ? const Color(0xFF2E2756) : const Color(0xFFECEAFE),
+                            ),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Center(
+                              child: Container(
+                                width: 42,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.notifications_active_rounded,
+                                    color: Color(0xFF8B5CF6),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Notifications & Alerts',
+                                        style: TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w900,
+                                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      Text(
+                                        totalNotifications > 0
+                                            ? '$totalNotifications pending item${totalNotifications > 1 ? "s" : ""} require attention'
+                                            : 'All agency requests and messages are clear',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (unreadCount > 0)
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      provider.markAllAsRead();
+                                    },
+                                    icon: const Icon(Icons.done_all_rounded, size: 16, color: Color(0xFF6366F1)),
+                                    label: const Text(
+                                      'Read All',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF6366F1),
+                                      ),
+                                    ),
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.close_rounded),
+                                  color: isDark ? Colors.white60 : Colors.grey[600],
+                                  onPressed: () => Navigator.pop(modalContext),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Time Filter Range Selector: [ Last 7 Days ] vs [ All Time ]
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      showOnlyLast7Days = true;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: showOnlyLast7Days
+                                          ? const Color(0xFF6366F1)
+                                          : (isDark ? const Color(0xFF1E1B3A) : const Color(0xFFF1F5F9)),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.calendar_today_rounded,
+                                          size: 12,
+                                          color: showOnlyLast7Days ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Last 7 Days',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: showOnlyLast7Days ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      showOnlyLast7Days = false;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: !showOnlyLast7Days
+                                          ? const Color(0xFF6366F1)
+                                          : (isDark ? const Color(0xFF1E1B3A) : const Color(0xFFF1F5F9)),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.history_rounded,
+                                          size: 12,
+                                          color: !showOnlyLast7Days ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'All Time',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: !showOnlyLast7Days ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                  // Modal Content Body
+                  Expanded(
+                    child: provider.isLoading
+                        ? Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: _AgencyNotificationSkeletonList(isDark: isDark),
+                          )
+                        : SingleChildScrollView(
+                            padding: const EdgeInsets.all(18),
+                            child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Summary Counter Cards
+                          Row(
+                            children: [
+                              // Card 1: Total Unread Messages
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.pop(modalContext);
+                                    provider.setFilter(AgencyUserFilterTab.unread);
+                                    if (mounted) {
+                                      setState(() {
+                                        _currentNavIndex = 0;
+                                      });
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1E1B3A) : const Color(0xFFEEF2FF),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            const Icon(
+                                              Icons.chat_bubble_outline_rounded,
+                                              color: Color(0xFF6366F1),
+                                              size: 20,
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF6366F1),
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              child: Text(
+                                                unreadCount > 99 ? '99+' : '$unreadCount',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'Unread Messages',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.white : const Color(0xFF1E293B),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          unreadCount > 0
+                                              ? '$unreadCount client chat${unreadCount > 1 ? "s" : ""}'
+                                              : 'No unread chats',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // Card 2: Pending Recharges
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.pop(modalContext);
+                                    provider.setFilter(AgencyUserFilterTab.all);
+                                    if (mounted) {
+                                      setState(() {
+                                        _currentNavIndex = 0;
+                                      });
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF2D2318) : const Color(0xFFFFF7ED),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            const Icon(
+                                              Icons.hourglass_top_rounded,
+                                              color: Color(0xFFF59E0B),
+                                              size: 20,
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF59E0B),
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              child: Text(
+                                                '$pendingRecharges',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'Pending Recharges',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.white : const Color(0xFF1E293B),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          pendingRecharges > 0
+                                              ? '$pendingRecharges request${pendingRecharges > 1 ? "s" : ""} pending'
+                                              : 'No pending requests',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Section 1: Unread Client Messages List
+                          if (unreadClients.isEmpty && unreadCount > 0 && showOnlyLast7Days) ...[
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.info_outline_rounded, color: Color(0xFF6366F1), size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'You have $unreadCount unread client message(s) older than 7 days. Tap "All Time" above to view them.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white70 : const Color(0xFF4338CA),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if (unreadClients.isNotEmpty) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Unread Client Chats',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF4338CA),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '${unreadClients.length} clients',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF6366F1),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: unreadClients.length > 20 ? 20 : unreadClients.length,
+                              itemBuilder: (ctx, index) {
+                                final client = unreadClients[index];
+                                final avatarColors = _getPastelAvatarColor(client.name);
+                                final initials = client.name.isNotEmpty ? client.name[0].toUpperCase() : 'U';
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF13102B) : const Color(0xFFF8F7FF),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF2E2756) : const Color(0xFFECEAFE),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 14,
+                                        backgroundColor: avatarColors['bg'],
+                                        child: Text(
+                                          initials,
+                                          style: TextStyle(
+                                            color: avatarColors['text'],
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      // Single Line Format: Client Name • Message
+                                      Expanded(
+                                        child: Text(
+                                          '${client.name} • ${client.lastMessage ?? "New message received"}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      // Single Line Action Badge Pill matching User App
+                                      InkWell(
+                                        onTap: () {
+                                          Navigator.pop(modalContext);
+                                          final targetChatId = client.email.isNotEmpty ? client.email : client.id;
+                                          if (context.mounted) {
+                                            context.push('/chat/$targetChatId', extra: client);
+                                          }
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: const Text(
+                                            'Chat',
+                                            style: TextStyle(
+                                              color: Color(0xFF6366F1),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            if (unreadClients.length > 20) ...[
+                              const SizedBox(height: 4),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(modalContext);
+                                    provider.setFilter(AgencyUserFilterTab.unread);
+                                    if (mounted) {
+                                      setState(() {
+                                        _currentNavIndex = 1;
+                                      });
+                                    }
+                                  },
+                                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                                  label: Text(
+                                    'View All ${unreadClients.length} Unread Chats',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF6366F1),
+                                    side: const BorderSide(color: Color(0xFF6366F1)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Section 2: Pending Recharge Requests List
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.history_rounded, color: Color(0xFFF59E0B), size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Recharge Requests Log',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                '$pendingRecharges Pending',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFF59E0B),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Live DB Fetched User Recharge Records Widget inside Modal (Single-line notification style)
+                          const RechargeRecordsWidget(isCompactSingleLine: true),
+
+                          // If All Caught Up
+                          if (unreadCount == 0 && pendingRecharges == 0) ...[
+                            const SizedBox(height: 24),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF172B23) : const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle_outline_rounded,
+                                    color: Color(0xFF10B981),
+                                    size: 36,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'All caught up!',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : const Color(0xFF065F46),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'No unread client messages or pending recharge requests right now.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark ? Colors.white70 : const Color(0xFF047857),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+            },
+          );
+        },
+      );
+    }).then((_) {
+      agencyProvider.markNotificationsAsSeen();
+    });
+  }
+
   // ─── Header Background Widget ──────────────────────────────────────────────
   Widget _buildHeaderBackground({
     required BuildContext context,
@@ -619,33 +1252,12 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
           Builder(
             builder: (context) {
               final agencyProvider = context.watch<AgencyProvider>();
-              final unreadCount = agencyProvider.totalUnreadCount;
+              final unseenCount = agencyProvider.unseenNotificationCount;
 
               return Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B)),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                unreadCount > 0
-                                    ? 'You have $unreadCount unread client message${unreadCount > 1 ? "s" : ""}.'
-                                    : 'No new notifications right now.',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: const Color(0xFF1D0D45),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                  onTap: () => _showNotificationModal(context, agencyProvider, isDark),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     width: 38,
@@ -659,22 +1271,39 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                     ),
                     child: Stack(
                       alignment: Alignment.center,
+                      clipBehavior: Clip.none,
                       children: [
-                        const Icon(
-                          Icons.notifications_none_rounded,
-                          color: Color(0xFFA78BFA),
+                        Icon(
+                          unseenCount > 0
+                              ? Icons.notifications_active_rounded
+                              : Icons.notifications_none_rounded,
+                          color: unseenCount > 0
+                              ? const Color(0xFFF59E0B)
+                              : const Color(0xFFA78BFA),
                           size: 20,
                         ),
-                        if (unreadCount > 0)
+                        if (unseenCount > 0)
                           Positioned(
-                            top: 7,
-                            right: 7,
+                            top: -4,
+                            right: -4,
                             child: Container(
-                              width: 8,
-                              height: 8,
+                              padding: const EdgeInsets.all(3),
                               decoration: const BoxDecoration(
                                 color: Color(0xFFF43F5E),
                                 shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Text(
+                                unseenCount > 99 ? '99+' : '$unseenCount',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ),
                           ),
@@ -977,6 +1606,92 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  // Notification Button
+                  Builder(
+                    builder: (context) {
+                      final unseenCount = agencyProvider.unseenNotificationCount;
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showNotificationModal(context, agencyProvider, isDark),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: const Color(0xFF1D0D45),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(
+                                  unseenCount > 0
+                                      ? Icons.notifications_active_rounded
+                                      : Icons.notifications_none_rounded,
+                                  color: unseenCount > 0
+                                      ? const Color(0xFFF59E0B)
+                                      : const Color(0xFFA78BFA),
+                                  size: 19,
+                                ),
+                                if (unseenCount > 0)
+                                  Positioned(
+                                    top: -4,
+                                    right: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFF43F5E),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 15,
+                                        minHeight: 15,
+                                      ),
+                                      child: Text(
+                                        unseenCount > 99 ? '99+' : '$unseenCount',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Logout Button
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => AppLogoutDialog.show(context),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: const Color(0xFF1D0D45),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: const Icon(Icons.logout_rounded, color: Colors.white, size: 18),
+                      ),
                     ),
                   ),
                 ],
@@ -1285,3 +2000,110 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     );
   }
 }
+
+class _AgencyNotificationSkeletonList extends StatefulWidget {
+  final bool isDark;
+  const _AgencyNotificationSkeletonList({required this.isDark});
+
+  @override
+  State<_AgencyNotificationSkeletonList> createState() => _AgencyNotificationSkeletonListState();
+}
+
+class _AgencyNotificationSkeletonListState extends State<_AgencyNotificationSkeletonList>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _opacityAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..repeat(reverse: true);
+    _opacityAnim = Tween<double>(begin: 0.25, end: 0.75).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = widget.isDark ? const Color(0xFF231E40) : const Color(0xFFE2E8F0);
+    final borderColor = widget.isDark ? const Color(0xFF2E2756) : const Color(0xFFCBD5E1);
+
+    return AnimatedBuilder(
+      animation: _opacityAnim,
+      builder: (context, child) {
+        return ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          itemCount: 4,
+          itemBuilder: (context, index) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: widget.isDark ? const Color(0xFF1E1B3A) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: baseColor.withValues(alpha: _opacityAnim.value),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 140,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: baseColor.withValues(alpha: _opacityAnim.value),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 90,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: baseColor.withValues(alpha: _opacityAnim.value),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 50,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: baseColor.withValues(alpha: _opacityAnim.value),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+

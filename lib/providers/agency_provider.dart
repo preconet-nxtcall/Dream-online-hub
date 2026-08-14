@@ -36,6 +36,7 @@ class AgencyProvider extends ChangeNotifier {
 
   int _totalRechargeRequestsCount = 0;
   int _pendingRechargeRequestsCount = 0;
+  bool _hasSeenNotifications = false;
 
   AgencyProvider({
     AgencyRepository? agencyRepository,
@@ -51,6 +52,12 @@ class AgencyProvider extends ChangeNotifier {
 
   int get totalRechargeRequestsCount => _totalRechargeRequestsCount;
   int get pendingRechargeRequestsCount => _pendingRechargeRequestsCount;
+  bool get hasSeenNotifications => _hasSeenNotifications;
+
+  int get unseenNotificationCount {
+    if (_hasSeenNotifications) return 0;
+    return totalUnreadCount + _pendingRechargeRequestsCount;
+  }
 
   void setActiveChatUserId(String? userId) {
     _activeChatUserId = userId;
@@ -104,9 +111,14 @@ class AgencyProvider extends ChangeNotifier {
 
     if (index != -1) {
       final existing = _users.removeAt(index);
-      final newUnread = (!message.isMe && !isCurrentlyViewing)
+      final isNewUnread = !message.isMe && !isCurrentlyViewing;
+      final newUnread = isNewUnread
           ? existing.unreadCount + 1
           : existing.unreadCount;
+
+      if (isNewUnread) {
+        _hasSeenNotifications = false;
+      }
 
       final updatedUser = existing.copyWith(
         lastMessage: lastMsgPreview,
@@ -115,22 +127,6 @@ class AgencyProvider extends ChangeNotifier {
       );
 
       _users.insert(0, updatedUser);
-      _localStorage.saveRecentChats(_users);
-      notifyListeners();
-    } else if (partnerId.isNotEmpty &&
-        partnerId != ApiEndpoints.adminEmailId &&
-        partnerId != ApiEndpoints.adminAgencyUnqId &&
-        partnerId != 'admin_higher_authority') {
-      final newUser = AgencyUserItem(
-        id: partnerId,
-        name: 'Client $partnerId',
-        email: partnerId.contains('@') ? partnerId : '',
-        lastMessage: lastMsgPreview,
-        lastActiveTime: message.timestamp,
-        unreadCount: !message.isMe ? 1 : 0,
-        isOnline: _socketService.state.onlineUserIds.contains(partnerId),
-      );
-      _users.insert(0, newUser);
       _localStorage.saveRecentChats(_users);
       notifyListeners();
     }
@@ -314,19 +310,29 @@ class AgencyProvider extends ChangeNotifier {
             : (response.data['recharges'] is List ? response.data['recharges'] as List : []));
 
         _totalRechargeRequestsCount = rawList.length;
-        _pendingRechargeRequestsCount = rawList.where((item) {
+        final newPendingCount = rawList.where((item) {
           final status = (item['stage_status'] ?? item['status'] ?? '').toString().toLowerCase();
           return status.contains('pending');
         }).length;
+
+        if (newPendingCount > _pendingRechargeRequestsCount) {
+          _hasSeenNotifications = false;
+        }
+        _pendingRechargeRequestsCount = newPendingCount;
         notifyListeners();
       }
     } catch (_) {
       final localList = _localStorage.getSubmittedRecharges();
       _totalRechargeRequestsCount = localList.length;
-      _pendingRechargeRequestsCount = localList.where((item) {
+      final newPendingCount = localList.where((item) {
         final status = (item is Map ? item['status'] : (item as dynamic).status).toString().toLowerCase();
         return status.contains('pending');
       }).length;
+
+      if (newPendingCount > _pendingRechargeRequestsCount) {
+        _hasSeenNotifications = false;
+      }
+      _pendingRechargeRequestsCount = newPendingCount;
       notifyListeners();
     }
   }
@@ -393,6 +399,31 @@ class AgencyProvider extends ChangeNotifier {
       _localStorage.saveRecentChats(_users);
       notifyListeners();
     }
+  }
+
+  /// Mark all notifications as seen and clear unread count badge
+  void markNotificationsAsSeen() {
+    _hasSeenNotifications = true;
+    markAllAsRead();
+    notifyListeners();
+  }
+
+  /// Mark all unread messages as read across all agency clients
+  void markAllAsRead() {
+    _hasSeenNotifications = true;
+    bool updated = false;
+    for (int i = 0; i < _users.length; i++) {
+      if (_users[i].unreadCount > 0) {
+        _users[i] = _users[i].copyWith(unreadCount: 0);
+        _localStorage.clearUnreadCount(_users[i].id);
+        _localStorage.clearUnreadCount(_users[i].email);
+        updated = true;
+      }
+    }
+    if (updated) {
+      _localStorage.saveRecentChats(_users);
+    }
+    notifyListeners();
   }
 
   /// Update last message preview and active time when message is sent

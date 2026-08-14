@@ -37,7 +37,7 @@ class GameCardModel {
       isOpen: json['is_open'] ?? json['isOpen'] ?? true,
       openTime: (json['open_time'] ?? json['openTime'] ?? '10:30 AM').toString(),
       closeTime: (json['close_time'] ?? json['closeTime'] ?? '11:30 AM').toString(),
-      imageUrl: json['image_url'] ?? json['imageUrl'],
+      imageUrl: (json['image_url'] ?? json['imageUrl'] ?? json['image'] ?? json['book_image'] ?? json['icon'] ?? json['logo'])?.toString(),
       category: (json['category'] ?? 'Main Markets').toString(),
       isSubscribed: json['is_subscribed'] == true || json['already_subscribed'] == true || json['subscribed'] == true,
     );

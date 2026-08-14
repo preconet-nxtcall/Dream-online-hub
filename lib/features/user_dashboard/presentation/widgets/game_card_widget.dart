@@ -62,7 +62,6 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isRunning = widget.game.isOpen;
 
     return ScaleTransition(
       scale: _scaleAnimation,
@@ -93,24 +92,46 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Game Code Logo Box
+                  // Game Code / Image Logo Box
                   Container(
-                    width: 50,
-                    height: 50,
+                    width: 52,
+                    height: 52,
                     decoration: BoxDecoration(
                       color: const Color(0xFF2C2F36),
                       borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      widget.game.code,
-                      style: const TextStyle(
-                        color: Color(0xFFFFD700),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                        letterSpacing: 0.5,
+                      border: Border.all(
+                        color: const Color(0xFFFFD700).withValues(alpha: 0.3),
                       ),
                     ),
+                    clipBehavior: Clip.antiAlias,
+                    alignment: Alignment.center,
+                    child: (widget.game.imageUrl != null && widget.game.imageUrl!.isNotEmpty)
+                        ? Image.network(
+                            widget.game.imageUrl!,
+                            fit: BoxFit.cover,
+                            width: 52,
+                            height: 52,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Text(
+                                widget.game.code,
+                                style: const TextStyle(
+                                  color: Color(0xFFFFD700),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 18,
+                                  letterSpacing: 0.5,
+                                ),
+                              );
+                            },
+                          )
+                        : Text(
+                            widget.game.code,
+                            style: const TextStyle(
+                              color: Color(0xFFFFD700),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                   ),
                   AppSpacing.hGapMd,
 
@@ -135,25 +156,65 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
                                 ),
                               ),
                             ),
-                            // Running Open / Closed Status Pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isRunning
-                                    ? const Color(0xFFE6F7ED)
-                                    : const Color(0xFFFFEBEB),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                widget.game.status,
-                                style: TextStyle(
-                                  color: isRunning
-                                      ? const Color(0xFF198754)
-                                      : const Color(0xFFDC3545),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
-                                ),
-                              ),
+                            // Dynamic Status Badge Pill (RUNNING OPEN, RUNNING CLOSE, CLOSED)
+                            Builder(
+                              builder: (context) {
+                               final rawStatus = widget.game.status.trim();
+                               final upper = rawStatus.toUpperCase();
+
+                               String displayStatusText = 'Running Open';
+                               Color statusBgColor = const Color(0xFFECFDF5);
+                               Color statusTextColor = const Color(0xFF059669);
+                               Color statusBorderColor = const Color(0xFF10B981).withValues(alpha: 0.5);
+                               IconData statusIcon = Icons.play_circle_fill_rounded;
+
+                               if (upper.contains('CLOSE') && !upper.contains('RUNNING CLOSE')) {
+                                 displayStatusText = 'Closed';
+                                 statusBgColor = isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.6) : const Color(0xFFFEF2F2);
+                                 statusTextColor = isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
+                                 statusBorderColor = const Color(0xFFEF4444).withValues(alpha: 0.5);
+                                 statusIcon = Icons.lock_clock_rounded;
+                               } else if (_isSubscribed) {
+                                 // Subscribed User -> Running Open (Green)
+                                 displayStatusText = 'Running Open';
+                                 statusBgColor = isDark ? const Color(0xFF064E3B).withValues(alpha: 0.6) : const Color(0xFFECFDF5);
+                                 statusTextColor = isDark ? const Color(0xFF34D399) : const Color(0xFF059669);
+                                 statusBorderColor = const Color(0xFF10B981).withValues(alpha: 0.5);
+                                 statusIcon = Icons.play_circle_fill_rounded;
+                               } else {
+                                 // Unsubscribed User -> Running Close (Amber)
+                                 displayStatusText = 'Running Close';
+                                 statusBgColor = isDark ? const Color(0xFF78350F).withValues(alpha: 0.6) : const Color(0xFFFFFBEB);
+                                 statusTextColor = isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
+                                 statusBorderColor = const Color(0xFFF59E0B).withValues(alpha: 0.5);
+                                 statusIcon = Icons.timer_rounded;
+                               }
+
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: statusBgColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: statusBorderColor, width: 1),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(statusIcon, size: 11, color: statusTextColor),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        displayStatusText,
+                                        style: TextStyle(
+                                          color: statusTextColor,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 10.5,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -370,20 +431,20 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
     Navigator.pop(dialogCtx);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
             ),
-            SizedBox(width: 12),
-            Text('Processing book subscription with server...'),
+            const SizedBox(width: 12),
+            Text('Processing subscription for ${widget.game.name}...'),
           ],
         ),
-        duration: Duration(seconds: 2),
-        backgroundColor: Color(0xFF232530),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF232530),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -880,25 +941,45 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
                 ),
                 const SizedBox(height: 20),
 
-                // Title: Subscribe ?
-                const Text(
-                  'Subscribe ?',
-                  style: TextStyle(
+                // Title: Subscribe to [Game Name]?
+                Text(
+                  'Subscribe to ${widget.game.name}?',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.3,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
 
-                // Subtitle: If You Press Ok Then You're Subscribed !
-                const Text(
-                  "If You Press Ok Then You're Subscribed !",
+                // Game Badge Pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    'MARKET: ${widget.game.name.toUpperCase()}',
+                    style: const TextStyle(
+                      color: Color(0xFFFFD700),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Subtitle
+                Text(
+                  "Press OK to subscribe to ${widget.game.name} and unlock active game credentials!",
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Color(0xFFCBD5E1),
-                    fontSize: 13.5,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

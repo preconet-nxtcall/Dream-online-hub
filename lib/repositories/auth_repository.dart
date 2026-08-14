@@ -18,6 +18,11 @@ abstract class AuthRepository {
     required String email,
     required String phone,
   });
+  Future<bool> updatePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String confirmPassword,
+  });
   Future<bool> deleteUser({required String id});
   Future<UserModel?> getProfile();
   Future<void> logout();
@@ -245,6 +250,59 @@ class AuthRepositoryImpl implements AuthRepository {
     } catch (e) {
       if (e is ServerException) rethrow;
       throw ServerException(message: 'Failed to update profile. Please try again.');
+    }
+  }
+
+  @override
+  Future<bool> updatePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    try {
+      final currentUser = getCachedUser();
+      int userId = 22;
+      if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
+        final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          userId = int.tryParse(digitsOnly) ?? 22;
+        }
+      }
+      if (userId == 22) {
+        final storedUserId = await _secureStorage.read(StorageKeys.userId);
+        if (storedUserId != null && storedUserId.isNotEmpty) {
+          final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
+          if (digitsOnly.isNotEmpty) {
+            userId = int.tryParse(digitsOnly) ?? 22;
+          }
+        }
+      }
+
+      final response = await _apiClient.post(
+        ApiEndpoints.login,
+        data: {
+          'action': 'update_password',
+          'user_id': userId,
+          'old_password': oldPassword,
+          'new_password': newPassword,
+          'confirm_password': confirmPassword,
+        },
+      );
+
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['success'] == false) {
+        throw ServerException(
+          message: data['message']?.toString() ?? 'Failed to update password.',
+          statusCode: 400,
+        );
+      }
+
+      return true;
+    } on NetworkException catch (e) {
+      throw ServerException(message: e.message, statusCode: e.statusCode);
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      throw ServerException(message: 'Failed to update password. Please try again.');
     }
   }
 
