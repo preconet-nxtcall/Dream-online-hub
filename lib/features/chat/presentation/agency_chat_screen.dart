@@ -124,7 +124,8 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
       final recipientId = targetUserId;
 
       if (!mounted) return;
-      await context.read<ChatProvider>().fetchMessages(
+      final chatProv = context.read<ChatProvider>();
+      await chatProv.fetchMessages(
             conversationId,
             recipientId: recipientId,
             limit: 20,
@@ -158,7 +159,7 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients) return;
+    if (!mounted || !_scrollController.hasClients) return;
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
       final provider = context.read<ChatProvider>();
       if (provider.hasMoreMessages && !provider.isLoadingMore) {

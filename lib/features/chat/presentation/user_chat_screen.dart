@@ -165,7 +165,8 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
       final recipientId = assignedAgency;
 
       if (!mounted) return;
-      await context.read<ChatProvider>().fetchMessages(
+      final chatProv = context.read<ChatProvider>();
+      await chatProv.fetchMessages(
             conversationId,
             recipientId: recipientId,
             limit: 20,
@@ -199,7 +200,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients) return;
+    if (!mounted || !_scrollController.hasClients) return;
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
       final provider = context.read<ChatProvider>();
       if (provider.hasMoreMessages && !provider.isLoadingMore) {
@@ -271,6 +272,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: RechargeNowWidget(
           onRechargeSubmitted: (RechargeRecordModel record) {
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Recharge request submitted successfully!'),
@@ -293,6 +295,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: WithdrawRequestWidget(
           onWithdrawSubmitted: (dynamic record) {
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Withdrawal request submitted successfully!'),
