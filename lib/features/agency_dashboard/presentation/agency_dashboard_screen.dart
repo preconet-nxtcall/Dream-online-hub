@@ -1154,9 +1154,6 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     required bool isDark,
   }) {
     final avatarUrl = user?.avatarUrl as String?;
-    final String initialLetter = (user?.name != null && user.name.toString().isNotEmpty)
-        ? user.name.toString()[0].toUpperCase()
-        : 'A';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 52),
@@ -1193,22 +1190,22 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                       width: 46,
                       height: 46,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Text(
-                        initialLetter,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 22,
+                      errorBuilder: (_, __, ___) => ClipOval(
+                        child: Image.asset(
+                          'assets/icons/app_logo.png',
+                          width: 46,
+                          height: 46,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
                   )
-                : Text(
-                    initialLetter,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 22,
+                : ClipOval(
+                    child: Image.asset(
+                      'assets/icons/app_logo.png',
+                      width: 46,
+                      height: 46,
+                      fit: BoxFit.cover,
                     ),
                   ),
           ),

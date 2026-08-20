@@ -120,7 +120,24 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
   Future<void> saveMessages(String userId, List<ChatMessageModel> messages) async {
     final box = _storageService.chatsBox;
     if (box == null) return;
-    final List<Map<String, dynamic>> jsonList = messages.map((m) => {
+
+    final List<ChatMessageModel> deduplicated = [];
+    for (final m in messages) {
+      final text = m.message.trim();
+      final isRequestMsg = text.contains('RECHARGE DEPOSIT REQUEST SUBMITTED') ||
+          text.contains('WITHDRAWAL REQUEST SUBMITTED');
+      final exists = deduplicated.any((item) =>
+          (m.id.isNotEmpty && item.id == m.id) ||
+          (isRequestMsg &&
+              item.message.trim() == text &&
+              item.isMe == m.isMe &&
+              item.timestamp.difference(m.timestamp).abs().inSeconds <= 60));
+      if (!exists) {
+        deduplicated.add(m);
+      }
+    }
+
+    final List<Map<String, dynamic>> jsonList = deduplicated.map((m) => {
       'id': m.id,
       'sender_id': m.senderId,
       'receiver_id': m.receiverId,

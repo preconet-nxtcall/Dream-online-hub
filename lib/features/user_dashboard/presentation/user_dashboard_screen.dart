@@ -454,7 +454,13 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.star_rounded, color: Color(0xFFFFC700), size: 24),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/icons/app_logo.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 10),
                   RichText(

@@ -4,9 +4,17 @@ import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/constants/api_endpoints.dart';
 import '../../../../core/constants/storage_keys.dart';
+import '../../../../models/chat/chat_message_model.dart';
+import '../../../../models/dto/chat/send_message_request_dto.dart';
 import '../../../../network/api_client.dart';
+import '../../../../network/chat_api_client.dart';
+import '../../../../providers/chat_provider.dart';
+import '../../../../socket/socket_events.dart';
+import '../../../../socket/socket_service.dart';
 import '../../../../storage/local_storage_repository.dart';
 import '../../../../storage/secure_storage_service.dart';
 
@@ -104,35 +112,40 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       if (data is Map<String, dynamic> && data['success'] == true) {
         final List rawList = [];
 
-        // 1. Try all_books first (contains all database books)
-        if (data['all_books'] is List && (data['all_books'] as List).isNotEmpty) {
-          rawList.addAll(data['all_books'] as List);
+        // 1. Prioritize subscribed_books (only show subscribed / successfully ordered books)
+        if (data['subscribed_books'] is List && (data['subscribed_books'] as List).isNotEmpty) {
+          rawList.addAll(data['subscribed_books'] as List);
+        } else if (data['user_books'] is List && (data['user_books'] as List).isNotEmpty) {
+          rawList.addAll(data['user_books'] as List);
+        } else if (data['my_books'] is List && (data['my_books'] as List).isNotEmpty) {
+          rawList.addAll(data['my_books'] as List);
         }
 
-        // 2. Combine subscribed_books & non_subscribed_books from database if all_books is empty
+        // 2. If subscribed_books key is not directly present, check all_books / data and filter only subscribed items
         if (rawList.isEmpty) {
-          if (data['subscribed_books'] is List) {
-            rawList.addAll(data['subscribed_books'] as List);
-          }
-          if (data['non_subscribed_books'] is List) {
-            rawList.addAll(data['non_subscribed_books'] as List);
-          }
-        }
-
-        // 3. Fallback to books or data key from database
-        if (rawList.isEmpty) {
-          if (data['books'] is List) {
-            rawList.addAll(data['books'] as List);
+          final List sourceList = [];
+          if (data['all_books'] is List) {
+            sourceList.addAll(data['all_books'] as List);
+          } else if (data['books'] is List) {
+            sourceList.addAll(data['books'] as List);
           } else if (data['data'] is List) {
-            rawList.addAll(data['data'] as List);
+            sourceList.addAll(data['data'] as List);
           }
-        }
 
-        // 4. Handle if database returned a single Map object instead of List
-        if (rawList.isEmpty) {
-          for (final key in ['all_books', 'subscribed_books', 'non_subscribed_books', 'books', 'data']) {
-            if (data[key] is Map) {
-              rawList.add(data[key]);
+          for (final item in sourceList) {
+            if (item is Map) {
+              final isSubscribed = item['is_subscribed'] == true ||
+                  item['is_subscribed'] == 1 ||
+                  item['already_subscribed'] == true ||
+                  item['already_subscribed'] == 1 ||
+                  item['subscribed'] == true ||
+                  item['subscribed'] == 1 ||
+                  item['status']?.toString().toUpperCase() == 'SUBSCRIBED' ||
+                  item['status']?.toString().toUpperCase() == 'SUCCESS' ||
+                  item['status']?.toString().toUpperCase() == 'ACTIVE';
+              if (isSubscribed) {
+                rawList.add(item);
+              }
             }
           }
         }
@@ -236,14 +249,14 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
 
   Future<void> _submitForm() async {
     if (_selectedBook == null || _selectedBook!.isEmpty) {
-      _showError('Please select a book market.');
+      _showIssueDialog('Validation Issue', 'Please select a target book market for withdrawal.');
       return;
     }
 
     final amountText = _amountController.text.trim();
     final parsedAmount = double.tryParse(amountText);
     if (parsedAmount == null || parsedAmount <= 0) {
-      _showError('Please enter a valid withdrawal amount.');
+      _showIssueDialog('Validation Issue', 'Please enter a valid withdrawal amount (e.g. ₹500).');
       return;
     }
 
@@ -337,7 +350,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
 
       final successMsg = (data is Map<String, dynamic> && data['message'] != null)
           ? data['message'].toString()
-          : 'Withdrawal Request Submitted!';
+          : 'Withdrawal Request Submitted Successfully!';
 
       final rawWId = (data is Map<String, dynamic> && data['withdrawal_id'] != null)
           ? data['withdrawal_id'].toString()
@@ -352,7 +365,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         date: 'Just now',
       );
 
-      widget.onWithdrawSubmitted?.call(withdrawModel);
+      final agentId = await _saveWithdrawToChatHistory(withdrawModel, description);
 
       setState(() {
         _isSubmitting = false;
@@ -362,18 +375,11 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(successMsg),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showSuccessDialog(successMsg, withdrawModel, agentId);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isSubmitting = false);
 
-      // Fallback for demo / offline mode: still trigger onWithdrawSubmitted callback
+      // Fallback for demo / offline mode: still save and trigger dialogs
       final withdrawModel = WithdrawRequestModel(
         id: '#W${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
         bookName: _selectedBook!,
@@ -382,25 +388,428 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         status: 'PENDING',
         date: 'Just now',
       );
-      widget.onWithdrawSubmitted?.call(withdrawModel);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Withdrawal request submitted to Agency Support!'),
-          backgroundColor: Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      final agentId = await _saveWithdrawToChatHistory(withdrawModel, description);
+
+      setState(() {
+        _isSubmitting = false;
+        _amountController.clear();
+        _descriptionController.clear();
+        _selectedScreenshot = null;
+      });
+
+      if (!mounted) return;
+      _showSuccessDialog('Withdrawal request submitted to Agency Support!', withdrawModel, agentId);
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFFEF4444),
-        behavior: SnackBarBehavior.floating,
-      ),
+  Future<String> _saveWithdrawToChatHistory(WithdrawRequestModel model, String description) async {
+    final secureStorage = SecureStorageService();
+    final storedAgentId = await secureStorage.read(StorageKeys.chatAgentId);
+    final chatEmailId = await secureStorage.read(StorageKeys.chatEmailId) ?? '';
+    final currentUser = LocalStorageRepositoryImpl().getUser();
+    final userEmail = (chatEmailId.isNotEmpty)
+        ? chatEmailId
+        : ((currentUser?.email != null && currentUser!.email.isNotEmpty)
+            ? currentUser.email
+            : (currentUser?.id ?? 'user'));
+
+    final rawUserAgency = currentUser?.agencyId;
+    final validUserAgency = (rawUserAgency != null &&
+            rawUserAgency.isNotEmpty &&
+            rawUserAgency != 'null' &&
+            rawUserAgency != '0')
+        ? rawUserAgency
+        : ((storedAgentId != null &&
+                storedAgentId.isNotEmpty &&
+                storedAgentId != 'null' &&
+                !storedAgentId.toUpperCase().contains('ADMIN'))
+            ? storedAgentId
+            : '23');
+
+    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.contains('@'))
+        ? validUserAgency
+        : 'AGENCY-$validUserAgency';
+
+    final conversationId = ApiEndpoints.buildConversationId(agentId, userEmail);
+
+    final now = DateTime.now();
+    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final descLine = description.isNotEmpty ? '\n• Details / UTR: $description' : '';
+    final chatText = '📤 WITHDRAWAL REQUEST SUBMITTED\n'
+        '• Book Market: ${model.bookName}\n'
+        '• Amount: ₹${model.amount.toStringAsFixed(2)}'
+        '$descLine\n'
+        '• Status: PENDING AGENCY APPROVAL\n'
+        '• Date & Time: $timeStr';
+
+    final repo = LocalStorageRepositoryImpl();
+    widget.onWithdrawSubmitted?.call(model);
+
+    final newChatMsg = ChatMessageModel(
+      id: 'withdraw_${DateTime.now().millisecondsSinceEpoch}',
+      senderId: 'me',
+      receiverId: agentId,
+      message: chatText,
+      timestamp: DateTime.now(),
+      isMe: true,
+      status: 'sent',
+      type: 'text',
+    );
+
+    // Save under all target keys so any chat view or cached load renders it
+    final targetKeys = {agentId, conversationId, userEmail};
+    for (final key in targetKeys) {
+      final existingMsgs = repo.getCachedMessages(key);
+      if (!existingMsgs.any((m) => m.id == newChatMsg.id)) {
+        existingMsgs.add(newChatMsg);
+        await repo.saveMessages(key, existingMsgs);
+      }
+    }
+
+    final dto = SendMessageRequestDto(
+      conversationId: conversationId,
+      recipientId: agentId,
+      type: 'text',
+      text: chatText,
+    );
+
+    // 1. Post to Chat Server REST API so server stores it permanently in database
+    try {
+      await ChatApiClient.instance.post(
+        ApiEndpoints.conversationMessages(conversationId),
+        data: dto.toJson(),
+      );
+    } catch (_) {}
+
+    // 2. Emit over Socket.IO for live agency screen updates
+    try {
+      if (SocketService.instance.isConnected) {
+        SocketService.instance.emit(SocketEvents.sendMessage, dto.toJson());
+        SocketService.instance.emit(SocketEvents.sendMessageLegacy, dto.toJson());
+      }
+    } catch (_) {}
+
+    // Add to active ChatProvider if mounted
+    if (mounted) {
+      try {
+        final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+        chatProvider.addRealtimeMessage(newChatMsg);
+      } catch (_) {}
+    }
+
+    return agentId;
+  }
+
+  void _showSuccessDialog(String message, WithdrawRequestModel model, String agentId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Glowing Animated Checkmark Badge
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                    border: Border.all(
+                      color: const Color(0xFF10B981),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                        blurRadius: 20,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF10B981),
+                    size: 42,
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                Text(
+                  'Withdrawal Request Submitted!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Summary Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildSummaryRow('Book Market', model.bookName, isDark),
+                      const SizedBox(height: 8),
+                      _buildSummaryRow('Withdraw Amount', '₹${model.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
+                      const SizedBox(height: 8),
+                      _buildSummaryRow('Status', 'Pending Agency Approval', isDark, statusColor: const Color(0xFFF59E0B)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Primary Action Button: VIEW IN CHAT SCREEN
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(dialogContext); // Close dialog
+                      Navigator.pop(context); // Close bottom sheet
+                      context.push('/chat/$agentId'); // Navigate to chat screen
+                    },
+                    icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
+                    label: const Text(
+                      'VIEW IN CHAT SCREEN',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7C3AED),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 4,
+                      shadowColor: const Color(0xFF7C3AED).withValues(alpha: 0.4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Secondary Action Button: DONE
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(dialogContext); // Close dialog
+                      Navigator.pop(context); // Close bottom sheet
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isDark ? Colors.white70 : const Color(0xFF64748B),
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'DONE',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showIssueDialog(String title, String errorMessage) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Glowing Warning / Issue Badge
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    border: Border.all(
+                      color: const Color(0xFFEF4444),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                        blurRadius: 20,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.error_outline_rounded,
+                    color: Color(0xFFEF4444),
+                    size: 42,
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Error Message Box
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Text(
+                    errorMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFEF4444),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Try Again Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEF4444),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 4,
+                      shadowColor: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                    ),
+                    child: const Text(
+                      'TRY AGAIN',
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value, bool isDark, {bool isHighlight = false, Color? statusColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isHighlight ? 15 : 13,
+            fontWeight: isHighlight || statusColor != null ? FontWeight.w900 : FontWeight.w700,
+            color: statusColor ?? (isHighlight ? const Color(0xFF10B981) : (isDark ? Colors.white : const Color(0xFF0F172A))),
+          ),
+        ),
+      ],
     );
   }
 
@@ -438,18 +847,23 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     final borderColor = isDark ? const Color(0xFF373454) : const Color(0xFFE5E7EB);
     final hintColor = isDark ? const Color(0xFF82819A) : const Color(0xFF9CA3AF);
     final textColor = isDark ? Colors.white : const Color(0xFF1F2937);
+    final maxHeight = MediaQuery.of(context).size.height * 0.88;
 
     return Container(
+      constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Top Drag handle pill
             Center(
               child: Container(
@@ -769,8 +1183,9 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class DashedBorderPainter extends CustomPainter {

@@ -486,22 +486,13 @@ class ChatProvider extends ChangeNotifier {
 
       final mergedList = <ChatMessageModel>[...loaded];
       for (final local in localMsgs) {
-        // De-duplicate by ID first, then by exact-text within 10 s.
-        // H2 note: we keep strict ID-based check; content+time fallback only
-        // applies to temp messages (no real ID yet).
-        final hasRealId = local.id.isNotEmpty &&
-            !RegExp(r'^\d{13}$').hasMatch(local.id); // temp IDs are epoch ms
-        final exists = mergedList.any((m) =>
-            m.id == local.id ||
-            (!hasRealId &&
-                m.message == local.message &&
-                m.timestamp.difference(local.timestamp).abs().inSeconds < 10));
+        final exists = mergedList.any((m) => _isDuplicateMessage(local, m));
         if (!exists) {
           mergedList.add(local);
         }
       }
       mergedList.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      _messages = mergedList;
+      _messages = _deduplicateMessages(mergedList);
 
       await _chatRepository.saveLocalMessages(conversationId, _messages);
       _hasMoreMessages = loaded.length >= limit;
@@ -947,10 +938,39 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _isDuplicateMessage(ChatMessageModel m1, ChatMessageModel m2) {
+    if (m1.id.isNotEmpty && m1.id == m2.id) return true;
+    final text1 = m1.message.trim();
+    final text2 = m2.message.trim();
+    if (text1.isNotEmpty && text1 == text2) {
+      final isRequestMessage = text1.contains('RECHARGE DEPOSIT REQUEST SUBMITTED') ||
+          text1.contains('WITHDRAWAL REQUEST SUBMITTED');
+      if (isRequestMessage) {
+        final timeDiff = m1.timestamp.difference(m2.timestamp).abs().inSeconds;
+        if (timeDiff <= 60 && m1.isMe == m2.isMe) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  List<ChatMessageModel> _deduplicateMessages(List<ChatMessageModel> list) {
+    final List<ChatMessageModel> result = [];
+    for (final item in list) {
+      final exists = result.any((existing) => _isDuplicateMessage(existing, item));
+      if (!exists) {
+        result.add(item);
+      }
+    }
+    return result;
+  }
+
   void addRealtimeMessage(ChatMessageModel message) {
-    final exists = _messages.any((m) => m.id == message.id);
+    final exists = _messages.any((m) => _isDuplicateMessage(m, message));
     if (!exists) {
       _messages.add(message);
+      _messages = _deduplicateMessages(_messages);
       if (_activeConversationId != null && _activeConversationId!.isNotEmpty) {
         _chatRepository.saveLocalMessages(_activeConversationId!, _messages);
       }
