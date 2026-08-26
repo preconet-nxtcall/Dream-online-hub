@@ -8,7 +8,7 @@ abstract class AgencyChatRepository extends ChatRepository {
   Future<List<ChatMessageModel>> fetchAgencyClientMessages(
     String agencyId,
     String clientUserEmail, {
-    int limit = 20,
+    int limit = 35,
   });
 }
 
@@ -23,7 +23,7 @@ class AgencyChatRepositoryImpl extends ChatRepositoryImpl implements AgencyChatR
   Future<List<ChatMessageModel>> fetchAgencyClientMessages(
     String agencyId,
     String clientUserEmail, {
-    int limit = 20,
+    int limit = 35,
   }) async {
     final convId = 'conv-$agencyId-$clientUserEmail';
     return fetchMessages(convId, recipientId: clientUserEmail, limit: limit);

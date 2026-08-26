@@ -169,7 +169,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
       await chatProv.fetchMessages(
             conversationId,
             recipientId: recipientId,
-            limit: 20,
+            limit: 35,
           );
       if (!mounted) return;
       _scrollToBottom(immediate: true);

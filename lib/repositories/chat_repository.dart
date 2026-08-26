@@ -30,7 +30,7 @@ abstract class ChatRepository {
   Future<List<ChatMessageModel>> fetchMessages(
     String conversationId, {
     String? recipientId,
-    int limit = 50,
+    int limit = 35,
     String? cursor,
   });
 
@@ -361,7 +361,7 @@ class ChatRepositoryImpl implements ChatRepository {
   Future<List<ChatMessageModel>> fetchMessages(
     String conversationId, {
     String? recipientId,
-    int limit = 50,
+    int limit = 35,
     String? cursor,
   }) async {
     final cachedUser = _localStorage.getUser();

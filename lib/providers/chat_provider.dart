@@ -311,13 +311,13 @@ class ChatProvider extends ChangeNotifier {
         final adminConvId = ApiEndpoints.buildConversationId(
             ApiEndpoints.adminAgencyUnqId, realAgencyId);
         await fetchMessages(adminConvId,
-            recipientId: ApiEndpoints.adminAgencyUnqId, limit: 20);
+            recipientId: ApiEndpoints.adminAgencyUnqId, limit: 35);
       } else {
         // User chatting with Admin Higher Authority (conv-ADMIN-1-userEmail)
         final adminConvId = ApiEndpoints.buildConversationId(
             ApiEndpoints.adminAgencyUnqId, userEmail);
         await fetchMessages(adminConvId,
-            recipientId: ApiEndpoints.adminAgencyUnqId, limit: 20);
+            recipientId: ApiEndpoints.adminAgencyUnqId, limit: 35);
       }
     } else {
       // Restore previous agency conversation, or fall back to defaultConversationId.
@@ -330,7 +330,7 @@ class ChatProvider extends ChangeNotifier {
       _prevConversationId = null;
       _prevRecipientId = null;
       if (restoreConvId.isNotEmpty) {
-        await fetchMessages(restoreConvId, recipientId: restoreRecipientId, limit: 20);
+        await fetchMessages(restoreConvId, recipientId: restoreRecipientId, limit: 35);
       } else {
         // C3: restoreConvId is empty — reset active IDs so the next outgoing
         // message is NOT routed to the old admin conversation.
@@ -435,7 +435,7 @@ class ChatProvider extends ChangeNotifier {
   /// Loads local Hive cache instantly so existing history renders without flickering,
   /// then merges fresh server messages seamlessly.
   Future<void> fetchMessages(String conversationId,
-      {String? recipientId, int limit = 20}) async {
+      {String? recipientId, int limit = 35}) async {
     if (conversationId.trim().isEmpty || recipientId?.trim().isEmpty != false) {
       _messages = [];
       _activeConversationId = null;
@@ -523,7 +523,7 @@ class ChatProvider extends ChangeNotifier {
   }
 
   /// Load older messages (pagination) as user scrolls up
-  Future<void> loadMoreMessages({int limit = 30}) async {
+  Future<void> loadMoreMessages({int limit = 35}) async {
     if (_isLoadingMore || !_hasMoreMessages || _activeConversationId == null || _messages.isEmpty) {
       return;
     }
