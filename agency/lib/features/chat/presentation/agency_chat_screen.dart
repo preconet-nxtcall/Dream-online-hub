@@ -5,13 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/api_endpoints.dart';
-import '../../../core/constants/storage_keys.dart';
 import '../../../models/agency/agency_user_item_model.dart';
 import '../../../providers/agency_provider.dart';
 import '../../../providers/chat_provider.dart';
 import '../../../socket/socket_service.dart';
 import '../../../storage/local_storage_repository.dart';
-import '../../../storage/secure_storage_service.dart';
+import '../../../utils/date_formatter.dart';
 import 'widgets/attachment_sheet_widget.dart';
 import 'widgets/chat_message_bubble.dart';
 import 'widgets/chat_message_skeleton.dart';
@@ -84,19 +83,35 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
         ? resolvedUser.email.trim().toLowerCase()
         : widget.userId.trim().toLowerCase();
 
-    final conversationId = ApiEndpoints.buildConversationId(effectiveAgentId, targetUserId);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final chatProv = context.read<ChatProvider>();
       chatProv.resetHigherAuthority();
-      chatProv.fetchMessages(
+      await chatProv.fetchConversations();
+
+      String conversationId = ApiEndpoints.buildConversationId(effectiveAgentId, targetUserId);
+      String recipientId = targetUserId;
+
+      final serverConvs = chatProv.conversations;
+      final targetLower = targetUserId.trim().toLowerCase();
+      for (final conv in serverConvs) {
+        final cid = (conv['_id'] ?? conv['id'] ?? '').toString();
+        final p1 = (conv['participant1'] ?? conv['agentId']?['_id'] ?? '').toString().trim().toLowerCase();
+        final p2 = (conv['participant2'] ?? conv['emailId']?['_id'] ?? '').toString().trim().toLowerCase();
+        if (cid.isNotEmpty && (p1 == targetLower || p2 == targetLower || p1.contains(targetLower) || p2.contains(targetLower))) {
+          conversationId = cid;
+          break;
+        }
+      }
+
+      await chatProv.fetchMessages(
         conversationId,
-        recipientId: targetUserId,
+        recipientId: recipientId,
         limit: 35,
       );
-      chatProv.fetchConversations();
-      _scrollToBottom(immediate: true);
+      if (mounted) {
+        _scrollToBottom(immediate: true);
+      }
     });
   }
 
@@ -247,7 +262,7 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
 
     return Scaffold(
       backgroundColor: const Color(0xFFECE5DD),
-      appBar: _buildAgencyAppBar(context, clientName, initialLetter),
+      appBar: _buildAgencyAppBar(context, clientName, initialLetter, chatProvider.activeRecipientId ?? widget.userId),
       body: SafeArea(
         child: Column(
           children: [
@@ -441,9 +456,13 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
     );
   }
 
-  PreferredSizeWidget _buildAgencyAppBar(BuildContext context, String clientName, String initialLetter) {
-    final activeRecipient = context.read<ChatProvider>().activeRecipientId ?? widget.userId;
+  PreferredSizeWidget _buildAgencyAppBar(BuildContext context, String clientName, String initialLetter, String activeRecipient) {
     final isOnline = SocketService.instance.isUserOnline(activeRecipient) || _lastOnlineStatus;
+    final String statusSubtitle = isOnline
+        ? 'online'
+        : (widget.userItem?.lastActiveTime != null
+            ? DateFormatter.formatLastSeen(widget.userItem!.lastActiveTime!)
+            : 'offline');
 
     return PreferredSize(
       preferredSize: const Size.fromHeight(68),
@@ -590,7 +609,7 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
                         Row(
                           children: [
                             Text(
-                              isOnline ? 'Online' : 'Assigned Client Portal',
+                              statusSubtitle,
                               style: GoogleFonts.plusJakartaSans(
                                 color: isOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
                                 fontSize: 12,

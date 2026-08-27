@@ -1,10 +1,10 @@
 class ApiEndpoints {
   // ─── PHP Office Manager (Login, User/Agency Profile) ───────────────────────
-  static const String baseUrl = 'https://telewiz.in/officemanage/';
+  static const String baseUrl = 'https://fairbizcrm.com/';
 
-  // ─── Chat Server (Node.js + Socket.IO — hosted on Render) ──────────────────
-  static const String chatBaseUrl = 'https://chat-assistant-5698.onrender.com';
-  static const String chatSocketUrl = 'https://chat-assistant-5698.onrender.com';
+  // ─── Chat Server (Node.js + Socket.IO — Production) ─────────────────────────
+  static const String chatBaseUrl = 'https://fairbizcrm.com/chat';
+  static const String chatSocketUrl = 'https://fairbizcrm.com/';
   static const String fixedToken = 'chat_fixed_auth_token_2026_prod';
 
   // ─── PHP Auth ───────────────────────────────────────────────────────────────

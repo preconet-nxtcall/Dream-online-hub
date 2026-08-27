@@ -72,4 +72,23 @@ class DateFormatter {
   static String formatFullDateTime(DateTime date) {
     return DateFormat('yyyy-MM-dd HH:mm:ss').format(date.toLocal());
   }
+
+  static String formatLastSeen(DateTime date) {
+    final now = DateTime.now();
+    final local = date.toLocal();
+    final timeStr = DateFormat('hh:mm a').format(local);
+
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final checkDate = DateTime(local.year, local.month, local.day);
+
+    if (checkDate == today) {
+      return 'last seen today at $timeStr';
+    } else if (checkDate == yesterday) {
+      return 'last seen yesterday at $timeStr';
+    } else {
+      final dateStr = DateFormat('dd MMM').format(local);
+      return 'last seen $dateStr at $timeStr';
+    }
+  }
 }

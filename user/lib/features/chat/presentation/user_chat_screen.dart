@@ -47,6 +47,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
   bool _lastOnlineStatus = false;
   bool _showScrollToBottomBtn = false;
   String _agencyDisplayName = 'Assigned Support Agency';
+  bool _hasAgencyAssigned = true;
 
   @override
   void initState() {
@@ -87,21 +88,39 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
       final effectiveEmail = chatEmailId.isNotEmpty ? chatEmailId : (currentUser?.email ?? '');
 
       final rawUserAgency = currentUser?.agencyId;
-      final bool hasAgencyAssigned = (rawUserAgency != null &&
-              rawUserAgency.isNotEmpty &&
-              rawUserAgency != 'null' &&
-              rawUserAgency != '0') ||
-          (chatAgentId.isNotEmpty &&
-              chatAgentId != chatEmailId &&
-              chatAgentId != 'null' &&
-              !chatAgentId.toUpperCase().contains('ADMIN'));
+      final bool hasValidAgencyId = rawUserAgency != null &&
+          rawUserAgency.isNotEmpty &&
+          rawUserAgency != 'null' &&
+          rawUserAgency != '0';
+
+      final bool isAgencyRole = (currentUser?.role ?? '').toLowerCase() == 'agency';
+
+      if (!mounted) return;
+      final chatProv = context.read<ChatProvider>();
+      await chatProv.fetchConversations();
+
+      bool hasNonAdminAgencyConv = false;
+      for (final c in chatProv.conversations) {
+        final p1 = (c['participant1'] ?? c['agentId']?['_id'] ?? '').toString();
+        final p2 = (c['participant2'] ?? c['emailId']?['_id'] ?? '').toString();
+        if (!p1.toUpperCase().contains('ADMIN') && !p2.toUpperCase().contains('ADMIN')) {
+          hasNonAdminAgencyConv = true;
+          break;
+        }
+      }
+
+      final bool hasAgencyAssigned = isAgencyRole || hasValidAgencyId || hasNonAdminAgencyConv;
+
+      if (mounted) {
+        setState(() {
+          _hasAgencyAssigned = hasAgencyAssigned;
+        });
+      }
 
       if (!hasAgencyAssigned) {
-        // Direct open Admin Chatting for unassigned / unauthorized user
+        // Direct open Admin Chatting for unassigned user
         if (mounted) {
-          final chatProvider = context.read<ChatProvider>();
-          chatProvider.fetchConversations();
-          await chatProvider.setHigherAuthority(
+          await chatProv.setHigherAuthority(
             true,
             widget.userId,
             chatEmailId: effectiveEmail,
@@ -154,25 +173,54 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
       if (mounted) {
         final chatProvider = context.read<ChatProvider>();
         chatProvider.resetHigherAuthority();
-        chatProvider.fetchConversations();
+        await chatProvider.fetchConversations();
       }
 
       final assignedAgency = (validAgency.startsWith('AGENCY-') || validAgency.contains('@'))
           ? validAgency
           : 'AGENCY-$validAgency';
 
-      final conversationId = ApiEndpoints.buildConversationId(assignedAgency, effectiveEmail);
-      final recipientId = assignedAgency;
+      String conversationId = ApiEndpoints.buildConversationId(assignedAgency, effectiveEmail);
+      String recipientId = assignedAgency;
 
-      if (!mounted) return;
-      final chatProv = context.read<ChatProvider>();
-      await chatProv.fetchMessages(
-            conversationId,
-            recipientId: recipientId,
-            limit: 35,
-          );
-      if (!mounted) return;
-      _scrollToBottom(immediate: true);
+      // Option B: Look up real server conversation _id from fetched conversations list
+      if (mounted) {
+        final chatProv = context.read<ChatProvider>();
+        final serverConvs = chatProv.conversations;
+        final myEmailLower = effectiveEmail.trim().toLowerCase();
+        final validAgencyLower = validAgency.trim().toLowerCase();
+
+        for (final conv in serverConvs) {
+          final cid = (conv['_id'] ?? conv['id'] ?? '').toString();
+          final p1 = (conv['participant1'] ?? conv['agentId']?['_id'] ?? '').toString().trim().toLowerCase();
+          final p2 = (conv['participant2'] ?? conv['emailId']?['_id'] ?? '').toString().trim().toLowerCase();
+
+          final bool isAdminConv = cid.toUpperCase().contains('ADMIN') ||
+              p1.toUpperCase().contains('ADMIN') ||
+              p2.toUpperCase().contains('ADMIN');
+
+          if (!isAdminConv &&
+              cid.isNotEmpty &&
+              (p1 == myEmailLower || p2 == myEmailLower || p1 == validAgencyLower || p2 == validAgencyLower || p1.contains(validAgencyLower) || p2.contains(validAgencyLower))) {
+            conversationId = cid;
+            if (p1 == myEmailLower) {
+              recipientId = (conv['participant2Details']?['_id'] ?? p2).toString();
+            } else if (p2 == myEmailLower) {
+              recipientId = (conv['participant1Details']?['_id'] ?? p1).toString();
+            }
+            break;
+          }
+        }
+
+        await chatProv.fetchMessages(
+          conversationId,
+          recipientId: recipientId,
+          limit: 35,
+        );
+        if (mounted) {
+          _scrollToBottom(immediate: true);
+        }
+      }
     });
   }
 
@@ -515,7 +563,9 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
   PreferredSizeWidget _buildLightAppBar(BuildContext context, ChatProvider chatProvider) {
     final isHigherAdmin = chatProvider.isHigherAuthorityActive;
     final activeTitle = isHigherAdmin ? 'Admin Higher Authority' : _agencyDisplayName;
-    final activeSubtitle = isHigherAdmin ? 'SYSTEM ADMIN' : 'Active Online Support';
+    final activeRecipient = chatProvider.activeRecipientId ?? widget.userId;
+    final isOnline = isHigherAdmin || SocketService.instance.state.onlineUserIds.contains(activeRecipient) || _lastOnlineStatus;
+    final String activeSubtitle = isOnline ? 'online' : 'offline';
 
     return PreferredSize(
       preferredSize: const Size.fromHeight(66),
@@ -579,7 +629,9 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                             width: 7,
                             height: 7,
                             decoration: BoxDecoration(
-                              color: isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF00A884),
+                              color: isOnline
+                                  ? (isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF00A884))
+                                  : const Color(0xFF8696A0),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -587,9 +639,11 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                           Text(
                             activeSubtitle,
                             style: TextStyle(
-                              color: isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF8696A0),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                              color: isOnline
+                                  ? (isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF00A884))
+                                  : const Color(0xFF8696A0),
+                              fontSize: 11.5,
+                              fontWeight: isOnline ? FontWeight.w700 : FontWeight.w500,
                             ),
                           ),
                         ],
@@ -598,42 +652,76 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                   ),
                 ),
 
-                // Higher Authority Admin Button
-                GestureDetector(
-                  onTap: () => chatProvider.toggleHigherAuthority(widget.userId),
-                  child: Container(
+                // Higher Authority Admin / Agency Button
+                if (!_hasAgencyAssigned)
+                  // Static non-clickable Admin badge for unassigned users
+                  Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: isHigherAdmin
-                          ? const Color(0xFF8B5CF6).withValues(alpha: 0.25)
-                          : const Color(0xFF00A884).withValues(alpha: 0.15),
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF00A884),
+                        color: const Color(0xFF8B5CF6),
                         width: 1.2,
                       ),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          isHigherAdmin ? Icons.business_center_rounded : Icons.shield_rounded,
+                          Icons.shield_rounded,
                           size: 14,
-                          color: isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF00A884),
+                          color: Color(0xFFC4B5FD),
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
-                          isHigherAdmin ? 'Agency' : 'Admin',
+                          'Admin',
                           style: TextStyle(
-                            color: isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF00A884),
+                            color: Color(0xFFC4B5FD),
                             fontWeight: FontWeight.w800,
                             fontSize: 11,
                           ),
                         ),
                       ],
                     ),
+                  )
+                else
+                  // Clickable button for assigned users: Switch between Admin & Agency chat
+                  GestureDetector(
+                    onTap: () => chatProvider.toggleHigherAuthority(widget.userId),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isHigherAdmin
+                            ? const Color(0xFF8B5CF6).withValues(alpha: 0.25)
+                            : const Color(0xFF00A884).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF00A884),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isHigherAdmin ? Icons.business_center_rounded : Icons.shield_rounded,
+                            size: 14,
+                            color: isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF00A884),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isHigherAdmin ? 'Agency' : 'Admin',
+                            style: TextStyle(
+                              color: isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF00A884),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
           ),

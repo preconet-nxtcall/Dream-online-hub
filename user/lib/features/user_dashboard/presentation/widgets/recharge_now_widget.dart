@@ -283,7 +283,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
       setState(() {
         _isLoadingQr = false;
         _qrAvailable = true;
-        _qrImageUrl = 'https://telewiz.in/officemanage/uploads/photos/1785149229_QR.png';
+        _qrImageUrl = 'https://fairbizcrm.com/uploads/photos/1785149229_QR.png';
         _qrId = 5;
         _rangeId = 2;
         _empId = widget.agencyId;
@@ -293,7 +293,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
       setState(() {
         _isLoadingQr = false;
         _qrAvailable = true;
-        _qrImageUrl = 'https://telewiz.in/officemanage/uploads/photos/1785149209_QR.png';
+        _qrImageUrl = 'https://fairbizcrm.com/uploads/photos/1785149209_QR.png';
         _qrId = 4;
         _rangeId = 3;
         _empId = widget.agencyId;
@@ -303,7 +303,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
       setState(() {
         _isLoadingQr = false;
         _qrAvailable = true;
-        _qrImageUrl = 'https://telewiz.in/officemanage/uploads/photos/1784640233_QR.png';
+        _qrImageUrl = 'https://fairbizcrm.com/uploads/photos/1784640233_QR.png';
         _qrId = 1;
         _rangeId = 1;
         _empId = widget.agencyId;

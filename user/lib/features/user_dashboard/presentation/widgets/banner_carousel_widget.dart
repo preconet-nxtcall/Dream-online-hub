@@ -43,7 +43,7 @@ class _BannerCarouselWidgetState extends State<BannerCarouselWidget> {
       title: 'ONLINE',
       badgeText: 'INSTANT PAYOUTS',
       icon: Icons.casino_rounded,
-      networkImageUrl: 'https://telewiz.in/officemanage/uploads/photos/1784883728_Slider.png',
+      networkImageUrl: 'https://fairbizcrm.com/uploads/photos/1784883728_Slider.png',
       assetImagePath: 'assets/images/satta_matka_banner.png',
       gradientColors: [
         Color(0xFF1F222A),

@@ -100,7 +100,10 @@ class SocketService with WidgetsBindingObserver {
   Future<void> connect({String? customToken, String? socketUrl}) async {
     if (_socket?.connected == true) return;
 
-    // Safely dispose existing socket if any before reconnecting
+    // Reset reconnect counter on every explicit connect call to avoid exponential
+    // backoff accumulating across sessions (e.g. foreground → background → foreground)
+    _reconnectAttempts = 0;
+    _reconnectTimer?.cancel();
     if (_socket != null) {
       _socket?.disconnect();
       _socket?.dispose();
@@ -133,10 +136,17 @@ class SocketService with WidgetsBindingObserver {
     }
 
     try {
+      final uri = Uri.parse(url);
+      final cleanPath = uri.path.endsWith('/') ? uri.path.substring(0, uri.path.length - 1) : uri.path;
+      final socketPath = cleanPath.isNotEmpty && cleanPath != '/'
+          ? '$cleanPath/socket.io'
+          : '/socket.io';
+
       _socket = io.io(
         url,
         io.OptionBuilder()
-            .setTransports(['websocket'])
+            .setTransports(['websocket', 'polling'])
+            .setPath(socketPath)
             .disableAutoConnect()
             .setAuth({'token': token})
             .enableReconnection()
@@ -526,6 +536,8 @@ class SocketService with WidgetsBindingObserver {
 
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _typingDebounceTimer?.cancel();
+    _typingDebounceTimer = null;
     disconnect();
     _stateController.close();
     _messageController.close();

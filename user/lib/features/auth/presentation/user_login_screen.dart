@@ -412,7 +412,7 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                                 style: GoogleFonts.inter(color: textPrimaryColor, fontSize: 13.5, fontWeight: FontWeight.w500),
                                 decoration: InputDecoration(
                                   labelText: 'Email Address',
-                                  hintText: 'admin@gmail.com',
+                                  hintText: 'Email',
                                   isDense: true,
                                   prefixIcon: const Icon(Icons.mail_outline_rounded, color: accentColor, size: 18),
                                   border: OutlineInputBorder(
@@ -588,8 +588,8 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                                 validator: Validators.validateEmail,
                                 style: GoogleFonts.inter(color: textPrimaryColor, fontSize: 14),
                                 decoration: InputDecoration(
-                                  labelText: 'User Email Address',
-                                  hintText: 'user@gmail.com',
+                                  labelText: 'Email Address',
+                                  hintText: 'Email',
                                   prefixIcon: const Icon(Icons.mail_outline_rounded, color: accentColor),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),

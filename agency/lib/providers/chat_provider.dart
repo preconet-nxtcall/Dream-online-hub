@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import '../core/constants/api_endpoints.dart';
@@ -452,9 +451,14 @@ class ChatProvider extends ChangeNotifier {
 
     // 1. Instantly load cached local messages from Hive synchronously
     final cached = _chatRepository.getCachedMessages(conversationId);
-    _messages = cached;
-    final bool showSkeleton = cached.isEmpty;
-    _isLoading = showSkeleton;
+    if (cached.isNotEmpty) {
+      _messages = cached;
+      _isLoading = false;
+    } else if (_messages.isEmpty) {
+      _isLoading = true; // First time open with no cache — show smooth skeleton loading
+    } else {
+      _isLoading = false; // Keep existing memory messages visible while fetching in background
+    }
     _isLoadingMore = false;
     _hasMoreMessages = true;
     _replyingToMessage = null;
@@ -472,26 +476,22 @@ class ChatProvider extends ChangeNotifier {
         limit: limit,
       );
 
-      // Fast 350ms skeleton shimmer duration on first chat open
-      if (showSkeleton) {
+      // Smooth skeleton duration when loading for the first time
+      if (_isLoading) {
         final elapsed = DateTime.now().difference(fetchStartTime).inMilliseconds;
-        final remaining = 350 - elapsed;
+        final remaining = 450 - elapsed;
         if (remaining > 0) {
           await Future.delayed(Duration(milliseconds: remaining));
         }
       }
 
       // A newer user/admin chat was opened while this request was in flight.
-      // Do not merge, cache, mark read, or notify for the obsolete result.
       if (loadEpoch != _conversationLoadEpoch ||
           _activeConversationId != conversationId ||
           _activeRecipientId != recipientId) {
         return;
       }
 
-      // M6: Preserve locally-queued/sent messages that haven't been confirmed
-      // by the server yet — merge them in regardless of whether the server
-      // returned any messages.
       final localMsgs = _messages.where((m) => m.isMe).toList();
 
       final mergedList = <ChatMessageModel>[...loaded];
@@ -506,6 +506,7 @@ class ChatProvider extends ChangeNotifier {
 
       await _chatRepository.saveLocalMessages(conversationId, _messages);
       _hasMoreMessages = loaded.length >= limit;
+      _isLoading = false;
       
       // Emit read receipt with all unread message IDs from the other party
       if (recipientId != null && recipientId.isNotEmpty) {
@@ -831,7 +832,6 @@ class ChatProvider extends ChangeNotifier {
 
       // Send via Socket.IO using real server event format with ACK callback
       _socketService.emit(SocketEvents.sendMessage, requestDto.toJson(), ack: onAck);
-      _socketService.emit(SocketEvents.sendMessageLegacy, requestDto.toJson(), ack: onAck);
 
       // Fallback Timer: Ensure single tick (sent) appears within 1.0s even if server ACK is delayed
       Timer(const Duration(milliseconds: 1000), () {

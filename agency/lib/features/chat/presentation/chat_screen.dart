@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -7,9 +8,12 @@ import '../../../providers/agency_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/chat_provider.dart';
 import '../../../socket/socket_service.dart';
+import '../../../storage/local_storage_repository.dart';
+import '../../../utils/date_formatter.dart';
 import '../../../theme/app_colors.dart';
 import 'widgets/attachment_sheet_widget.dart';
 import 'widgets/chat_message_bubble.dart';
+import 'widgets/chat_message_skeleton.dart';
 import 'widgets/date_separator_widget.dart';
 import 'widgets/typing_indicator_widget.dart';
 import 'widgets/voice_recorder_widget.dart';
@@ -35,6 +39,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   late AnimationController _sendBtnController;
   bool _hasText = false;
+  StreamSubscription<Set<String>>? _onlineSub;
+  bool _isRecipientOnline = false;
 
   @override
   void initState() {
@@ -45,6 +51,25 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
     _messageController.addListener(_onTextChanged);
     _scrollController.addListener(_onScroll);
+
+    final socketService = SocketService.instance;
+    final targetIdLower = widget.userId.trim().toLowerCase();
+    final targetEmailLower = widget.userItem?.email.trim().toLowerCase() ?? '';
+
+    _isRecipientOnline = socketService.isUserOnline(widget.userId) ||
+        (widget.userItem?.email != null && socketService.isUserOnline(widget.userItem!.email)) ||
+        (widget.userItem?.isOnline ?? false);
+
+    _onlineSub = socketService.onlineUsersStream.listen((onlineSet) {
+      final isOnlineNow = onlineSet.contains(targetIdLower) ||
+          onlineSet.contains(targetEmailLower) ||
+          onlineSet.contains(targetIdLower.replaceAll('conv-', ''));
+      if (mounted && _isRecipientOnline != isOnlineNow) {
+        setState(() {
+          _isRecipientOnline = isOnlineNow;
+        });
+      }
+    });
 
     final currentUser = LocalStorageRepositoryImpl().getUser();
     final agencyId = currentUser?.agencyId;
@@ -62,37 +87,51 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ? targetUserId
         : ApiEndpoints.buildConversationId(effectiveAgentId, targetUserId);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final chatProv = context.read<ChatProvider>();
-      chatProv.fetchMessages(
-        conversationId,
-        recipientId: targetUserId,
-        limit: 35,
-      );
-      context.read<AgencyProvider>().markUserAsRead(widget.userId);
-    });
-  }
 
-  String _getDynamicConversationId() {
-    final chatProvider = context.read<ChatProvider>();
-    if (chatProvider.activeConversationId != null && chatProvider.activeConversationId!.isNotEmpty) {
-      return chatProvider.activeConversationId!;
-    }
-    final currentUser = LocalStorageRepositoryImpl().getUser();
-    final agencyId = currentUser?.agencyId;
-    final userId = currentUser?.id;
-    final userEmail = currentUser?.email;
-    final rawAgent = (agencyId != null && agencyId.isNotEmpty)
-        ? agencyId
-        : ((userId != null && userId.isNotEmpty) ? userId : (userEmail ?? ''));
-    final effectiveAgentId = (rawAgent.startsWith('AGENCY-') || rawAgent.toUpperCase().contains('ADMIN') || rawAgent.contains('@'))
-        ? rawAgent
-        : (rawAgent.isNotEmpty ? 'AGENCY-$rawAgent' : 'AGENCY');
-    final targetUserId = widget.userId.trim().toLowerCase();
-    return targetUserId.startsWith('conv-')
-        ? targetUserId
-        : ApiEndpoints.buildConversationId(effectiveAgentId, targetUserId);
+      // 1. Immediately clear old messages from memory so previous user's messages don't bleed into new chat
+      chatProv.clearActiveConversation();
+
+      // 2. Fetch conversations list if not already loaded to resolve exact server MongoDB _id
+      if (chatProv.conversations.isEmpty) {
+        await chatProv.fetchConversations();
+      }
+
+      String resolvedConvId = conversationId;
+      if (!targetUserId.startsWith('conv-')) {
+        final targetLower = targetUserId.trim().toLowerCase();
+        final agentLower = effectiveAgentId.trim().toLowerCase();
+
+        for (final conv in chatProv.conversations) {
+          final cid = (conv['_id'] ?? conv['id'] ?? '').toString();
+          final p1 = (conv['participant1'] ?? conv['agentId']?['_id'] ?? '').toString().trim().toLowerCase();
+          final p2 = (conv['participant2'] ?? conv['emailId']?['_id'] ?? '').toString().trim().toLowerCase();
+
+          final bool isAdminConv = cid.toUpperCase().contains('ADMIN') ||
+              p1.toUpperCase().contains('ADMIN') ||
+              p2.toUpperCase().contains('ADMIN');
+
+          if (!isAdminConv &&
+              cid.isNotEmpty &&
+              (p1 == targetLower || p2 == targetLower || p1 == agentLower || p2 == agentLower || p1.contains(targetLower) || p2.contains(targetLower))) {
+            resolvedConvId = cid;
+            break;
+          }
+        }
+      }
+
+      // 3. Perform a single fetchMessages call with the exact resolved conversation ID
+      if (mounted) {
+        chatProv.fetchMessages(
+          resolvedConvId,
+          recipientId: targetUserId,
+          limit: 35,
+        );
+        context.read<AgencyProvider>().markUserAsRead(widget.userId);
+      }
+    });
   }
 
   void _onScroll() {
@@ -119,6 +158,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _onlineSub?.cancel();
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
     _scrollController.removeListener(_onScroll);
@@ -210,9 +250,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         (agencyData?['name'] ?? 'Agency Support');
     final activeTitle =
         isHigherAdmin ? 'Admin Higher Authority' : partnerName;
-    final isOnline = isHigherAdmin
-        ? true
-        : (widget.userItem?.isOnline ?? (agencyData?['is_online'] ?? true));
+    final isOnline = isHigherAdmin ? true : _isRecipientOnline;
+    final String statusSubtitleText = isOnline
+        ? 'online'
+        : (widget.userItem?.lastActiveTime != null
+            ? DateFormatter.formatLastSeen(widget.userItem!.lastActiveTime!)
+            : 'offline');
 
     final partnerBadgeText = isHigherAdmin
         ? 'SYSTEM ADMIN'
@@ -415,14 +458,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              isOnline ? 'Online' : 'Offline',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isOnline
-                                    ? const Color(0xFF10B981)
-                                    : (isClientUser ? const Color(0xFFC4B5FD) : const Color(0xFF94A3B8)),
-                                fontWeight: FontWeight.w600,
+                            Expanded(
+                              child: Text(
+                                statusSubtitleText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: isOnline
+                                      ? const Color(0xFF10B981)
+                                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                  fontWeight: isOnline ? FontWeight.w700 : FontWeight.w500,
+                                ),
                               ),
                             ),
                           ],
@@ -431,52 +478,75 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     ),
                   ),
 
-                  // Higher Authority toggle button
-                  GestureDetector(
-                    onTap: () =>
-                        chatProvider.toggleHigherAuthority(widget.userId),
-                    child: Container(
+                  // Higher Authority Admin Badge / Button
+                  if (isHigherAdmin)
+                    Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
-                        color: isHigherAdmin
-                            ? borderBottomColor
-                            : buttonBg,
+                        color: borderBottomColor,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isHigherAdmin
-                              ? const Color(0xFF8B5CF6)
-                              : buttonBorder,
+                          color: const Color(0xFF8B5CF6),
                           width: 1.2,
                         ),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            isHigherAdmin
-                                ? Icons.business_center_rounded
-                                : Icons.shield_rounded,
+                            Icons.shield_rounded,
                             size: 14,
-                            color: isHigherAdmin
-                                ? Colors.white
-                                : const Color(0xFFA78BFA),
+                            color: Colors.white,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
-                            isHigherAdmin ? 'Agency' : 'Admin',
+                            'Admin',
                             style: TextStyle(
-                              color: isHigherAdmin
-                                  ? Colors.white
-                                  : const Color(0xFFA78BFA),
+                              color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 11,
                             ),
                           ),
                         ],
                       ),
+                    )
+                  else
+                    GestureDetector(
+                      onTap: () =>
+                          chatProvider.toggleHigherAuthority(widget.userId),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: buttonBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: buttonBorder,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.shield_rounded,
+                              size: 14,
+                              color: Color(0xFFA78BFA),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Admin',
+                              style: TextStyle(
+                                color: Color(0xFFA78BFA),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

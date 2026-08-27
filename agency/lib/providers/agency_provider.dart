@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../core/constants/api_endpoints.dart';
 import '../models/agency/agency_user_item_model.dart';
@@ -74,11 +75,19 @@ class AgencyProvider extends ChangeNotifier {
   }
 
   void _updateOnlineStatuses(Set<String> onlineIds) {
+    final Set<String> normalizedOnline = onlineIds
+        .map((id) => id.trim().toLowerCase().replaceAll('conv-', ''))
+        .toSet();
+
     bool hasChanged = false;
     for (int i = 0; i < _users.length; i++) {
-      // Match by id OR email since chat server uses emailId as userId
-      final isOnline = onlineIds.contains(_users[i].id) ||
-          onlineIds.contains(_users[i].email);
+      final idLower = _users[i].id.trim().toLowerCase();
+      final emailLower = _users[i].email.trim().toLowerCase();
+      final isOnline = normalizedOnline.contains(idLower) ||
+          normalizedOnline.contains(emailLower) ||
+          (idLower.isNotEmpty && normalizedOnline.any((o) => o.contains(idLower))) ||
+          (emailLower.isNotEmpty && normalizedOnline.any((o) => o.contains(emailLower)));
+
       if (_users[i].isOnline != isOnline) {
         _users[i] = _users[i].copyWith(isOnline: isOnline);
         hasChanged = true;
@@ -229,9 +238,19 @@ class AgencyProvider extends ChangeNotifier {
       }
 
       final onlineSet = _socketService.state.onlineUserIds;
+      final Set<String> normalizedOnline = onlineSet
+          .map((id) => id.trim().toLowerCase().replaceAll('conv-', ''))
+          .toSet();
+
       _users = fetchedUsers.map((u) {
         final convData = convMap[u.id] ?? convMap[u.email];
-        final isOnline = onlineSet.contains(u.id) || onlineSet.contains(u.email);
+        final idLower = u.id.trim().toLowerCase();
+        final emailLower = u.email.trim().toLowerCase();
+        final isOnline = normalizedOnline.contains(idLower) ||
+            normalizedOnline.contains(emailLower) ||
+            (idLower.isNotEmpty && normalizedOnline.any((o) => o.contains(idLower))) ||
+            (emailLower.isNotEmpty && normalizedOnline.any((o) => o.contains(emailLower)));
+
         if (convData != null) {
           final unread = (convData['unreadCount'] as int? ?? 0);
           final lastActive = (convData['lastMessageAt'] as DateTime?) ?? u.lastActiveTime;
@@ -311,8 +330,13 @@ class AgencyProvider extends ChangeNotifier {
 
         _totalRechargeRequestsCount = rawList.length;
         final newPendingCount = rawList.where((item) {
-          final status = (item['stage_status'] ?? item['status'] ?? '').toString().toLowerCase();
-          return status.contains('pending');
+          final status = (item['stage_status'] ?? item['status'] ?? item['stage'] ?? '').toString().trim().toLowerCase();
+          return status.contains('pending') ||
+              status == '0' ||
+              status == 'created' ||
+              status == 'submitted' ||
+              status.contains('progress') ||
+              status == 'new';
         }).length;
 
         if (newPendingCount > _pendingRechargeRequestsCount) {
@@ -325,8 +349,13 @@ class AgencyProvider extends ChangeNotifier {
       final localList = _localStorage.getSubmittedRecharges();
       _totalRechargeRequestsCount = localList.length;
       final newPendingCount = localList.where((item) {
-        final status = (item is Map ? item['status'] : (item as dynamic).status).toString().toLowerCase();
-        return status.contains('pending');
+        final status = (item is Map ? (item['status'] ?? item['stage_status']) : (item as dynamic).status).toString().trim().toLowerCase();
+        return status.contains('pending') ||
+            status == '0' ||
+            status == 'created' ||
+            status == 'submitted' ||
+            status.contains('progress') ||
+            status == 'new';
       }).length;
 
       if (newPendingCount > _pendingRechargeRequestsCount) {

@@ -33,7 +33,7 @@ class UserModel {
       if (str.startsWith('http')) {
         avatarStr = str;
       } else {
-        avatarStr = 'https://telewiz.in/officemanage/uploads/photos/$str';
+        avatarStr = 'https://fairbizcrm.com/uploads/photos/$str';
       }
     }
 

@@ -606,19 +606,26 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                                   padding: const EdgeInsets.only(bottom: 6),
                                   child: Row(
                                     children: [
-                                      const SizedBox(
-                                        width: 12,
-                                        height: 12,
+                                      SizedBox(
+                                        width: 14,
+                                        height: 14,
                                         child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white),
+                                          value: (msg.uploadProgress != null && msg.uploadProgress! > 0)
+                                              ? msg.uploadProgress
+                                              : null,
+                                          strokeWidth: 2.2,
+                                          color: const Color(0xFF38BDF8),
+                                          backgroundColor: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+                                        ),
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Uploading... ${((msg.uploadProgress ?? 0) * 100).toInt()}%',
                                         style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 11),
+                                          color: Color(0xFF38BDF8),
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ],
                                   ),

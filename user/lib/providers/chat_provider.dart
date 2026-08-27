@@ -313,9 +313,23 @@ class ChatProvider extends ChangeNotifier {
         await fetchMessages(adminConvId,
             recipientId: ApiEndpoints.adminAgencyUnqId, limit: 35);
       } else {
-        // User chatting with Admin Higher Authority (conv-ADMIN-1-userEmail)
-        final adminConvId = ApiEndpoints.buildConversationId(
+        // User chatting with Admin Higher Authority
+        String adminConvId = ApiEndpoints.buildConversationId(
             ApiEndpoints.adminAgencyUnqId, userEmail);
+
+        final userEmailLower = userEmail.trim().toLowerCase();
+        for (final conv in _conversations) {
+          final cid = (conv['_id'] ?? conv['id'] ?? '').toString();
+          final p1 = (conv['participant1'] ?? conv['agentId']?['_id'] ?? '').toString().trim().toLowerCase();
+          final p2 = (conv['participant2'] ?? conv['emailId']?['_id'] ?? '').toString().trim().toLowerCase();
+          if (cid.toUpperCase().contains('ADMIN') || p1.contains('admin') || p2.contains('admin')) {
+            if (p1 == userEmailLower || p2 == userEmailLower || cid.contains(userEmailLower)) {
+              adminConvId = cid;
+              break;
+            }
+          }
+        }
+
         await fetchMessages(adminConvId,
             recipientId: ApiEndpoints.adminAgencyUnqId, limit: 35);
       }
@@ -447,9 +461,6 @@ class ChatProvider extends ChangeNotifier {
     final loadEpoch = ++_conversationLoadEpoch;
     _activeConversationId = conversationId;
     _activeRecipientId = recipientId;
-    _messages = []; // Instantly clear memory to prevent stale screen bleeding
-    // Automatically sync _isHigherAuthorityActive with the conversation target
-    // to prevent stale admin flags from overriding user message destinations.
     _isHigherAuthorityActive = (recipientId == ApiEndpoints.adminEmailId ||
         recipientId == ApiEndpoints.adminAgencyUnqId);
     _isLoadingMore = false;
@@ -459,10 +470,17 @@ class ChatProvider extends ChangeNotifier {
 
     // 1. Instantly load cached local messages from Hive
     final cached = _chatRepository.getCachedMessages(conversationId);
-    _messages = cached;
-    // Show full shimmer skeleton only when no local cache exists
-    _isLoading = cached.isEmpty;
+    if (cached.isNotEmpty) {
+      _messages = cached;
+      _isLoading = false;
+    } else if (_messages.isEmpty) {
+      _isLoading = true; // First time open with no cache — show smooth skeleton loading
+    } else {
+      _isLoading = false; // Keep existing memory messages visible while fetching in background
+    }
     notifyListeners();
+
+    final fetchStartTime = DateTime.now();
 
     try {
       final loaded = await _chatRepository.fetchMessages(
@@ -470,6 +488,15 @@ class ChatProvider extends ChangeNotifier {
         recipientId: recipientId,
         limit: limit,
       );
+
+      // Smooth skeleton duration when loading for the first time
+      if (_isLoading) {
+        final elapsed = DateTime.now().difference(fetchStartTime).inMilliseconds;
+        final remaining = 450 - elapsed;
+        if (remaining > 0) {
+          await Future.delayed(Duration(milliseconds: remaining));
+        }
+      }
 
       // A newer user/admin chat was opened while this request was in flight.
       // Do not merge, cache, mark read, or notify for the obsolete result.
@@ -496,6 +523,7 @@ class ChatProvider extends ChangeNotifier {
 
       await _chatRepository.saveLocalMessages(conversationId, _messages);
       _hasMoreMessages = loaded.length >= limit;
+      _isLoading = false;
       
       // Emit read receipt with all unread message IDs from the other party
       if (recipientId != null && recipientId.isNotEmpty) {
@@ -821,7 +849,6 @@ class ChatProvider extends ChangeNotifier {
 
       // Send via Socket.IO using real server event format with ACK callback
       _socketService.emit(SocketEvents.sendMessage, requestDto.toJson(), ack: onAck);
-      _socketService.emit(SocketEvents.sendMessageLegacy, requestDto.toJson(), ack: onAck);
 
       // Fallback Timer: Ensure single tick (sent) appears within 1.0s even if server ACK is delayed
       Timer(const Duration(milliseconds: 1000), () {
@@ -940,6 +967,26 @@ class ChatProvider extends ChangeNotifier {
 
   bool _isDuplicateMessage(ChatMessageModel m1, ChatMessageModel m2) {
     if (m1.id.isNotEmpty && m1.id == m2.id) return true;
+
+    // Voice / Audio deduplication
+    if ((m1.type == 'voice' || m1.type == 'audio') && (m2.type == 'voice' || m2.type == 'audio')) {
+      if (m1.audioUrl != null && m1.audioUrl!.isNotEmpty && m1.audioUrl == m2.audioUrl) return true;
+      if (m1.localFilePath != null && m1.localFilePath!.isNotEmpty && m1.localFilePath == m2.localFilePath) return true;
+      final timeDiff = m1.timestamp.difference(m2.timestamp).abs().inSeconds;
+      if (timeDiff <= 10 && m1.isMe == m2.isMe && m1.voiceDuration == m2.voiceDuration) {
+        return true;
+      }
+    }
+
+    // Image deduplication
+    if (m1.type == 'image' && m2.type == 'image') {
+      if (m1.imageUrl != null && m1.imageUrl!.isNotEmpty && m1.imageUrl == m2.imageUrl) return true;
+      final timeDiff = m1.timestamp.difference(m2.timestamp).abs().inSeconds;
+      if (timeDiff <= 10 && m1.isMe == m2.isMe) {
+        return true;
+      }
+    }
+
     final text1 = m1.message.trim();
     final text2 = m2.message.trim();
     if (text1.isNotEmpty && text1 == text2) {

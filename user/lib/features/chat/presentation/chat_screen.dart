@@ -385,52 +385,75 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     ),
                   ),
 
-                  // Higher Authority toggle button
-                  GestureDetector(
-                    onTap: () =>
-                        chatProvider.toggleHigherAuthority(widget.userId),
-                    child: Container(
+                  // Higher Authority Admin Badge / Button
+                  if (isHigherAdmin)
+                    Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
-                        color: isHigherAdmin
-                            ? borderBottomColor
-                            : buttonBg,
+                        color: borderBottomColor,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isHigherAdmin
-                              ? const Color(0xFF8B5CF6)
-                              : buttonBorder,
+                          color: const Color(0xFF8B5CF6),
                           width: 1.2,
                         ),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            isHigherAdmin
-                                ? Icons.business_center_rounded
-                                : Icons.shield_rounded,
+                            Icons.shield_rounded,
                             size: 14,
-                            color: isHigherAdmin
-                                ? Colors.white
-                                : const Color(0xFFA78BFA),
+                            color: Colors.white,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
-                            isHigherAdmin ? 'Agency' : 'Admin',
+                            'Admin',
                             style: TextStyle(
-                              color: isHigherAdmin
-                                  ? Colors.white
-                                  : const Color(0xFFA78BFA),
+                              color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 11,
                             ),
                           ),
                         ],
                       ),
+                    )
+                  else
+                    GestureDetector(
+                      onTap: () =>
+                          chatProvider.toggleHigherAuthority(widget.userId),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: buttonBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: buttonBorder,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.shield_rounded,
+                              size: 14,
+                              color: Color(0xFFA78BFA),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Admin',
+                              style: TextStyle(
+                                color: Color(0xFFA78BFA),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

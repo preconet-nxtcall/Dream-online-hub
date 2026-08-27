@@ -192,35 +192,52 @@ class ChatMessageDto {
       isMeMsg = isMeExplicit!;
     } else {
       final recipient = (activeRecipientId ?? '').trim().toLowerCase();
-      final senderLower = sId.toLowerCase();
-      final isAgencyApp = roleLower == 'agency' || roleLower == 'agent';
 
-      if (isAgencyApp) {
-        // In Agency App:
-        // Client messages -> LEFT (isMe = false)
-        // Agency's own sent messages -> RIGHT (isMe = true)
-        if ((recipient.isNotEmpty && (senderLower == recipient || senderLower.contains(recipient))) ||
-            sType == 'user' ||
-            sType == 'client') {
-          isMeMsg = false;
+      // Collect all known identifiers for the CURRENT logged-in agency/user
+      final userKeys = <String>{
+        'me',
+        if (chatEmailId.trim().isNotEmpty && !chatEmailId.toLowerCase().contains('admin'))
+          chatEmailId.trim().toLowerCase(),
+        if (userId.trim().isNotEmpty &&
+            userId != ApiEndpoints.adminAgencyUnqId &&
+            userId != ApiEndpoints.adminEmailId)
+          userId.trim().toLowerCase(),
+        if (agentId.trim().isNotEmpty &&
+            agentId != ApiEndpoints.adminAgencyUnqId &&
+            agentId != ApiEndpoints.adminEmailId)
+          agentId.trim().toLowerCase(),
+      };
+
+      final partnerKeys = <String>{
+        if (recipient.isNotEmpty) recipient,
+        ApiEndpoints.adminAgencyUnqId.toLowerCase(),
+        ApiEndpoints.adminEmailId.toLowerCase(),
+        'admin',
+      };
+
+      if (sId.isNotEmpty && userKeys.contains(sId)) {
+        // Direct match with current logged-in agency's identifiers -> MY message (RIGHT)
+        isMeMsg = true;
+      } else if (sId.isNotEmpty && partnerKeys.contains(sId)) {
+        // Direct match with partner / admin / client -> PARTNER message (LEFT)
+        isMeMsg = false;
+      } else if (sType.isNotEmpty) {
+        // Evaluate based on senderType vs current logged-in app role
+        if (roleLower == 'agency' || roleLower == 'agent') {
+          if (sType == 'agent' || sType == 'agency') {
+            isMeMsg = true; // Agency's own message -> RIGHT
+          } else {
+            isMeMsg = false; // Admin or Client message -> LEFT
+          }
+        } else if (roleLower == 'admin') {
+          isMeMsg = sType == 'admin';
         } else {
-          isMeMsg = true;
+          // User / Client app
+          isMeMsg = sType == 'user' || sType == 'client';
         }
-      } else {
-        // In User/Client App:
-        // User's own sent messages -> RIGHT (isMe = true)
-        // Agency/Admin messages -> LEFT (isMe = false)
-        final myEmail = chatEmailId.trim().toLowerCase();
-        final myId = userId.trim().toLowerCase();
-        if ((myEmail.isNotEmpty && senderLower == myEmail) ||
-            (myId.isNotEmpty && senderLower == myId) ||
-            senderLower == 'me' ||
-            sType == 'user' ||
-            sType == 'client') {
-          isMeMsg = true;
-        } else {
-          isMeMsg = false;
-        }
+      } else if (sId.isNotEmpty) {
+        // Sender ID exists, doesn't match current user -> PARTNER message (LEFT)
+        isMeMsg = false;
       }
     }
 

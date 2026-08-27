@@ -566,7 +566,6 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
 
                 final unreadCount = provider.totalUnreadCount;
                 final pendingRecharges = provider.pendingRechargeRequestsCount;
-                final totalNotifications = unreadCount + pendingRecharges;
 
                 final unreadClients = provider.users.where((u) {
                   if (u.unreadCount > 0) return true;

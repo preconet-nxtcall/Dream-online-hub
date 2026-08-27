@@ -295,8 +295,8 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                               validator: Validators.validateEmail,
                               style: TextStyle(color: textPrimaryColor, fontSize: 14),
                               decoration: InputDecoration(
-                                labelText: 'Agency Email Address',
-                                hintText: 'agency@gmail.com',
+                                labelText: 'Email Address',
+                                hintText: 'Email',
                                 prefixIcon: const Icon(Icons.mail_outline_rounded, color: accentColor),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),

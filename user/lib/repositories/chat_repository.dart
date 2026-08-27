@@ -344,11 +344,19 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Future<List<Map<String, dynamic>>> fetchConversations() async {
     try {
-      final response =
-          await _chatClient.get(ApiEndpoints.conversations);
-      final data = response.data as Map<String, dynamic>;
-      final list = data['conversations'] as List<dynamic>? ?? [];
-      return list.map((c) => c as Map<String, dynamic>).toList();
+      final response = await _chatClient.get(ApiEndpoints.conversations);
+      final raw = response.data;
+      // Guard: server may return a List directly or a Map wrapping a list
+      if (raw is List) {
+        return raw.whereType<Map<String, dynamic>>().toList();
+      }
+      if (raw is Map<String, dynamic>) {
+        final list = raw['conversations'] ?? raw['data'] ?? raw['chats'] ?? [];
+        if (list is List) {
+          return list.whereType<Map<String, dynamic>>().toList();
+        }
+      }
+      return [];
     } catch (e) {
       AppLogger.warning('[ChatRepo] fetchConversations error: $e');
       return [];
