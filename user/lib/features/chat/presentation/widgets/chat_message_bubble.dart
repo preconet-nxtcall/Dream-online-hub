@@ -768,17 +768,23 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                             !isDoc &&
                             !isVoice &&
                             msg.message != '📷 Image Attachment' &&
-                            !msg.message.startsWith('🎤 Voice Note'))
-                          Text(
-                            msg.message,
-                            style: TextStyle(
-                              color: isDark
-                                  ? const Color(0xFFE9EDEF)
-                                  : const Color(0xFF111B21),
-                              fontSize: 14.2,
-                              height: 1.35,
+                            !msg.message.startsWith('🎤 Voice Note')) ...[
+                          if (msg.message.contains('REQUEST SUBMITTED') ||
+                              msg.message.contains('WITHDRAW REQUEST') ||
+                              msg.message.contains('RECHARGE REQUEST'))
+                            _buildRequestCardWidget(context, msg, isDark)
+                          else
+                            Text(
+                              msg.message,
+                              style: TextStyle(
+                                color: isDark
+                                    ? const Color(0xFFE9EDEF)
+                                    : const Color(0xFF111B21),
+                                fontSize: 14.2,
+                                height: 1.35,
+                              ),
                             ),
-                          ),
+                        ],
 
                         const SizedBox(height: 3),
 
@@ -818,6 +824,245 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRequestCardWidget(BuildContext context, ChatMessageModel msg, bool isDark) {
+    final text = msg.message;
+    final isWithdrawal = text.toUpperCase().contains('WITHDRAW');
+    final isRecharge = text.toUpperCase().contains('RECHARGE') && !isWithdrawal;
+    final lines = text.split('\n');
+
+    final Map<String, String> fields = {};
+    String? titleHeader;
+
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+      if (line.contains('SUBMITTED') || line.contains('REQUEST')) {
+        titleHeader = line.replaceAll('📥', '').replaceAll('📤', '').replaceAll('🏦', '').replaceAll('💸', '').replaceAll('*', '').trim();
+        continue;
+      }
+      if (line.startsWith('•') || line.contains(':')) {
+        final clean = line.replaceAll('•', '').replaceAll('*', '').trim();
+        final parts = clean.split(':');
+        if (parts.length >= 2) {
+          final key = parts[0].trim();
+          final val = parts.sublist(1).join(':').trim();
+          fields[key] = val;
+        }
+      }
+    }
+
+    final headerText = titleHeader ?? (isRecharge ? 'RECHARGE DEPOSIT REQUEST' : 'WITHDRAW REQUEST');
+    final headerColor = isRecharge ? const Color(0xFF10B981) : const Color(0xFF2563EB);
+
+    return Container(
+      width: 290,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B2436),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2A364F), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black38,
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header Bar
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [headerColor, headerColor.withValues(alpha: 0.85)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isRecharge ? Icons.move_to_inbox_rounded : Icons.account_balance_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    headerText.toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12.5,
+                      letterSpacing: 0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Fields Table
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...fields.entries.map((entry) {
+                  final key = entry.key;
+                  final value = entry.value;
+
+                  final isDetailBox = key.toLowerCase().contains('detail') ||
+                      key.toLowerCase().contains('description') ||
+                      key.toLowerCase().contains('account details');
+
+                  if (isDetailBox) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$key:',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F141F),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF2A364F), width: 0.8),
+                            ),
+                            child: Text(
+                              value,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  final isAmount = key.toLowerCase().contains('amount');
+
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '$key:',
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                value,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  color: isAmount ? const Color(0xFF3B82F6) : Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(color: Color(0xFF2A364F), height: 10, thickness: 0.6),
+                    ],
+                  );
+                }),
+
+                // Attachment Preview inside Card
+                if (msg.imageUrl != null && msg.imageUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: () {
+                      MediaPreviewDialog.show(
+                        context,
+                        imageUrl: msg.imageUrl!,
+                        heroTag: 'img_req_${msg.id}',
+                        timeString: DateFormatter.formatTime(msg.timestamp),
+                      );
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Stack(
+                        alignment: Alignment.bottomCenter,
+                        children: [
+                          Image.network(
+                            msg.imageUrl!,
+                            width: double.infinity,
+                            height: 130,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              height: 100,
+                              color: const Color(0xFF0F141F),
+                              child: const Center(
+                                child: Icon(Icons.image_not_supported_rounded, color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: double.infinity,
+                            color: Colors.black.withValues(alpha: 0.75),
+                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.search_rounded, color: Color(0xFF3B82F6), size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Click to View Proof / QR Code',
+                                  style: TextStyle(
+                                    color: Color(0xFF3B82F6),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

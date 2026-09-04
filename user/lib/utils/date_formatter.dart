@@ -3,23 +3,33 @@ import 'package:intl/intl.dart';
 class DateFormatter {
   /// Safely parses any date representation (String ISO, timestamp int/double, DateTime)
   /// and converts it to the user's local timezone.
-  static DateTime parseToLocal(dynamic input) {
-    if (input == null) return DateTime.now();
+  static DateTime? parseToLocal(dynamic input) {
+    if (input == null) return null;
     if (input is DateTime) return input.toLocal();
     if (input is int) {
-      return DateTime.fromMillisecondsSinceEpoch(input).toLocal();
+      final ms = input < 10000000000 ? input * 1000 : input;
+      final dt = DateTime.fromMillisecondsSinceEpoch(ms).toLocal();
+      if (dt.year < 2020) return null;
+      return dt;
     }
     if (input is double) {
-      return DateTime.fromMillisecondsSinceEpoch(input.toInt()).toLocal();
+      final intVal = input.toInt();
+      final ms = intVal < 10000000000 ? intVal * 1000 : intVal;
+      final dt = DateTime.fromMillisecondsSinceEpoch(ms).toLocal();
+      if (dt.year < 2020) return null;
+      return dt;
     }
 
     final str = input.toString().trim();
-    if (str.isEmpty) return DateTime.now();
+    if (str.isEmpty || str == 'null') return null;
 
     // Check if integer string
     final asInt = int.tryParse(str);
     if (asInt != null) {
-      return DateTime.fromMillisecondsSinceEpoch(asInt).toLocal();
+      final ms = asInt < 10000000000 ? asInt * 1000 : asInt;
+      final dt = DateTime.fromMillisecondsSinceEpoch(ms).toLocal();
+      if (dt.year < 2020) return null;
+      return dt;
     }
 
     final maxAllowedFuture = DateTime.now().add(const Duration(minutes: 5));
@@ -28,8 +38,8 @@ class DateFormatter {
     final directParsed = DateTime.tryParse(str);
     if (directParsed != null) {
       final localTime = directParsed.toLocal();
-      if (localTime.isAfter(maxAllowedFuture)) {
-        return DateTime.now();
+      if (localTime.isAfter(maxAllowedFuture) || localTime.year < 2020) {
+        return null;
       }
       return localTime;
     }
@@ -39,8 +49,8 @@ class DateFormatter {
     final tParsed = DateTime.tryParse(formattedStr);
     if (tParsed != null) {
       final localTime = tParsed.toLocal();
-      if (localTime.isAfter(maxAllowedFuture)) {
-        return DateTime.now();
+      if (localTime.isAfter(maxAllowedFuture) || localTime.year < 2020) {
+        return null;
       }
       return localTime;
     }
@@ -53,12 +63,16 @@ class DateFormatter {
       formattedStr = '${formattedStr}Z';
     }
 
-    final parsed = DateTime.tryParse(formattedStr) ?? DateTime.now();
-    final localTime = parsed.toLocal();
-    if (localTime.isAfter(maxAllowedFuture)) {
-      return DateTime.now();
+    final parsed = DateTime.tryParse(formattedStr);
+    if (parsed != null) {
+      final localTime = parsed.toLocal();
+      if (localTime.isAfter(maxAllowedFuture) || localTime.year < 2020) {
+        return null;
+      }
+      return localTime;
     }
-    return localTime;
+
+    return null;
   }
 
   static String formatShortDate(DateTime date) {

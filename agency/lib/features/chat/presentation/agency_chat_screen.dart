@@ -42,7 +42,6 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
   late AnimationController _sendBtnController;
   bool _hasText = false;
   StreamSubscription<Set<String>>? _onlineSub;
-  bool _lastOnlineStatus = false;
   bool _showScrollToBottomBtn = false;
 
   @override
@@ -56,14 +55,8 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
     _scrollController.addListener(_onScroll);
 
 
-    _onlineSub = SocketService.instance.onlineUsersStream.listen((onlineSet) {
-      if (!mounted) return;
-      final activeRecipient = context.read<ChatProvider>().activeRecipientId ?? widget.userId;
-      final isOnlineNow = onlineSet.contains(activeRecipient);
-      if (isOnlineNow != _lastOnlineStatus) {
-        _lastOnlineStatus = isOnlineNow;
-        setState(() {});
-      }
+    _onlineSub = SocketService.instance.onlineUsersStream.listen((_) {
+      if (mounted) setState(() {});
     });
 
     final currentUser = LocalStorageRepositoryImpl().getUser();
@@ -85,6 +78,10 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      SocketService.instance.checkUserPresence(widget.userId);
+      if (widget.userItem?.email != null) {
+        SocketService.instance.checkUserPresence(widget.userItem!.email);
+      }
       final chatProv = context.read<ChatProvider>();
       chatProv.resetHigherAuthority();
       await chatProv.fetchConversations();
@@ -140,14 +137,18 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
 
   void _onScroll() {
     if (!mounted || !_scrollController.hasClients) return;
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    // In a reverse:true ListView, offset 0 = newest messages (bottom),
+    // higher offsets = older messages (top). Trigger loadMore when near the top.
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
       final provider = context.read<ChatProvider>();
       if (provider.hasMoreMessages && !provider.isLoadingMore) {
         provider.loadMoreMessages();
       }
     }
 
-    final showBtn = _scrollController.hasClients && _scrollController.offset > 250;
+    // Show scroll-to-bottom button when user has scrolled away from newest messages
+    final showBtn = _scrollController.hasClients && _scrollController.offset > 300;
     if (showBtn != _showScrollToBottomBtn) {
       setState(() => _showScrollToBottomBtn = showBtn);
     }
@@ -457,11 +458,12 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
   }
 
   PreferredSizeWidget _buildAgencyAppBar(BuildContext context, String clientName, String initialLetter, String activeRecipient) {
-    final isOnline = SocketService.instance.isUserOnline(activeRecipient) || _lastOnlineStatus;
+    final isOnline = SocketService.instance.isUserOnline(activeRecipient, targetEmail: widget.userItem?.email);
+    final lastSeen = SocketService.instance.getLastSeen(activeRecipient, targetEmail: widget.userItem?.email) ?? widget.userItem?.lastActiveTime;
     final String statusSubtitle = isOnline
         ? 'online'
-        : (widget.userItem?.lastActiveTime != null
-            ? DateFormatter.formatLastSeen(widget.userItem!.lastActiveTime!)
+        : (lastSeen != null
+            ? DateFormatter.formatLastSeen(lastSeen)
             : 'offline');
 
     return PreferredSize(

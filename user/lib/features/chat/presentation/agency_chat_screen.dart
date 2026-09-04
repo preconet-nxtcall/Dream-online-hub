@@ -17,6 +17,7 @@ import 'widgets/chat_message_skeleton.dart';
 import 'widgets/date_separator_widget.dart';
 import 'widgets/typing_indicator_widget.dart';
 import 'widgets/voice_recorder_widget.dart';
+import '../../../utils/date_formatter.dart';
 import '../../user_dashboard/presentation/widgets/recharge_records_widget.dart';
 
 /// Specialized Luxury Deep Midnight Chat Screen for AGENCY APP (Agency Portal chatting with Assigned Client)
@@ -42,7 +43,6 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
   late AnimationController _sendBtnController;
   bool _hasText = false;
   StreamSubscription<Set<String>>? _onlineSub;
-  bool _lastOnlineStatus = false;
   bool _showScrollToBottomBtn = false;
 
   @override
@@ -61,17 +61,15 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
       }
     });
 
-    _onlineSub = SocketService.instance.onlineUsersStream.listen((onlineSet) {
-      if (!mounted) return;
-      final activeRecipient = context.read<ChatProvider>().activeRecipientId ?? widget.userId;
-      final isOnlineNow = onlineSet.contains(activeRecipient);
-      if (isOnlineNow != _lastOnlineStatus) {
-        _lastOnlineStatus = isOnlineNow;
-        setState(() {});
-      }
+    _onlineSub = SocketService.instance.onlineUsersStream.listen((_) {
+      if (mounted) setState(() {});
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      SocketService.instance.checkUserPresence(widget.userId);
+      if (widget.userItem?.email != null) {
+        SocketService.instance.checkUserPresence(widget.userItem!.email);
+      }
       final secureStorage = SecureStorageService();
       final chatEmailId = await secureStorage.read(StorageKeys.chatEmailId) ?? '';
       final chatAgentId = await secureStorage.read(StorageKeys.chatAgentId) ?? chatEmailId;
@@ -83,7 +81,7 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
 
       final effectiveAgentId = (rawAgent.startsWith('AGENCY-') || rawAgent.toUpperCase().contains('ADMIN') || rawAgent.contains('@'))
           ? rawAgent
-          : (rawAgent.isNotEmpty ? 'AGENCY-$rawAgent' : 'AGENCY-23');
+          : (rawAgent.isNotEmpty ? 'AGENCY-$rawAgent' : 'ADMIN-1');
 
       if (!mounted) return;
       AgencyUserItem? resolvedUser = widget.userItem;
@@ -477,6 +475,13 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
   }
 
   PreferredSizeWidget _buildAgencyAppBar(BuildContext context, String clientName, String initialLetter) {
+    final activeRecipient = context.read<ChatProvider>().activeRecipientId ?? widget.userId;
+    final isOnline = SocketService.instance.isUserOnline(activeRecipient, targetEmail: widget.userItem?.email);
+    final lastSeen = SocketService.instance.getLastSeen(activeRecipient, targetEmail: widget.userItem?.email);
+    final String activeSubtitle = isOnline
+        ? 'online'
+        : (lastSeen != null ? DateFormatter.formatLastSeen(lastSeen) : 'offline');
+
     return PreferredSize(
       preferredSize: const Size.fromHeight(66),
       child: Container(
@@ -540,15 +545,19 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> with TickerProvider
                             Container(
                               width: 8,
                               height: 8,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF00A884),
+                              decoration: BoxDecoration(
+                                color: isOnline ? const Color(0xFF00A884) : const Color(0xFF8696A0),
                                 shape: BoxShape.circle,
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const Text(
-                              'Assigned Client Portal',
-                              style: TextStyle(color: Color(0xFF8696A0), fontSize: 11.5, fontWeight: FontWeight.w500),
+                            Text(
+                              activeSubtitle,
+                              style: TextStyle(
+                                color: isOnline ? const Color(0xFF00A884) : const Color(0xFF8696A0),
+                                fontSize: 11.5,
+                                fontWeight: isOnline ? FontWeight.w700 : FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),

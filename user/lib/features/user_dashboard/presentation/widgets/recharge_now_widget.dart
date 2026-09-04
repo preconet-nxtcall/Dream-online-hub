@@ -55,14 +55,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
   Timer? _debounceTimer;
 
   Map<String, int> _dynamicBookIds = {};
-  List<String> _books = [
-    'LUCKY VAULT',
-    'DICE VERSE',
-    'JACKPOT SPIN',
-    'GOLD RUSH PRO',
-    'INFINITY FORTUNE',
-    'CROWN RICHES',
-  ];
+  List<String> _books = [];
 
   final List<int> _quickAmounts = [100, 500, 1000, 2000, 5000];
 
@@ -100,6 +93,8 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
       if (!mounted) return;
       final data = response.data;
       if (data is Map<String, dynamic> && data['success'] == true) {
+        final List<String> fetchedBooks = [];
+        final Map<String, int> bookMap = {};
         final List rawList = [];
 
         // 1. Prioritize subscribed_books (only show subscribed / successfully ordered books)
@@ -140,40 +135,71 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
           }
         }
 
-        final List<String> fetchedBooks = [];
-        final Map<String, int> bookMap = {};
-
         for (final item in rawList) {
-          String name = '';
-          int bId = 0;
           if (item is Map) {
-            name = item['book_name']?.toString() ??
-                item['bookName']?.toString() ??
-                item['name']?.toString() ??
-                item['title']?.toString() ??
-                '';
-            bId = int.tryParse(item['id']?.toString() ?? item['book_id']?.toString() ?? '0') ?? 0;
-          } else if (item != null) {
-            name = item.toString();
-          }
+            final username = (item['username'] ??
+                    item['user_name'] ??
+                    item['client_username'] ??
+                    item['user'] ??
+                    item['account_username'] ??
+                    '')
+                .toString()
+                .trim();
 
-          if (name.isNotEmpty && !fetchedBooks.contains(name)) {
-            fetchedBooks.add(name);
-            if (bId > 0) {
-              bookMap[name] = bId;
+            final password = (item['password'] ??
+                    item['pass'] ??
+                    item['client_password'] ??
+                    item['account_password'] ??
+                    '')
+                .toString()
+                .trim();
+
+            final bool hasCredentials = (username.isNotEmpty && username != 'null' && username != '0') ||
+                (password.isNotEmpty && password != 'null' && password != '0') ||
+                item['has_credentials'] == true ||
+                item['has_credentials'] == 1 ||
+                item['has_id'] == true ||
+                item['has_id'] == 1;
+
+            final isSubscribed = item['is_subscribed'] == true ||
+                item['is_subscribed'] == 1 ||
+                item['already_subscribed'] == true ||
+                item['already_subscribed'] == 1 ||
+                item['subscribed'] == true ||
+                item['subscribed'] == 1 ||
+                item['status']?.toString().toUpperCase() == 'SUBSCRIBED' ||
+                item['status']?.toString().toUpperCase() == 'SUCCESS' ||
+                item['status']?.toString().toUpperCase() == 'ACTIVE';
+
+            // Only include books that have assigned username & password credentials
+            if (hasCredentials || (isSubscribed && (username.isNotEmpty || password.isNotEmpty))) {
+              final String name = item['book_name']?.toString() ??
+                  item['bookName']?.toString() ??
+                  item['name']?.toString() ??
+                  item['title']?.toString() ??
+                  '';
+              final int bId = int.tryParse(item['id']?.toString() ?? item['book_id']?.toString() ?? '0') ?? 0;
+
+              if (name.isNotEmpty && !fetchedBooks.contains(name)) {
+                fetchedBooks.add(name);
+                if (bId > 0) {
+                  bookMap[name] = bId;
+                }
+              }
             }
           }
         }
 
-        if (fetchedBooks.isNotEmpty) {
-          setState(() {
-            _books = fetchedBooks.toSet().toList();
-            _dynamicBookIds = bookMap;
-            if (_selectedBook != null && !_books.contains(_selectedBook)) {
-              _selectedBook = null;
-            }
-          });
-        }
+        setState(() {
+          _books = fetchedBooks.toSet().toList();
+          _dynamicBookIds = bookMap;
+          if (_selectedBook != null && !_books.contains(_selectedBook)) {
+            _selectedBook = null;
+          }
+          if (_selectedBook == null && _books.isNotEmpty) {
+            _selectedBook = _books.first;
+          }
+        });
       }
     } catch (_) {
       // Keep state on network error
@@ -484,25 +510,25 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         ? rawUserAgency
         : ((storedAgentId != null &&
                 storedAgentId.isNotEmpty &&
-                storedAgentId != 'null' &&
-                !storedAgentId.toUpperCase().contains('ADMIN'))
+                storedAgentId != 'null')
             ? storedAgentId
-            : '23');
+            : 'ADMIN-1');
 
-    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.contains('@'))
+    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.toUpperCase().contains('ADMIN') || validUserAgency.contains('@'))
         ? validUserAgency
         : 'AGENCY-$validUserAgency';
 
     final conversationId = ApiEndpoints.buildConversationId(agentId, userEmail);
 
-    final now = DateTime.now();
-    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     final chatText = '📥 RECHARGE DEPOSIT REQUEST SUBMITTED\n'
-        '• Book Market: ${record.bookName}\n'
-        '• Amount: ₹${record.amount.toStringAsFixed(2)}\n'
-        '• UTR / Txn ID: $txnId\n'
-        '• Status: PENDING AGENCY APPROVAL\n'
-        '• Date & Time: $timeStr';
+        '• User ID: ${currentUser?.email ?? currentUser?.id ?? "22"}\n'
+        '• QR ID: ${_qrId ?? "N/A"}\n'
+        '• Range ID: ${_rangeId ?? "N/A"}\n'
+        '• Amount: ₹${record.amount.toStringAsFixed(0)}\n'
+        '• Employee ID: ${_empId ?? widget.agencyId}\n'
+        '• Book ID: ${_getBookId(_selectedBook)} (${record.bookName})\n'
+        '• Transaction ID: $txnId\n'
+        '• Payment Proof: ${_selectedScreenshot != null ? "[Screenshot Attached]" : "Not Attached"}';
 
     final repo = LocalStorageRepositoryImpl();
     await repo.saveSubmittedRecharge(record);
@@ -1003,10 +1029,14 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                         size: 18, color: Color(0xFFF97316)),
                     const SizedBox(width: 10),
                     Text(
-                      'Select Target Book',
+                      _books.isEmpty
+                          ? 'No Book Account Available (Get ID First)'
+                          : 'Select Target Book',
                       style: TextStyle(
                         fontSize: 13.5,
-                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        color: _books.isEmpty
+                            ? const Color(0xFFEF4444)
+                            : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                       ),
                     ),
                   ],

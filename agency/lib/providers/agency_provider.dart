@@ -75,19 +75,9 @@ class AgencyProvider extends ChangeNotifier {
   }
 
   void _updateOnlineStatuses(Set<String> onlineIds) {
-    final Set<String> normalizedOnline = onlineIds
-        .map((id) => id.trim().toLowerCase().replaceAll('conv-', ''))
-        .toSet();
-
     bool hasChanged = false;
     for (int i = 0; i < _users.length; i++) {
-      final idLower = _users[i].id.trim().toLowerCase();
-      final emailLower = _users[i].email.trim().toLowerCase();
-      final isOnline = normalizedOnline.contains(idLower) ||
-          normalizedOnline.contains(emailLower) ||
-          (idLower.isNotEmpty && normalizedOnline.any((o) => o.contains(idLower))) ||
-          (emailLower.isNotEmpty && normalizedOnline.any((o) => o.contains(emailLower)));
-
+      final isOnline = _socketService.isUserOnline(_users[i].id, targetEmail: _users[i].email);
       if (_users[i].isOnline != isOnline) {
         _users[i] = _users[i].copyWith(isOnline: isOnline);
         hasChanged = true;
@@ -237,19 +227,9 @@ class AgencyProvider extends ChangeNotifier {
         }
       }
 
-      final onlineSet = _socketService.state.onlineUserIds;
-      final Set<String> normalizedOnline = onlineSet
-          .map((id) => id.trim().toLowerCase().replaceAll('conv-', ''))
-          .toSet();
-
       _users = fetchedUsers.map((u) {
         final convData = convMap[u.id] ?? convMap[u.email];
-        final idLower = u.id.trim().toLowerCase();
-        final emailLower = u.email.trim().toLowerCase();
-        final isOnline = normalizedOnline.contains(idLower) ||
-            normalizedOnline.contains(emailLower) ||
-            (idLower.isNotEmpty && normalizedOnline.any((o) => o.contains(idLower))) ||
-            (emailLower.isNotEmpty && normalizedOnline.any((o) => o.contains(emailLower)));
+        final isOnline = _socketService.isUserOnline(u.id, targetEmail: u.email);
 
         if (convData != null) {
           final unread = (convData['unreadCount'] as int? ?? 0);
@@ -273,7 +253,7 @@ class AgencyProvider extends ChangeNotifier {
           final info = entry.value;
           final exists = _users.any((u) => u.id == userEmailId || u.email == userEmailId);
           if (!exists && userEmailId.isNotEmpty) {
-            final isOnline = onlineSet.contains(userEmailId);
+            final isOnline = _socketService.isUserOnline(userEmailId);
             final unread = (info['unreadCount'] as int? ?? 0);
             final userName = (info['userName'] as String?).toString().isNotEmpty
                 ? info['userName'] as String
@@ -323,13 +303,38 @@ class AgencyProvider extends ChangeNotifier {
         },
       );
 
-      if (response.data is Map<String, dynamic> && response.data['success'] == true) {
-        final rawList = (response.data['data'] is List
-            ? response.data['data'] as List
-            : (response.data['recharges'] is List ? response.data['recharges'] as List : []));
+      final data = response.data;
+      if (data is Map<String, dynamic> && (data['success'] == true || data['status'] == 'success' || data['data'] != null)) {
+        final List rawList = [];
+        final rawData = data['data'];
+        if (rawData is List) {
+          rawList.addAll(rawData);
+        } else if (rawData is Map<String, dynamic>) {
+          if (rawData['pending'] is List) rawList.addAll(rawData['pending'] as List);
+          if (rawData['successful'] is List) rawList.addAll(rawData['successful'] as List);
+          if (rawData['rejected'] is List) rawList.addAll(rawData['rejected'] as List);
+        } else if (data['recharges'] is List) {
+          rawList.addAll(data['recharges'] as List);
+        }
 
-        _totalRechargeRequestsCount = rawList.length;
-        final newPendingCount = rawList.where((item) {
+        final currentUser = _localStorage.getUser();
+        final currentAgencyId = (currentUser?.agencyId != null && currentUser!.agencyId!.isNotEmpty)
+            ? currentUser.agencyId!.replaceAll(RegExp(r'\D'), '')
+            : (currentUser?.id != null ? currentUser!.id.replaceAll(RegExp(r'\D'), '') : '');
+
+        final agencyList = rawList.where((item) {
+          if (item is! Map<String, dynamic>) return false;
+          if (currentAgencyId.isNotEmpty) {
+            final itemEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().replaceAll(RegExp(r'\D'), '');
+            if (itemEmpId != null && itemEmpId.isNotEmpty && itemEmpId != currentAgencyId) {
+              return false; // Skip records assigned to another agency!
+            }
+          }
+          return true;
+        }).toList();
+
+        _totalRechargeRequestsCount = agencyList.length;
+        final newPendingCount = agencyList.where((item) {
           final status = (item['stage_status'] ?? item['status'] ?? item['stage'] ?? '').toString().trim().toLowerCase();
           return status.contains('pending') ||
               status == '0' ||
@@ -433,7 +438,6 @@ class AgencyProvider extends ChangeNotifier {
   /// Mark all notifications as seen and clear unread count badge
   void markNotificationsAsSeen() {
     _hasSeenNotifications = true;
-    markAllAsRead();
     notifyListeners();
   }
 

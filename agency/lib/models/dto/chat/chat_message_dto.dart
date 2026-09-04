@@ -246,7 +246,7 @@ class ChatMessageDto {
       senderId: senderId,
       receiverId: receiverId,
       message: message,
-      timestamp: parsedDate,
+      timestamp: parsedDate ?? DateTime.now(),
       isMe: isMeMsg,
       status: status,
       type: type,

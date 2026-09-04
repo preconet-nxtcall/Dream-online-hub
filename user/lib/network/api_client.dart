@@ -3,6 +3,7 @@ import '../core/constants/api_endpoints.dart';
 import '../core/constants/app_constants.dart';
 import '../core/errors/network_exceptions.dart';
 import 'interceptors/logging_interceptor.dart';
+import 'interceptors/php_sanitizer_interceptor.dart';
 import 'interceptors/retry_interceptor.dart';
 import 'interceptors/token_interceptor.dart';
 
@@ -23,12 +24,16 @@ class ApiClient {
             connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
             receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
             sendTimeout: const Duration(milliseconds: AppConstants.sendTimeout),
+            responseType: ResponseType.plain,
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
           ),
         );
+
+    // 0. PHP Sanitizer Interceptor (Strips HTML/PHP warnings before JSON decoding)
+    _dio.interceptors.add(PhpSanitizerInterceptor());
 
     // 1. Token Interceptor (Header Injection & 401 Silent Refresh)
     _dio.interceptors.add(TokenInterceptor(

@@ -12,6 +12,7 @@ import '../../profile/presentation/agency_profile_screen.dart';
 import 'widgets/agency_user_skeleton_tile.dart';
 import 'widgets/agency_user_tile.dart';
 import 'widgets/recharge_records_widget.dart';
+import 'widgets/approved_recharge_widget.dart';
 
 class AgencyDashboardScreen extends StatefulWidget {
   const AgencyDashboardScreen({super.key});
@@ -25,6 +26,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   int _currentNavIndex = 0; // 0: Dashboard, 1: Chat, 2: Profile
+  int _selectedSectionTab = 0; // 0: Assigned Clients, 1: Pending Recharge
 
   @override
   void initState() {
@@ -144,44 +146,147 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Section Header: Assigned Clients List
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Assigned Clients',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                // Section Header Chips: [ Assigned Clients ] and [ Pending Recharge ]
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      // Chip 1: Assigned Clients
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedSectionTab = 0),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _selectedSectionTab == 0
+                                ? const Color(0xFF6366F1)
+                                : (isDark ? const Color(0xFF1E1B3A) : const Color(0xFFEEF2FF)),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: _selectedSectionTab == 0
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.people_rounded,
+                                size: 15,
+                                color: _selectedSectionTab == 0
+                                    ? Colors.white
+                                    : (isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6366F1)),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Assigned Clients',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: _selectedSectionTab == 0
+                                      ? Colors.white
+                                      : (isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6366F1)),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: _selectedSectionTab == 0
+                                      ? Colors.white.withValues(alpha: 0.25)
+                                      : (isDark ? const Color(0xFF2E2756) : const Color(0xFFE0E7FF)),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${agencyProvider.filteredUsers.length}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900,
+                                    color: _selectedSectionTab == 0
+                                        ? Colors.white
+                                        : (isDark ? const Color(0xFFC4B5FD) : const Color(0xFF4338CA)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${agencyProvider.filteredUsers.length} clients',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6366F1),
+                      const SizedBox(width: 10),
+
+                      // Chip 2: Approved Recharge / Records
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedSectionTab = 1),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _selectedSectionTab == 1
+                                ? const Color(0xFF10B981)
+                                : (isDark ? const Color(0xFF173827) : const Color(0xFFECFDF5)),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: _selectedSectionTab == 1
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 15,
+                                color: _selectedSectionTab == 1
+                                    ? Colors.white
+                                    : (isDark ? const Color(0xFF34D399) : const Color(0xFF059669)),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Approved Recharge',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: _selectedSectionTab == 1
+                                      ? Colors.white
+                                      : (isDark ? const Color(0xFF34D399) : const Color(0xFF059669)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
 
-                // Main User List Body
+                // Main User List Body vs Pending Recharge Records Widget
                 Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () =>
-                        agencyProvider.fetchUsers(isRefresh: true),
-                    color: const Color(0xFF6366F1),
-                    child: _buildUserListBody(
-                      agencyProvider,
-                      isDark,
-                      surfaceColor,
-                      surfaceHigh,
-                      borderColor,
-                    ),
-                  ),
+                  child: _selectedSectionTab == 0
+                      ? RefreshIndicator(
+                          onRefresh: () =>
+                              agencyProvider.fetchUsers(isRefresh: true),
+                          color: const Color(0xFF6366F1),
+                          child: _buildUserListBody(
+                            agencyProvider,
+                            isDark,
+                            surfaceColor,
+                            surfaceHigh,
+                            borderColor,
+                          ),
+                        )
+                      : const SingleChildScrollView(
+                          physics: BouncingScrollPhysics(),
+                          child: ApprovedRechargeWidget(),
+                        ),
                 ),
               ],
             ),
@@ -855,10 +960,10 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                                 child: InkWell(
                                   onTap: () {
                                     Navigator.pop(modalContext);
-                                    provider.setFilter(AgencyUserFilterTab.all);
                                     if (mounted) {
                                       setState(() {
                                         _currentNavIndex = 0;
+                                        _selectedSectionTab = 1;
                                       });
                                     }
                                   },
@@ -1478,21 +1583,9 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
             label: 'Requests',
             isDark: isDark,
             onTap: () {
-              provider.setFilter(AgencyUserFilterTab.all);
-            },
-          ),
-          Container(width: 1, height: 32, color: Colors.grey.withValues(alpha: 0.15)),
-
-          // Pending Stat (Total Pending Database Recharge Requests)
-          _buildMetricColumn(
-            icon: Icons.hourglass_top_rounded,
-            iconBg: isDark ? const Color(0xFF3B1B29) : const Color(0xFFFFEEF0),
-            iconColor: const Color(0xFFF43F5E),
-            value: '${provider.pendingRechargeRequestsCount}',
-            label: 'Pending',
-            isDark: isDark,
-            onTap: () {
-              provider.setFilter(AgencyUserFilterTab.unread);
+              setState(() {
+                _selectedSectionTab = 1;
+              });
             },
           ),
         ],

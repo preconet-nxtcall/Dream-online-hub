@@ -40,7 +40,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   late AnimationController _sendBtnController;
   bool _hasText = false;
   StreamSubscription<Set<String>>? _onlineSub;
-  bool _isRecipientOnline = false;
 
   @override
   void initState() {
@@ -53,22 +52,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _scrollController.addListener(_onScroll);
 
     final socketService = SocketService.instance;
-    final targetIdLower = widget.userId.trim().toLowerCase();
-    final targetEmailLower = widget.userItem?.email.trim().toLowerCase() ?? '';
 
-    _isRecipientOnline = socketService.isUserOnline(widget.userId) ||
-        (widget.userItem?.email != null && socketService.isUserOnline(widget.userItem!.email)) ||
-        (widget.userItem?.isOnline ?? false);
-
-    _onlineSub = socketService.onlineUsersStream.listen((onlineSet) {
-      final isOnlineNow = onlineSet.contains(targetIdLower) ||
-          onlineSet.contains(targetEmailLower) ||
-          onlineSet.contains(targetIdLower.replaceAll('conv-', ''));
-      if (mounted && _isRecipientOnline != isOnlineNow) {
-        setState(() {
-          _isRecipientOnline = isOnlineNow;
-        });
-      }
+    _onlineSub = socketService.onlineUsersStream.listen((_) {
+      if (mounted) setState(() {});
     });
 
     final currentUser = LocalStorageRepositoryImpl().getUser();
@@ -89,6 +75,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      socketService.checkUserPresence(widget.userId);
+      if (widget.userItem?.email != null) {
+        socketService.checkUserPresence(widget.userItem!.email);
+      }
       final chatProv = context.read<ChatProvider>();
 
       // 1. Immediately clear old messages from memory so previous user's messages don't bleed into new chat
@@ -250,11 +240,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         (agencyData?['name'] ?? 'Agency Support');
     final activeTitle =
         isHigherAdmin ? 'Admin Higher Authority' : partnerName;
-    final isOnline = isHigherAdmin ? true : _isRecipientOnline;
+    final String? targetEmail = isHigherAdmin ? ApiEndpoints.adminEmailId : widget.userItem?.email;
+    final isOnline = SocketService.instance.isUserOnline(widget.userId, targetEmail: targetEmail);
+    final lastSeen = SocketService.instance.getLastSeen(widget.userId, targetEmail: targetEmail) ?? widget.userItem?.lastActiveTime;
     final String statusSubtitleText = isOnline
         ? 'online'
-        : (widget.userItem?.lastActiveTime != null
-            ? DateFormatter.formatLastSeen(widget.userItem!.lastActiveTime!)
+        : (lastSeen != null
+            ? DateFormatter.formatLastSeen(lastSeen)
             : 'offline');
 
     final partnerBadgeText = isHigherAdmin
@@ -1366,7 +1358,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       // Confirm Button
                       ElevatedButton(
                         onPressed: () {
-                          final gameName = gameController.text.trim();
                           final amount = amountController.text.trim();
                           final note = noteController.text.trim();
 
@@ -1384,10 +1375,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
                           Navigator.pop(ctx);
 
-                          final reqMessage = '💰 RECHARGE REQUEST\n'
-                              '• Game: ${gameName.isNotEmpty ? gameName : defaultGame}\n'
-                              '• Amount: ₹$amount'
-                              '${note.isNotEmpty ? "\n• Note: $note" : ""}';
+                          final reqMessage = '📥 RECHARGE DEPOSIT REQUEST\n'
+                              '• User ID: ${widget.userId}\n'
+                              '• Game Book: SKYEXCHANGE\n'
+                              '• Amount: ₹$amount\n'
+                              '• Txn ID: ${note.isNotEmpty ? note : "TXN12345678"}\n'
+                              '• Bank Account Details: Paid via UPI (QR ID: 104)';
 
                           _sendDirectRequestMessage(reqMessage);
 
@@ -1612,7 +1605,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       // Confirm Button
                       ElevatedButton(
                         onPressed: () {
-                          final gameName = gameController.text.trim();
                           final amount = amountController.text.trim();
                           final details = paymentDetailsController.text.trim();
 
@@ -1641,10 +1633,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
                           Navigator.pop(ctx);
 
-                          final reqMessage = '💸 WITHDRAWAL REQUEST\n'
-                              '• Game: ${gameName.isNotEmpty ? gameName : defaultGame}\n'
+                          final reqMessage = '🏦 WITHDRAW REQUEST\n'
+                              '• User ID: ${widget.userId}\n'
+                              '• Game Book: SKYEXCHANGE\n'
                               '• Amount: ₹$amount\n'
-                              '• Payment Details: $details';
+                              '• Txn ID: 324\n'
+                              '• Bank Account Details: $details';
 
                           _sendDirectRequestMessage(reqMessage);
 

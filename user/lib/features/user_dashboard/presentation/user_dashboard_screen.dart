@@ -16,6 +16,7 @@ import '../../../storage/secure_storage_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../widgets/common/app_logout_dialog.dart';
+import '../../../widgets/common/draggable_chat_button.dart';
 import '../../profile/presentation/user_profile_screen.dart';
 import 'widgets/banner_carousel_widget.dart';
 import 'widgets/game_card_widget.dart';
@@ -398,12 +399,11 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         ? rawUserAgency
         : ((storedAgentId != null &&
                 storedAgentId.isNotEmpty &&
-                storedAgentId != 'null' &&
-                !storedAgentId.toUpperCase().contains('ADMIN'))
+                storedAgentId != 'null')
             ? storedAgentId
-            : '23');
+            : 'ADMIN-1');
 
-    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.contains('@'))
+    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.toUpperCase().contains('ADMIN') || validUserAgency.contains('@'))
         ? validUserAgency
         : 'AGENCY-$validUserAgency';
 
@@ -635,86 +635,28 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             ],
           ),
         ),
-      body: SafeArea(
-        child: _currentNavIndex == 2
-            ? const UserProfileScreen()
-            : RefreshIndicator(
-                onRefresh: () async {
-                  await gameProvider.fetchGames();
-                  await _fetchRechargeSummary();
-                  await _rechargeRecordsKey.currentState?.refreshRecords();
-                },
-                color: const Color(0xFFFFD700),
-                child: _currentNavIndex == 0
-                    ? _buildHomeBody(gameProvider, isDark)
-                    : _buildHistoryBody(isDark),
-              ),
-      ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFF7A00), Color(0xFFFF9900), Color(0xFFE66700)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          SafeArea(
+            child: _currentNavIndex == 2
+                ? const UserProfileScreen()
+                : RefreshIndicator(
+                    onRefresh: () async {
+                      await gameProvider.fetchGames();
+                      await _fetchRechargeSummary();
+                      await _rechargeRecordsKey.currentState?.refreshRecords();
+                    },
+                    color: const Color(0xFFFFD700),
+                    child: _currentNavIndex == 0
+                        ? _buildHomeBody(gameProvider, isDark)
+                        : _buildHistoryBody(isDark),
+                  ),
           ),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.5),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF7A00).withValues(alpha: 0.5),
-              blurRadius: 16,
-              spreadRadius: 1,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
+          DraggableFloatingChatButton(
             onTap: () => _onOpenChat(),
-            borderRadius: BorderRadius.circular(30),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 9),
-                  Text(
-                    'Chat Support',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14.5,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
-        ),
+        ],
       ),
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),

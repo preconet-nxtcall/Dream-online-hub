@@ -1,22 +1,22 @@
 import 'dart:convert';
-import 'dart:io';
-import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/api_endpoints.dart';
 import '../../../../core/constants/storage_keys.dart';
 import '../../../../models/chat/chat_message_model.dart';
 import '../../../../models/dto/chat/send_message_request_dto.dart';
+import '../../../../models/user/payment_account_model.dart';
 import '../../../../network/api_client.dart';
 import '../../../../network/chat_api_client.dart';
 import '../../../../providers/chat_provider.dart';
+import '../../../../repositories/payment_account_repository.dart';
 import '../../../../socket/socket_events.dart';
 import '../../../../socket/socket_service.dart';
 import '../../../../storage/local_storage_repository.dart';
 import '../../../../storage/secure_storage_service.dart';
+import '../../../profile/presentation/widgets/payment_account_widget.dart';
 
 class WithdrawRequestModel {
   final String id;
@@ -56,24 +56,116 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
   String? _selectedBook;
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  File? _selectedScreenshot;
-  final ImagePicker _picker = ImagePicker();
   bool _isSubmitting = false;
 
+  PaymentAccountModel? _savedAccount;
+  bool _isLoadingAccount = true;
+  bool _isApprovedAccountAvailable = false;
+  String? _accountStatusText;
+
   Map<String, int> _dynamicBookIds = {};
-  List<String> _books = [
-    'LUCKY VAULT',
-    'DICE VERSE',
-    'JACKPOT SPIN',
-    'GOLD RUSH PRO',
-    'INFINITY FORTUNE',
-    'CROWN RICHES',
-  ];
+  List<String> _books = [];
 
   @override
   void initState() {
     super.initState();
     _fetchBooks();
+    _fetchPaymentAccount();
+  }
+
+  Future<void> _fetchPaymentAccount() async {
+    try {
+      setState(() => _isLoadingAccount = true);
+      final userId = await _resolveUserId();
+      final repo = PaymentAccountRepositoryImpl();
+      final account = await repo.getPaymentAccount(userId);
+
+      if (!mounted) return;
+
+      if (account != null) {
+        final rawStatus = account.status.trim().toUpperCase();
+        final bool isApproved = rawStatus == 'APPROVED' ||
+            rawStatus == 'SUCCESS' ||
+            rawStatus == 'SUCCESSFUL' ||
+            rawStatus == 'VERIFIED' ||
+            rawStatus == 'ACTIVE' ||
+            rawStatus == 'ACCEPTED' ||
+            rawStatus == 'EMPLOYEE-APPROVED' ||
+            rawStatus == '1';
+
+        final bool hasBankInfo = account.bankName.isNotEmpty ||
+            account.accountNo.isNotEmpty ||
+            account.accountName.isNotEmpty ||
+            account.upiId.isNotEmpty;
+
+        final bool isValidApproved = isApproved && hasBankInfo && !account.isPendingApproval;
+
+        setState(() {
+          _savedAccount = account;
+          _isApprovedAccountAvailable = isValidApproved;
+          _accountStatusText = rawStatus.isNotEmpty
+              ? rawStatus
+              : (account.isPendingApproval ? 'PENDING' : 'NOT APPROVED');
+          _isLoadingAccount = false;
+        });
+
+        if (isValidApproved) {
+          final buffer = StringBuffer();
+          if (account.bankName.isNotEmpty) buffer.writeln('Bank Name: ${account.bankName}');
+          if (account.accountName.isNotEmpty) buffer.writeln('Account Holder: ${account.accountName}');
+          if (account.accountNo.isNotEmpty) buffer.writeln('Account No: ${account.accountNo}');
+          if (account.ifscCode.isNotEmpty) buffer.writeln('IFSC Code: ${account.ifscCode}');
+          if (account.upiId.isNotEmpty) buffer.writeln('UPI ID: ${account.upiId}');
+          _descriptionController.text = buffer.toString().trim();
+        }
+      } else {
+        setState(() {
+          _savedAccount = null;
+          _isApprovedAccountAvailable = false;
+          _accountStatusText = null;
+          _isLoadingAccount = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingAccount = false);
+      }
+    }
+  }
+
+  void _openPaymentAccountSettings() {
+    final parentCtx = context;
+    if (Navigator.of(parentCtx).canPop()) {
+      Navigator.of(parentCtx).pop();
+    }
+
+    showModalBottomSheet(
+      context: parentCtx,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.90,
+          ),
+          decoration: const BoxDecoration(
+            color: Color(0xFF13111C),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: PaymentAccountWidget(
+                onClose: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<int> _resolveUserId() async {
@@ -110,6 +202,8 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       if (!mounted) return;
       final data = response.data;
       if (data is Map<String, dynamic> && data['success'] == true) {
+        final List<String> fetchedBooks = [];
+        final Map<String, int> bookMap = {};
         final List rawList = [];
 
         // 1. Prioritize subscribed_books (only show subscribed / successfully ordered books)
@@ -150,40 +244,71 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
           }
         }
 
-        final List<String> fetchedBooks = [];
-        final Map<String, int> bookMap = {};
-
         for (final item in rawList) {
-          String name = '';
-          int bId = 0;
           if (item is Map) {
-            name = item['book_name']?.toString() ??
-                item['bookName']?.toString() ??
-                item['name']?.toString() ??
-                item['title']?.toString() ??
-                '';
-            bId = int.tryParse(item['id']?.toString() ?? item['book_id']?.toString() ?? '0') ?? 0;
-          } else if (item != null) {
-            name = item.toString();
-          }
+            final username = (item['username'] ??
+                    item['user_name'] ??
+                    item['client_username'] ??
+                    item['user'] ??
+                    item['account_username'] ??
+                    '')
+                .toString()
+                .trim();
 
-          if (name.isNotEmpty && !fetchedBooks.contains(name)) {
-            fetchedBooks.add(name);
-            if (bId > 0) {
-              bookMap[name] = bId;
+            final password = (item['password'] ??
+                    item['pass'] ??
+                    item['client_password'] ??
+                    item['account_password'] ??
+                    '')
+                .toString()
+                .trim();
+
+            final bool hasCredentials = (username.isNotEmpty && username != 'null' && username != '0') ||
+                (password.isNotEmpty && password != 'null' && password != '0') ||
+                item['has_credentials'] == true ||
+                item['has_credentials'] == 1 ||
+                item['has_id'] == true ||
+                item['has_id'] == 1;
+
+            final isSubscribed = item['is_subscribed'] == true ||
+                item['is_subscribed'] == 1 ||
+                item['already_subscribed'] == true ||
+                item['already_subscribed'] == 1 ||
+                item['subscribed'] == true ||
+                item['subscribed'] == 1 ||
+                item['status']?.toString().toUpperCase() == 'SUBSCRIBED' ||
+                item['status']?.toString().toUpperCase() == 'SUCCESS' ||
+                item['status']?.toString().toUpperCase() == 'ACTIVE';
+
+            // Only include books that have assigned username & password credentials
+            if (hasCredentials || (isSubscribed && (username.isNotEmpty || password.isNotEmpty))) {
+              final String name = item['book_name']?.toString() ??
+                  item['bookName']?.toString() ??
+                  item['name']?.toString() ??
+                  item['title']?.toString() ??
+                  '';
+              final int bId = int.tryParse(item['id']?.toString() ?? item['book_id']?.toString() ?? '0') ?? 0;
+
+              if (name.isNotEmpty && !fetchedBooks.contains(name)) {
+                fetchedBooks.add(name);
+                if (bId > 0) {
+                  bookMap[name] = bId;
+                }
+              }
             }
           }
         }
 
-        if (fetchedBooks.isNotEmpty) {
-          setState(() {
-            _books = fetchedBooks.toSet().toList();
-            _dynamicBookIds = bookMap;
-            if (_selectedBook != null && !_books.contains(_selectedBook)) {
-              _selectedBook = null;
-            }
-          });
-        }
+        setState(() {
+          _books = fetchedBooks.toSet().toList();
+          _dynamicBookIds = bookMap;
+          if (_selectedBook != null && !_books.contains(_selectedBook)) {
+            _selectedBook = null;
+          }
+          if (_selectedBook == null && _books.isNotEmpty) {
+            _selectedBook = _books.first;
+          }
+        });
       }
     } catch (_) {
       // Keep state on network error
@@ -207,25 +332,6 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     _amountController.dispose();
     _descriptionController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    try {
-      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-      if (pickedFile != null) {
-        setState(() {
-          _selectedScreenshot = File(pickedFile.path);
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to select screenshot: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   Future<void> _onClickBook(String bookName) async {
@@ -260,7 +366,23 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       return;
     }
 
-    final description = _descriptionController.text.trim();
+    final userRemarks = _descriptionController.text.trim();
+
+    // Strictly require an approved bank account saved in Profile section!
+    if (!_isApprovedAccountAvailable) {
+      if (_savedAccount != null && (_savedAccount!.isPendingApproval || (_accountStatusText ?? '').contains('PENDING'))) {
+        _showIssueDialog('Approval Pending', 'Your saved bank details are currently awaiting agency approval. Withdrawals will be enabled once approved.');
+      } else {
+        _showIssueDialog('Bank Details Required', 'First save your Bank Details in Profile section before requesting withdrawal.');
+      }
+      return;
+    }
+
+    final bankInfoStr = 'Bank: ${_savedAccount?.bankName}, Holder: ${_savedAccount?.accountName}, Acc: ${_savedAccount?.accountNo}, IFSC: ${_savedAccount?.ifscCode}, UPI: ${_savedAccount?.upiId}';
+
+    final String description = userRemarks.isNotEmpty
+        ? '$bankInfoStr\nRemarks: $userRemarks'
+        : bankInfoStr;
 
     setState(() => _isSubmitting = true);
 
@@ -270,11 +392,8 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       final userId = await _resolveUserId();
 
       String imageBase64 = '';
-      if (_selectedScreenshot != null && await _selectedScreenshot!.exists()) {
-        final bytes = await _selectedScreenshot!.readAsBytes();
-        final ext = _selectedScreenshot!.path.split('.').last.toLowerCase();
-        final mimeType = ext == 'png' ? 'png' : (ext == 'jpg' || ext == 'jpeg' ? 'jpeg' : 'png');
-        imageBase64 = 'data:image/$mimeType;base64,${base64Encode(bytes)}';
+      if (_savedAccount?.image != null && _savedAccount!.image!.isNotEmpty) {
+        imageBase64 = _savedAccount!.image!;
       }
 
       final options = Options(validateStatus: (status) => status != null && status < 500);
@@ -371,7 +490,6 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         _isSubmitting = false;
         _amountController.clear();
         _descriptionController.clear();
-        _selectedScreenshot = null;
       });
 
       if (!mounted) return;
@@ -395,7 +513,6 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         _isSubmitting = false;
         _amountController.clear();
         _descriptionController.clear();
-        _selectedScreenshot = null;
       });
 
       if (!mounted) return;
@@ -422,26 +539,21 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         ? rawUserAgency
         : ((storedAgentId != null &&
                 storedAgentId.isNotEmpty &&
-                storedAgentId != 'null' &&
-                !storedAgentId.toUpperCase().contains('ADMIN'))
+                storedAgentId != 'null')
             ? storedAgentId
-            : '23');
+            : 'ADMIN-1');
 
-    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.contains('@'))
+    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.toUpperCase().contains('ADMIN') || validUserAgency.contains('@'))
         ? validUserAgency
         : 'AGENCY-$validUserAgency';
 
     final conversationId = ApiEndpoints.buildConversationId(agentId, userEmail);
 
-    final now = DateTime.now();
-    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    final descLine = description.isNotEmpty ? '\n• Details / UTR: $description' : '';
     final chatText = '📤 WITHDRAWAL REQUEST SUBMITTED\n'
-        '• Book Market: ${model.bookName}\n'
-        '• Amount: ₹${model.amount.toStringAsFixed(2)}'
-        '$descLine\n'
-        '• Status: PENDING AGENCY APPROVAL\n'
-        '• Date & Time: $timeStr';
+        '• User ID: ${currentUser?.email ?? currentUser?.id ?? "22"}\n'
+        '• Game Book: ${model.bookName}\n'
+        '• Amount: ₹${model.amount.toStringAsFixed(0)}\n'
+        '• Bank Account Details: ${description.isNotEmpty ? description : model.description}';
 
     final repo = LocalStorageRepositoryImpl();
     widget.onWithdrawSubmitted?.call(model);
@@ -813,6 +925,381 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     );
   }
 
+  Widget _buildBankDetailsSection(
+    bool isDark,
+    Color inputBg,
+    Color borderColor,
+    Color hintColor,
+    Color textColor,
+  ) {
+    if (_isLoadingAccount) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: inputBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Fetching saved payout details...',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_isApprovedAccountAvailable && _savedAccount != null) {
+      final acc = _savedAccount!;
+      final hasQrImage = acc.image != null && acc.image!.trim().isNotEmpty;
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF131C2E) : const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF10B981).withValues(alpha: 0.5),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF10B981).withValues(alpha: 0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row: Approved Badge + Bank Icon
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF10B981), width: 1),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'APPROVED PAYOUT ACCOUNT',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF10B981),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                const Icon(Icons.account_balance_rounded, color: Color(0xFF10B981), size: 20),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Account Details Grid / Column
+            _buildAccountDetailRow('Bank Name', acc.bankName.isNotEmpty ? acc.bankName : 'N/A', isDark, isBold: true),
+            const SizedBox(height: 8),
+            _buildAccountDetailRow('Holder Name', acc.accountName.isNotEmpty ? acc.accountName : 'N/A', isDark),
+            if (acc.accountNo.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _buildAccountDetailRow('Account No', acc.accountNo, isDark),
+            ],
+            if (acc.ifscCode.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _buildAccountDetailRow('IFSC Code', acc.ifscCode, isDark),
+            ],
+            if (acc.upiId.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _buildAccountDetailRow('UPI ID', acc.upiId, isDark, statusColor: const Color(0xFF38BDF8)),
+            ],
+
+            // QR Code / Passbook Image Thumbnail Preview
+            if (hasQrImage) ...[
+              const SizedBox(height: 14),
+              const Divider(height: 1, thickness: 0.8),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Text(
+                    'Saved QR Code / Passbook:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => _showImageDialog(acc.image!),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.zoom_in_rounded, size: 14, color: Color(0xFF10B981)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Enlarge QR',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF10B981)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _showImageDialog(acc.image!),
+                child: Container(
+                  height: 90,
+                  width: 90,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(9),
+                    child: _buildAccountImageWidget(acc.image!),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Account is Pending or No Bank Account Saved
+    final bool isPending = _savedAccount != null &&
+        (_savedAccount!.isPendingApproval || (_accountStatusText ?? '').contains('PENDING'));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isPending
+            ? (isDark ? const Color(0xFF2C2213) : const Color(0xFFFFFBEB))
+            : (isDark ? const Color(0xFF2D181A) : const Color(0xFFFEF2F2)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPending
+              ? const Color(0xFFF59E0B).withValues(alpha: 0.6)
+              : const Color(0xFFEF4444).withValues(alpha: 0.6),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)).withValues(alpha: 0.15),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)).withValues(alpha: 0.15),
+                ),
+                child: Icon(
+                  isPending ? Icons.hourglass_top_rounded : Icons.account_balance_outlined,
+                  color: isPending ? const Color(0xFFF59E0B) : const Color(0xFFEF4444),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isPending ? 'Bank Account Approval Pending' : 'No Approved Bank Account',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: isPending ? const Color(0xFFD97706) : const Color(0xFFDC2626),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isPending
+                          ? 'Your saved bank details are awaiting agency verification. Withdrawals will be enabled once approved.'
+                          : 'First save bank details in Profile section before requesting withdrawal.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isPending
+                      ? const [Color(0xFFF59E0B), Color(0xFFD97706)]
+                      : const [Color(0xFFEF4444), Color(0xFFDC2626)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)).withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: _openPaymentAccountSettings,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isPending ? Icons.edit_rounded : Icons.account_balance_wallet_rounded,
+                      color: Colors.white,
+                      size: 17,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isPending ? 'CHECK BANK STATUS IN PROFILE' : 'FIRST SAVE BANK DETAILS IN PROFILE',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountDetailRow(String label, String value, bool isDark, {bool isBold = false, Color? statusColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isBold ? FontWeight.w900 : FontWeight.w700,
+              color: statusColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccountImageWidget(String imgStr) {
+    if (imgStr.startsWith('data:image')) {
+      try {
+        final base64Data = imgStr.split(',').last;
+        final bytes = base64Decode(base64Data);
+        return Image.memory(bytes, fit: BoxFit.cover);
+      } catch (_) {}
+    } else if (imgStr.startsWith('http')) {
+      return Image.network(
+        imgStr,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.qr_code_rounded, size: 36, color: Colors.grey),
+      );
+    }
+    return const Icon(Icons.qr_code_rounded, size: 36, color: Colors.grey);
+  }
+
+  void _showImageDialog(String imgStr) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              constraints: const BoxConstraints(maxHeight: 350, maxWidth: 350),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: Colors.white,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: _buildAccountImageWidget(imgStr),
+              ),
+            ),
+            const SizedBox(height: 12),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLabel(String text, bool isDark) {
     return RichText(
       text: TextSpan(
@@ -835,6 +1322,18 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOptionalLabel(String text, bool isDark) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.5,
+        color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
       ),
     );
   }
@@ -900,10 +1399,14 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                           child: DropdownButton<String>(
                             value: _selectedBook,
                             hint: Text(
-                              'Select Book',
+                              _books.isEmpty
+                                  ? 'No Book Account Available (Get ID First)'
+                                  : 'Select Book',
                               style: TextStyle(
                                 fontSize: 13.5,
-                                color: hintColor,
+                                color: _books.isEmpty
+                                    ? const Color(0xFFEF4444)
+                                    : hintColor,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -981,8 +1484,14 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
             ),
             const SizedBox(height: 16),
 
-            // 3. DESCRIPTION (OPTIONAL)* (Middle Multiline Field)
-            _buildLabel('DESCRIPTION (OPTIONAL)', isDark),
+            // 3. SAVED BANK DETAILS & QR CODE / APPROVAL NOTICE
+            _buildLabel('SAVED PAYOUT BANK ACCOUNT', isDark),
+            const SizedBox(height: 6),
+            _buildBankDetailsSection(isDark, inputBg, borderColor, hintColor, textColor),
+            const SizedBox(height: 16),
+
+            // 4. REMARKS / ADDITIONAL NOTES (Optional Multiline Field)
+            _buildOptionalLabel('REMARKS / ADDITIONAL NOTES (OPTIONAL)', isDark),
             const SizedBox(height: 6),
             Container(
               decoration: BoxDecoration(
@@ -992,149 +1501,25 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
               ),
               child: TextField(
                 controller: _descriptionController,
-                maxLines: 4,
+                maxLines: 2,
                 style: TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: textColor,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Enter Description',
+                  hintText: 'Add optional remarks or notes for withdrawal (optional)...',
                   hintStyle: TextStyle(
-                    fontSize: 13.5,
+                    fontSize: 12.5,
                     color: hintColor,
                     fontWeight: FontWeight.w400,
                   ),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.all(12),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
             ),
             const SizedBox(height: 16),
-
-            // 4. UPLOAD QR CODE*
-            _buildLabel('UPLOAD QR CODE', isDark),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                // Dashed Border Upload Button Area
-                Expanded(
-                  child: CustomPaint(
-                    painter: DashedBorderPainter(
-                      color: const Color(0xFFF59E0B),
-                      strokeWidth: 1.5,
-                      gap: 4.5,
-                      dash: 6.0,
-                    ),
-                    child: InkWell(
-                      onTap: _pickImage,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        height: 72,
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF2B2519).withValues(alpha: 0.4)
-                              : const Color(0xFFFFFDF5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _selectedScreenshot != null
-                                    ? _selectedScreenshot!.path.split('/').last
-                                    : 'Choose Screenshot File',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white70 : const Color(0xFF4B5563),
-                                ),
-                              ),
-                            ),
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? const Color(0xFF52421D)
-                                    : const Color(0xFFFEF3C7),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.upload_rounded,
-                                color: Color(0xFFD97706),
-                                size: 20,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Preview Box (72x72)
-                Stack(
-                  children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: inputBg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: borderColor, width: 1),
-                      ),
-                      child: _selectedScreenshot != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(11),
-                              child: Image.file(_selectedScreenshot!, fit: BoxFit.cover),
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.image_outlined,
-                                  size: 24,
-                                  color: hintColor,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'NO IMAGE',
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w900,
-                                    color: hintColor,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                    if (_selectedScreenshot != null)
-                      Positioned(
-                        top: 2,
-                        right: 2,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedScreenshot = null),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.7),
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(3),
-                            child: const Icon(Icons.close_rounded, size: 12, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
 
             // 5. Centered Dark Button with Yellow Text: "Withdraw Request"
             Center(
@@ -1186,52 +1571,4 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     ),
   );
 }
-}
-
-class DashedBorderPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final double gap;
-  final double dash;
-
-  DashedBorderPainter({
-    required this.color,
-    this.strokeWidth = 1.5,
-    this.gap = 4.5,
-    this.dash = 6.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-
-    final RRect rrect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      const Radius.circular(12),
-    );
-
-    final Path path = Path()..addRRect(rrect);
-    final Path dashPath = Path();
-
-    for (final PathMetric metric in path.computeMetrics()) {
-      double distance = 0.0;
-      while (distance < metric.length) {
-        final double len = (distance + dash < metric.length) ? dash : metric.length - distance;
-        dashPath.addPath(metric.extractPath(distance, distance + len), Offset.zero);
-        distance += dash + gap;
-      }
-    }
-
-    canvas.drawPath(dashPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.strokeWidth != strokeWidth ||
-      oldDelegate.gap != gap ||
-      oldDelegate.dash != dash;
 }

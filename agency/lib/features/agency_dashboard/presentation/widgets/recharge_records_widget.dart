@@ -78,29 +78,20 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
     return fallbackDateVal?.toString() ?? 'Recent';
   }
 
-  Future<int> _resolveUserId() async {
-    int userId = 22;
-    if (widget.userId != null && widget.userId.toString().isNotEmpty) {
-      final digitsOnly = widget.userId.toString().replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
-      }
-    }
+
+
+  Future<String> _resolveCurrentAgencyId() async {
     final currentUser = LocalStorageRepositoryImpl().getUser();
     if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
       final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
-      }
+      if (digitsOnly.isNotEmpty) return digitsOnly;
     }
     final storedUserId = await SecureStorageService().read(StorageKeys.userId);
     if (storedUserId != null && storedUserId.isNotEmpty) {
       final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
-      }
+      if (digitsOnly.isNotEmpty) return digitsOnly;
     }
-    return userId;
+    return '';
   }
 
   Future<void> _fetchBackendRecords({bool silent = false}) async {
@@ -110,7 +101,8 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
       }
 
       final apiClient = ApiClient();
-      final userId = await _resolveUserId();
+      final currentAgencyId = await _resolveCurrentAgencyId();
+      final targetClientId = widget.userId?.toString().replaceAll(RegExp(r'\D'), '') ?? '';
 
       final List<RechargeRecordModel> fetched = [];
 
@@ -120,7 +112,6 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           options: Options(validateStatus: (status) => status != null && status < 500),
           data: {
             'action': 'recharge_records',
-            'user_id': userId,
             'status_type': _selectedStatusFilter,
           },
         );
@@ -131,6 +122,11 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         if (data is Map<String, dynamic> && data['success'] == true) {
           if (data['data'] is List && (data['data'] as List).isNotEmpty) {
             rawList.addAll(data['data'] as List);
+          } else if (data['data'] is Map) {
+            final cat = data['data'] as Map;
+            if (cat['pending'] is List) rawList.addAll(cat['pending'] as List);
+            if (cat['successful'] is List) rawList.addAll(cat['successful'] as List);
+            if (cat['rejected'] is List) rawList.addAll(cat['rejected'] as List);
           } else if (data['recharges'] is List && (data['recharges'] as List).isNotEmpty) {
             rawList.addAll(data['recharges'] as List);
           } else if (data['categorized'] is Map) {
@@ -138,12 +134,28 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
             if (cat['pending'] is List) rawList.addAll(cat['pending'] as List);
             if (cat['successful'] is List) rawList.addAll(cat['successful'] as List);
             if (cat['rejected'] is List) rawList.addAll(cat['rejected'] as List);
-          } else if (data['data'] is List) {
-            rawList.addAll(data['data'] as List);
           }
         }
 
         for (final item in rawList) {
+          if (item is Map<String, dynamic>) {
+            // 1. Strict Agency Isolation: match logged-in agency emp_id
+            if (currentAgencyId.isNotEmpty) {
+              final itemEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().replaceAll(RegExp(r'\D'), '');
+              if (itemEmpId != null && itemEmpId.isNotEmpty && itemEmpId != currentAgencyId) {
+                continue; // Skip records assigned to another agency!
+              }
+            }
+
+            // 2. Target Client Filtering (when clicking a specific user)
+            if (targetClientId.isNotEmpty) {
+              final itemUserId = (item['user_id'] ?? item['userId'])?.toString().replaceAll(RegExp(r'\D'), '');
+              if (itemUserId != null && itemUserId.isNotEmpty && itemUserId != targetClientId) {
+                continue; // Skip records belonging to other users!
+              }
+            }
+          }
+
           final idVal = item['recharge_id'] ?? item['id'] ?? '';
           final idStr = idVal.toString();
           final bookIdVal = item['book_id']?.toString();
@@ -199,7 +211,6 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           options: Options(validateStatus: (status) => status != null && status < 500),
           data: {
             'action': 'withdraw_records',
-            'user_id': userId,
             'status_type': _selectedStatusFilter,
           },
         );

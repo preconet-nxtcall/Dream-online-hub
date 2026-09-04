@@ -8,6 +8,7 @@ class SocketState {
   final int queuedMessagesCount;
   final Set<String> onlineUserIds;
   final Map<String, bool> typingUsers;
+  final Map<String, DateTime> userLastSeen;
   final String? errorMessage;
 
   const SocketState({
@@ -18,6 +19,7 @@ class SocketState {
     this.queuedMessagesCount = 0,
     this.onlineUserIds = const {},
     this.typingUsers = const {},
+    this.userLastSeen = const {},
     this.errorMessage,
   });
 
@@ -32,6 +34,7 @@ class SocketState {
     int? queuedMessagesCount,
     Set<String>? onlineUserIds,
     Map<String, bool>? typingUsers,
+    Map<String, DateTime>? userLastSeen,
     String? errorMessage,
   }) {
     return SocketState(
@@ -42,6 +45,7 @@ class SocketState {
       queuedMessagesCount: queuedMessagesCount ?? this.queuedMessagesCount,
       onlineUserIds: onlineUserIds ?? this.onlineUserIds,
       typingUsers: typingUsers ?? this.typingUsers,
+      userLastSeen: userLastSeen ?? this.userLastSeen,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

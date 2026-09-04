@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import '../../../socket/socket_service.dart';
 import '../../../theme/app_colors.dart';
 import 'widgets/attachment_sheet_widget.dart';
 import 'widgets/chat_message_bubble.dart';
+import '../../../utils/date_formatter.dart';
 import 'widgets/date_separator_widget.dart';
 import 'widgets/typing_indicator_widget.dart';
 import 'widgets/voice_recorder_widget.dart';
@@ -35,6 +37,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   late AnimationController _sendBtnController;
   bool _hasText = false;
+  StreamSubscription<Set<String>>? _onlineSub;
 
   @override
   void initState() {
@@ -45,7 +48,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
     _messageController.addListener(_onTextChanged);
 
+    _onlineSub = SocketService.instance.onlineUsersStream.listen((_) {
+      if (mounted) setState(() {});
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      SocketService.instance.checkUserPresence(widget.userId);
+      if (widget.userItem?.email != null) {
+        SocketService.instance.checkUserPresence(widget.userItem!.email);
+      }
       context.read<ChatProvider>().fetchMessages(widget.userId);
       context.read<AgencyProvider>().markUserAsRead(widget.userId);
     });
@@ -65,6 +76,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _onlineSub?.cancel();
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
     _scrollController.dispose();
@@ -88,14 +100,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         : widget.userId;
 
     SocketService.instance.sendTypingStop(targetUserId);
-    SocketService.instance.sendChatMessage(
-      conversationId: ApiEndpoints.buildConversationId('AGENCY-23', widget.userId),
-      receiverId: targetUserId,
-      message: text,
-      type: stagedPath != null ? 'image' : type,
-      imageUrl: imageUrl ?? stagedPath,
-      voiceDuration: voiceDuration,
-    );
 
     _messageController.clear();
     final success = await chatProvider.sendMessage(
@@ -164,9 +168,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         (agencyData?['name'] ?? 'Agency Support');
     final activeTitle =
         isHigherAdmin ? 'Admin Higher Authority' : partnerName;
-    final isOnline = isHigherAdmin
-        ? true
-        : (widget.userItem?.isOnline ?? (agencyData?['is_online'] ?? true));
+    final String? targetEmail = isHigherAdmin ? ApiEndpoints.adminEmailId : widget.userItem?.email;
+    final isOnline = SocketService.instance.isUserOnline(widget.userId, targetEmail: targetEmail);
+    final lastSeen = SocketService.instance.getLastSeen(widget.userId, targetEmail: targetEmail);
+    final statusSubtitle = isOnline
+        ? 'Online'
+        : (lastSeen != null ? DateFormatter.formatLastSeen(lastSeen) : 'Offline');
 
     final partnerBadgeText = isHigherAdmin
         ? 'SYSTEM ADMIN'
@@ -370,7 +377,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              isOnline ? 'Online' : 'Offline',
+                              statusSubtitle,
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isOnline
@@ -1278,7 +1285,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       // Confirm Button
                       ElevatedButton(
                         onPressed: () {
-                          final gameName = gameController.text.trim();
                           final amount = amountController.text.trim();
                           final note = noteController.text.trim();
 
@@ -1296,10 +1302,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
                           Navigator.pop(ctx);
 
-                          final reqMessage = '💰 RECHARGE REQUEST\n'
-                              '• Game: ${gameName.isNotEmpty ? gameName : defaultGame}\n'
-                              '• Amount: ₹$amount'
-                              '${note.isNotEmpty ? "\n• Note: $note" : ""}';
+                          final reqMessage = '📥 RECHARGE DEPOSIT REQUEST\n'
+                              '• User ID: ${widget.userId}\n'
+                              '• Game Book: SKYEXCHANGE\n'
+                              '• Amount: ₹$amount\n'
+                              '• Txn ID: ${note.isNotEmpty ? note : "TXN12345678"}\n'
+                              '• Bank Account Details: Paid via UPI (QR ID: 104)';
 
                           _sendDirectRequestMessage(reqMessage);
 
@@ -1524,7 +1532,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       // Confirm Button
                       ElevatedButton(
                         onPressed: () {
-                          final gameName = gameController.text.trim();
                           final amount = amountController.text.trim();
                           final details = paymentDetailsController.text.trim();
 
@@ -1553,10 +1560,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
                           Navigator.pop(ctx);
 
-                          final reqMessage = '💸 WITHDRAWAL REQUEST\n'
-                              '• Game: ${gameName.isNotEmpty ? gameName : defaultGame}\n'
+                          final reqMessage = '🏦 WITHDRAW REQUEST\n'
+                              '• User ID: ${widget.userId}\n'
+                              '• Game Book: SKYEXCHANGE\n'
                               '• Amount: ₹$amount\n'
-                              '• Payment Details: $details';
+                              '• Txn ID: 324\n'
+                              '• Bank Account Details: $details';
 
                           _sendDirectRequestMessage(reqMessage);
 
@@ -1690,13 +1699,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final targetUserId = chatProvider.isHigherAuthorityActive
         ? 'admin_higher_authority'
         : widget.userId;
-
-    SocketService.instance.sendChatMessage(
-      conversationId: ApiEndpoints.buildConversationId('AGENCY-23', widget.userId),
-      receiverId: targetUserId,
-      message: text,
-      type: 'text',
-    );
 
     await chatProvider.sendMessage(
       targetUserId,

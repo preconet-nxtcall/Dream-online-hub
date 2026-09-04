@@ -130,7 +130,7 @@ class ChatMessageModel {
       senderId: sender,
       receiverId: (json['receiver_id'] ?? json['receiverId'] ?? json['to'] ?? '').toString(),
       message: (json['message'] ?? json['text'] ?? json['content'] ?? '').toString(),
-      timestamp: parsedTime,
+      timestamp: parsedTime ?? DateTime.now(),
       isMe: isMe,
       status: (json['status'] ?? 'sent').toString(),
       type: (json['type'] ?? 'text').toString(),

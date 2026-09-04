@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../../providers/agency_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/common/app_logout_dialog.dart';
@@ -21,7 +20,6 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final agencyProvider = context.watch<AgencyProvider>();
     final authProvider = context.watch<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = authProvider.currentUser;
@@ -284,35 +282,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
             ),
             const SizedBox(height: 20),
 
-            // 2. Client Operations Metrics Grid
-            Row(
-              children: [
-                _buildOverviewCard(
-                  title: 'Total Clients',
-                  value: '${agencyProvider.users.length}',
-                  icon: Icons.people_alt_rounded,
-                  color: AppColors.primary,
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 10),
-                _buildOverviewCard(
-                  title: 'Unread Queue',
-                  value: '${agencyProvider.totalUnreadCount}',
-                  icon: Icons.mark_chat_unread_rounded,
-                  color: const Color(0xFFDC3545),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 10),
-                _buildOverviewCard(
-                  title: 'Online Now',
-                  value: '${agencyProvider.onlineUsersCount}',
-                  icon: Icons.wifi_tethering_rounded,
-                  color: AppColors.success,
-                  isDark: isDark,
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
+
 
             // 3. Read-Only Agency Information
             const Text(
@@ -416,48 +386,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
 );
   }
 
-  Widget _buildOverviewCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-    required bool isDark,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E2128) : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 18),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildInfoTile({
     required IconData icon,

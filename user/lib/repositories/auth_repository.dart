@@ -96,7 +96,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
       // Persist session — PHP doesn't issue tokens so we store the generated session key
       try {
-        final rawUserAgency = (user.agencyId != null && user.agencyId!.isNotEmpty) ? user.agencyId! : '23';
+        final rawUserAgency = (user.agencyId != null && user.agencyId!.isNotEmpty) ? user.agencyId! : 'ADMIN-1';
         final agentIdVal = user.isAgency
             ? (user.id.startsWith('AGENCY-') ? user.id : 'AGENCY-${user.id}')
             : (rawUserAgency.startsWith('AGENCY-') || rawUserAgency.contains('@') ? rawUserAgency : 'AGENCY-$rawUserAgency');

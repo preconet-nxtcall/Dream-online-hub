@@ -113,17 +113,17 @@ class AgencyRepositoryImpl implements AgencyRepository {
 
           if (strictAgencyCheck && rawAgencyId.isNotEmpty) {
             final rawUserAgency = (item['agency_id'] ?? item['emp_id'] ?? '').toString().trim();
-            if (rawUserAgency.isNotEmpty) {
-              final userAgencyClean = rawUserAgency.replaceAll(RegExp(r'^\D+'), '');
-              final currentAgencyClean = cleanAgencyId;
-              final fullAgencyUnqId = 'AGENCY-$cleanAgencyId';
+            if (rawUserAgency.isEmpty) return false;
 
-              final isMatched = rawUserAgency == rawAgencyId ||
-                  rawUserAgency == fullAgencyUnqId ||
-                  (userAgencyClean.isNotEmpty && userAgencyClean == currentAgencyClean);
+            final userAgencyClean = rawUserAgency.replaceAll(RegExp(r'^\D+'), '');
+            final currentAgencyClean = cleanAgencyId;
+            final fullAgencyUnqId = 'AGENCY-$cleanAgencyId';
 
-              if (!isMatched) return false;
-            }
+            final isMatched = rawUserAgency == rawAgencyId ||
+                rawUserAgency == fullAgencyUnqId ||
+                (userAgencyClean.isNotEmpty && userAgencyClean == currentAgencyClean);
+
+            if (!isMatched) return false;
           }
 
           if (searchQuery != null && searchQuery.trim().isNotEmpty) {
@@ -164,7 +164,7 @@ class AgencyRepositoryImpl implements AgencyRepository {
             uEmail != 'admin@gmail.com' &&
             uEmail != 'agency@gmail.com' &&
             uId != '1' &&
-            uId != '23';
+            uId != cleanAgencyId;
       }).toList();
 
       if (sanitizedCache.isNotEmpty) {

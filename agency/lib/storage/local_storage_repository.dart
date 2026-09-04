@@ -124,8 +124,9 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
     final List<ChatMessageModel> deduplicated = [];
     for (final m in messages) {
       final text = m.message.trim();
-      final isRequestMsg = text.contains('RECHARGE DEPOSIT REQUEST SUBMITTED') ||
-          text.contains('WITHDRAWAL REQUEST SUBMITTED');
+      final isRequestMsg = text.contains('RECHARGE') ||
+          text.contains('WITHDRAW') ||
+          text.contains('REQUEST');
       final exists = deduplicated.any((item) =>
           (m.id.isNotEmpty && item.id == m.id) ||
           (isRequestMsg &&

@@ -267,6 +267,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
     }
   }
 
+  // ignore: unused_element
   Future<void> _downloadOrOpenInvoice(BuildContext context, String url) async {
     try {
       final fileName = url.split('/').last;
@@ -1029,6 +1030,8 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                                 color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                               ),
                             ),
+                            // Invoice PDF button commented out for future use
+                            /*
                             if (item.invoiceUrl != null && item.invoiceUrl!.isNotEmpty) ...[
                               const SizedBox(height: 5),
                               GestureDetector(
@@ -1061,6 +1064,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                                 ),
                               ),
                             ],
+                            */
                           ],
                         ),
                       ),

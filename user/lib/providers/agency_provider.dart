@@ -76,9 +76,7 @@ class AgencyProvider extends ChangeNotifier {
   void _updateOnlineStatuses(Set<String> onlineIds) {
     bool hasChanged = false;
     for (int i = 0; i < _users.length; i++) {
-      // Match by id OR email since chat server uses emailId as userId
-      final isOnline = onlineIds.contains(_users[i].id) ||
-          onlineIds.contains(_users[i].email);
+      final isOnline = _socketService.isUserOnline(_users[i].id, targetEmail: _users[i].email);
       if (_users[i].isOnline != isOnline) {
         _users[i] = _users[i].copyWith(isOnline: isOnline);
         hasChanged = true;
@@ -228,10 +226,9 @@ class AgencyProvider extends ChangeNotifier {
         }
       }
 
-      final onlineSet = _socketService.state.onlineUserIds;
       _users = fetchedUsers.map((u) {
         final convData = convMap[u.id] ?? convMap[u.email];
-        final isOnline = onlineSet.contains(u.id) || onlineSet.contains(u.email);
+        final isOnline = _socketService.isUserOnline(u.id, targetEmail: u.email);
         if (convData != null) {
           final unread = (convData['unreadCount'] as int? ?? 0);
           final lastActive = (convData['lastMessageAt'] as DateTime?) ?? u.lastActiveTime;
@@ -254,7 +251,7 @@ class AgencyProvider extends ChangeNotifier {
           final info = entry.value;
           final exists = _users.any((u) => u.id == userEmailId || u.email == userEmailId);
           if (!exists && userEmailId.isNotEmpty) {
-            final isOnline = onlineSet.contains(userEmailId);
+            final isOnline = _socketService.isUserOnline(userEmailId);
             final unread = (info['unreadCount'] as int? ?? 0);
             final userName = (info['userName'] as String?).toString().isNotEmpty
                 ? info['userName'] as String

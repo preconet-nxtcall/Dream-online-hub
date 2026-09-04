@@ -11,6 +11,8 @@ import '../../../storage/local_storage_repository.dart';
 import '../../../storage/secure_storage_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/common/app_logout_dialog.dart';
+import 'widgets/payment_account_widget.dart';
+
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -248,6 +250,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ],
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showPaymentAccountDialog(BuildContext context, {bool isReadOnly = false, bool isPendingApproval = false}) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: SingleChildScrollView(
+              child: PaymentAccountWidget(
+                isReadOnly: isReadOnly,
+                isPendingApproval: isPendingApproval,
+                onClose: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+          ),
         );
       },
     );
@@ -611,318 +635,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  void _showGetInTouchSupportDialog(
-    BuildContext context,
-    String defaultName,
-    String defaultEmail,
-    String defaultPhone,
-  ) {
-    final nameCtrl = TextEditingController(text: defaultName);
-    final emailCtrl = TextEditingController(text: defaultEmail);
-    final phoneCtrl = TextEditingController(text: defaultPhone);
-    final subjectCtrl = TextEditingController();
-    final messageCtrl = TextEditingController();
-    bool isSubmitting = false;
 
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
 
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              child: Container(
-                width: double.infinity,
-                constraints: const BoxConstraints(maxWidth: 580),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF130D2B) : Colors.white,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: isDark
-                        ? const Color(0xFF7C3AED).withValues(alpha: 0.5)
-                        : const Color(0xFF8B5CF6).withValues(alpha: 0.3),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: isDark
-                          ? const Color(0xFF7C3AED).withValues(alpha: 0.3)
-                          : Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Top Title
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Get in Touch',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : Colors.black54),
-                            onPressed: () => Navigator.of(ctx).pop(),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
 
-                      // Row 1: Name * & Email *
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStyledFormField(
-                              controller: nameCtrl,
-                              label: 'Name *',
-                              hint: 'Enter full name',
-                              isDark: isDark,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStyledFormField(
-                              controller: emailCtrl,
-                              label: 'Email *',
-                              hint: 'Enter email address',
-                              keyboardType: TextInputType.emailAddress,
-                              isDark: isDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Row 2: Phone * & Subject *
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStyledFormField(
-                              controller: phoneCtrl,
-                              label: 'Phone *',
-                              hint: 'Enter phone number',
-                              keyboardType: TextInputType.phone,
-                              isDark: isDark,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStyledFormField(
-                              controller: subjectCtrl,
-                              label: 'Subject *',
-                              hint: 'Enter query subject',
-                              isDark: isDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Row 3: Message
-                      _buildStyledFormField(
-                        controller: messageCtrl,
-                        label: 'Message',
-                        hint: 'Write your issue or inquiry details here...',
-                        maxLines: 4,
-                        isDark: isDark,
-                      ),
-                      const SizedBox(height: 22),
-
-                      // Full-Width Purple Submit Button: Send
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: isSubmitting
-                              ? null
-                              : () async {
-                                  final name = nameCtrl.text.trim();
-                                  final email = emailCtrl.text.trim();
-                                  final phone = phoneCtrl.text.trim();
-                                  final subject = subjectCtrl.text.trim();
-
-                                  if (name.isEmpty || email.isEmpty || phone.isEmpty || subject.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Please fill in all required fields marked with *'),
-                                        backgroundColor: Colors.redAccent,
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                    return;
-                                  }
-
-                                  setDialogState(() => isSubmitting = true);
-
-                                  try {
-                                    final apiClient = ApiClient();
-                                    int userId = 22;
-                                    final currentUser = LocalStorageRepositoryImpl().getUser();
-                                    if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-                                      final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-                                      if (digitsOnly.isNotEmpty) {
-                                        userId = int.tryParse(digitsOnly) ?? 22;
-                                      }
-                                    }
-                                    if (userId == 22) {
-                                      final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-                                      if (storedUserId != null && storedUserId.isNotEmpty) {
-                                        final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-                                        if (digitsOnly.isNotEmpty) {
-                                          userId = int.tryParse(digitsOnly) ?? 22;
-                                        }
-                                      }
-                                    }
-
-                                    await apiClient.post(
-                                      ApiEndpoints.getQrCode,
-                                      options: Options(validateStatus: (status) => status != null && status < 500),
-                                      data: {
-                                        'action': 'send_enquiry',
-                                        'name': name,
-                                        'email': email,
-                                        'phone': phone,
-                                        'sub': subject,
-                                        'msg': messageCtrl.text.trim(),
-                                        'user_id': userId,
-                                      },
-                                    );
-
-                                    if (!context.mounted) return;
-                                    Navigator.of(ctx).pop();
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Row(
-                                          children: [
-                                            const Icon(Icons.check_circle_rounded, color: Colors.white),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(
-                                                'Enquiry sent successfully for $name!',
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        backgroundColor: const Color(0xFF10B981),
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  } catch (e) {
-                                    if (!context.mounted) return;
-                                    setDialogState(() => isSubmitting = false);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Failed to send enquiry: ${e.toString()}'),
-                                        backgroundColor: Colors.redAccent,
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6366F1),
-                            foregroundColor: Colors.white,
-                            elevation: 8,
-                            shadowColor: const Color(0xFF6366F1).withValues(alpha: 0.5),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: isSubmitting
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                                )
-                              : const Text(
-                                  'Send',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildStyledFormField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required bool isDark,
-    TextInputType keyboardType = TextInputType.text,
-    int maxLines = 1,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: isDark ? Colors.white70 : const Color(0xFF475569),
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          maxLines: maxLines,
-          style: TextStyle(
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-            fontSize: 13.5,
-          ),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(
-              color: isDark ? Colors.white30 : Colors.black38,
-              fontSize: 13,
-            ),
-            filled: true,
-            fillColor: isDark ? const Color(0xFF221A44).withValues(alpha: 0.8) : const Color(0xFFF8F7FF),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: isDark ? const Color(0xFF433575).withValues(alpha: 0.6) : const Color(0xFFDDD6FE),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 1.5),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1267,49 +982,102 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // 4. Quick Actions (Support & Logout)
+            // 4. Payment Account Settings Section (Two Compact Action Buttons)
+            const Text(
+              'Payment & Bank Settings',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                // 1. Show Account Details Button
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _showPaymentAccountDialog(context, isReadOnly: true),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.visibility_rounded, color: Color(0xFF10B981), size: 18),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Show Account',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF10B981)),
+                                ),
+                                Text(
+                                  'View bank & UPI details',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // 2. Update Account Details Button
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _showPaymentAccountDialog(context, isReadOnly: false),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF97316).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFF97316).withValues(alpha: 0.25)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.edit_note_rounded, color: Color(0xFFF97316), size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Update Account',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFF97316)),
+                                ),
+                                Text(
+                                  'Edit bank, UPI & QR',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Quick Actions (Update Password, Delete Account, Logout)
             const Text(
               'Quick Actions',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-
-            // Support Chat Action Button
-            InkWell(
-              onTap: () => _showGetInTouchSupportDialog(context, userName, userEmail, userPhone),
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.headset_mic_rounded, color: AppColors.primary, size: 24),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Customer Support Helpdesk',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          Text(
-                            'Chat live with customer support & recharge agent',
-                            style: TextStyle(fontSize: 11, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right_rounded, color: AppColors.primary),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
 
             // Update Password Action Button
             InkWell(
@@ -1439,34 +1207,44 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E2128) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE2E8F0),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: color, size: 18),
             ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10.5, color: Colors.grey),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

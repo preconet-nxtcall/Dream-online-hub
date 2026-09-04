@@ -148,18 +148,30 @@ class ChatProvider extends ChangeNotifier {
       return;
     }
 
-    // Don't process if we already have this message ID in the list
-    if (_messages.any((m) => m.id == realId)) return;
+    // If the real message is already in the list (e.g. came via message:new before this ACK),
+    // still clean up any orphaned temp 'sending'/'queued' bubble with a different ID.
+    if (_messages.any((m) => m.id == realId)) {
+      // Remove ghost temp message if it exists
+      final tempIdx = _messages.lastIndexWhere(
+        (m) => m.isMe && (m.status == 'sending' || m.status == 'queued' || m.status == 'uploading'),
+      );
+      if (tempIdx != -1 && _messages[tempIdx].id != realId) {
+        _messages.removeAt(tempIdx);
+        notifyListeners();
+      }
+      return;
+    }
 
     // Find the oldest unconfirmed temp message (sending or queued)
     final idx = _messages.lastIndexWhere(
-      (m) => m.isMe && (m.status == 'sending' || m.status == 'queued'),
+      (m) => m.isMe && (m.status == 'sending' || m.status == 'queued' || m.status == 'uploading'),
     );
     if (idx != -1) {
-      final statusStr = (data['status'] ?? 'delivered').toString();
+      final statusStr = (data['status'] ?? 'sent').toString();
       final confirmed = _messages[idx].copyWith(
         id: realId,
-        status: statusStr == 'queued' ? 'delivered' : statusStr,
+        // Keep 'sent' (single tick) — delivery/read upgrades come from separate events
+        status: (statusStr == 'queued' || statusStr == 'uploading') ? 'sent' : statusStr,
         timestamp: createdAtStr.isNotEmpty
             ? DateFormatter.parseToLocal(createdAtStr)
             : _messages[idx].timestamp,

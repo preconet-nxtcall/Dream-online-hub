@@ -147,18 +147,30 @@ class ChatProvider extends ChangeNotifier {
       return;
     }
 
-    // Don't process if we already have this message ID in the list
-    if (_messages.any((m) => m.id == realId)) return;
+    // If the real message is already in the list (e.g. came via message:new before this ACK),
+    // still clean up any orphaned temp 'sending'/'queued' bubble with a different ID.
+    if (_messages.any((m) => m.id == realId)) {
+      // Remove ghost temp message if it exists
+      final tempIdx = _messages.lastIndexWhere(
+        (m) => m.isMe && (m.status == 'sending' || m.status == 'queued' || m.status == 'uploading'),
+      );
+      if (tempIdx != -1 && _messages[tempIdx].id != realId) {
+        _messages.removeAt(tempIdx);
+        notifyListeners();
+      }
+      return;
+    }
 
     // Find the oldest unconfirmed temp message (sending or queued)
     final idx = _messages.lastIndexWhere(
-      (m) => m.isMe && (m.status == 'sending' || m.status == 'queued'),
+      (m) => m.isMe && (m.status == 'sending' || m.status == 'queued' || m.status == 'uploading'),
     );
     if (idx != -1) {
-      final statusStr = (data['status'] ?? 'delivered').toString();
+      final statusStr = (data['status'] ?? 'sent').toString();
       final confirmed = _messages[idx].copyWith(
         id: realId,
-        status: statusStr == 'queued' ? 'delivered' : statusStr,
+        // Keep 'sent' (single tick) — delivery/read upgrades come from separate events
+        status: (statusStr == 'queued' || statusStr == 'uploading') ? 'sent' : statusStr,
         timestamp: createdAtStr.isNotEmpty
             ? DateFormatter.parseToLocal(createdAtStr)
             : _messages[idx].timestamp,
@@ -990,8 +1002,9 @@ class ChatProvider extends ChangeNotifier {
     final text1 = m1.message.trim();
     final text2 = m2.message.trim();
     if (text1.isNotEmpty && text1 == text2) {
-      final isRequestMessage = text1.contains('RECHARGE DEPOSIT REQUEST SUBMITTED') ||
-          text1.contains('WITHDRAWAL REQUEST SUBMITTED');
+      final isRequestMessage = text1.contains('RECHARGE') ||
+          text1.contains('WITHDRAW') ||
+          text1.contains('REQUEST');
       if (isRequestMessage) {
         final timeDiff = m1.timestamp.difference(m2.timestamp).abs().inSeconds;
         if (timeDiff <= 60 && m1.isMe == m2.isMe) {

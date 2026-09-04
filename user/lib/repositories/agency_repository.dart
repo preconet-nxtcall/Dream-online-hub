@@ -164,7 +164,7 @@ class AgencyRepositoryImpl implements AgencyRepository {
             uEmail != 'admin@gmail.com' &&
             uEmail != 'agency@gmail.com' &&
             uId != '1' &&
-            uId != '23';
+            uId != cleanAgencyId;
       }).toList();
 
       if (sanitizedCache.isNotEmpty) {

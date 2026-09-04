@@ -19,6 +19,7 @@ import 'widgets/typing_indicator_widget.dart';
 import 'widgets/voice_recorder_widget.dart';
 import '../../user_dashboard/presentation/widgets/recharge_now_widget.dart';
 import '../../user_dashboard/presentation/widgets/withdraw_request_widget.dart';
+import '../../../utils/date_formatter.dart';
 import '../../../../models/user/recharge_record_model.dart';
 
 /// Specialized Luxury Dark Chat Screen for USER APP (User chatting with Assigned Support Agency)
@@ -44,9 +45,9 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
   late AnimationController _sendBtnController;
   bool _hasText = false;
   StreamSubscription<Set<String>>? _onlineSub;
-  bool _lastOnlineStatus = false;
   bool _showScrollToBottomBtn = false;
   String _agencyDisplayName = 'Assigned Support Agency';
+  String? _agencyEmail;
   bool _hasAgencyAssigned = true;
 
   @override
@@ -70,14 +71,8 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
       _hasText = true;
     }
 
-    _onlineSub = SocketService.instance.onlineUsersStream.listen((onlineSet) {
-      if (!mounted) return;
-      final activeRecipient = context.read<ChatProvider>().activeRecipientId ?? widget.userId;
-      final isOnlineNow = onlineSet.contains(activeRecipient);
-      if (isOnlineNow != _lastOnlineStatus) {
-        _lastOnlineStatus = isOnlineNow;
-        setState(() {});
-      }
+    _onlineSub = SocketService.instance.onlineUsersStream.listen((_) {
+      if (mounted) setState(() {});
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -86,6 +81,12 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
       final chatAgentId = await secureStorage.read(StorageKeys.chatAgentId) ?? chatEmailId;
       final currentUser = LocalStorageRepositoryImpl().getUser();
       final effectiveEmail = chatEmailId.isNotEmpty ? chatEmailId : (currentUser?.email ?? '');
+
+      SocketService.instance.checkUserPresence(widget.userId);
+      SocketService.instance.checkUserPresence(ApiEndpoints.adminEmailId);
+      if (widget.userItem?.email != null) {
+        SocketService.instance.checkUserPresence(widget.userItem!.email);
+      }
 
       final rawUserAgency = currentUser?.agencyId;
       final bool hasValidAgencyId = rawUserAgency != null &&
@@ -161,6 +162,11 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
           final data = res.data['data'];
           if (data is List && data.isNotEmpty && data.first is Map<String, dynamic>) {
             final fetchedName = (data.first['name'] ?? '').toString().trim();
+            final fetchedEmail = (data.first['email'] ?? '').toString().trim();
+            if (fetchedEmail.isNotEmpty) {
+              _agencyEmail = fetchedEmail;
+              SocketService.instance.checkUserPresence(fetchedEmail);
+            }
             if (fetchedName.isNotEmpty && mounted) {
               setState(() {
                 _agencyDisplayName = fetchedName;
@@ -249,14 +255,19 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
 
   void _onScroll() {
     if (!mounted || !_scrollController.hasClients) return;
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    // In a reverse:true ListView, offset 0 = newest messages (bottom),
+    // higher offsets = older messages (top). maxScrollExtent is the physical
+    // start of the list (oldest messages). Trigger loadMore when near the top.
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
       final provider = context.read<ChatProvider>();
       if (provider.hasMoreMessages && !provider.isLoadingMore) {
         provider.loadMoreMessages();
       }
     }
 
-    final showBtn = _scrollController.offset > 250;
+    // Show scroll-to-bottom button when user has scrolled away from latest messages
+    final showBtn = _scrollController.offset > 300;
     if (showBtn != _showScrollToBottomBtn) {
       setState(() => _showScrollToBottomBtn = showBtn);
     }
@@ -564,8 +575,12 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
     final isHigherAdmin = chatProvider.isHigherAuthorityActive;
     final activeTitle = isHigherAdmin ? 'Admin Higher Authority' : _agencyDisplayName;
     final activeRecipient = chatProvider.activeRecipientId ?? widget.userId;
-    final isOnline = isHigherAdmin || SocketService.instance.state.onlineUserIds.contains(activeRecipient) || _lastOnlineStatus;
-    final String activeSubtitle = isOnline ? 'online' : 'offline';
+    final String? targetEmail = isHigherAdmin ? ApiEndpoints.adminEmailId : (widget.userItem?.email ?? _agencyEmail);
+    final isOnline = SocketService.instance.isUserOnline(activeRecipient, targetEmail: targetEmail);
+    final lastSeen = SocketService.instance.getLastSeen(activeRecipient, targetEmail: targetEmail);
+    final String activeSubtitle = isOnline
+        ? 'online'
+        : (lastSeen != null ? DateFormatter.formatLastSeen(lastSeen) : 'offline');
 
     return PreferredSize(
       preferredSize: const Size.fromHeight(66),

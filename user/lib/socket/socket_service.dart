@@ -8,6 +8,7 @@ import '../models/dto/chat/chat_message_dto.dart';
 import '../models/dto/chat/send_message_request_dto.dart';
 import '../storage/local_storage_repository.dart';
 import '../storage/secure_storage_service.dart';
+import '../utils/date_formatter.dart';
 import '../utils/logger.dart';
 import 'message_queue_service.dart';
 import 'socket_events.dart';
@@ -74,6 +75,122 @@ class SocketService with WidgetsBindingObserver {
   Stream<ChatMessageModel> get messageStream => _messageController.stream;
   Stream<Map<String, bool>> get typingStream => _typingController.stream;
   Stream<Set<String>> get onlineUsersStream => _onlineUsersController.stream;
+
+  /// Check if a specific user/client is currently online using normalized exact matching
+  bool isUserOnline(String? targetId, {String? targetEmail}) {
+    final onlineSet = _state.onlineUserIds;
+    if (onlineSet.isEmpty) return false;
+
+    final candidates = <String>{};
+    void addCandidates(String? input) {
+      if (input == null) return;
+      final str = input.trim();
+      if (str.isEmpty || str.startsWith('{')) return;
+      final lower = str.toLowerCase();
+      candidates.add(lower);
+
+      if (lower.startsWith('agency-')) {
+        final stripped = lower.substring(7);
+        if (stripped.isNotEmpty) candidates.add(stripped);
+      } else if (!lower.contains('@')) {
+        candidates.add('agency-$lower');
+      }
+
+      if (lower.startsWith('conv-')) {
+        final stripped = lower.substring(5);
+        if (stripped.isNotEmpty) candidates.add(stripped);
+      }
+
+      if (lower.contains('@')) {
+        final username = lower.split('@').first;
+        if (username.length >= 3) {
+          candidates.add(username);
+        }
+      }
+    }
+
+    addCandidates(targetId);
+    addCandidates(targetEmail);
+
+    if (candidates.isEmpty) return false;
+
+    for (final rawOnline in onlineSet) {
+      final online = rawOnline.trim().toLowerCase();
+      if (online.isEmpty || online.startsWith('{')) continue;
+
+      final onlineStrippedAgency = online.startsWith('agency-') ? online.substring(7) : online;
+      final onlineStrippedConv = onlineStrippedAgency.startsWith('conv-') ? onlineStrippedAgency.substring(5) : onlineStrippedAgency;
+      final onlineUsername = online.contains('@') ? online.split('@').first : online;
+
+      for (final candidate in candidates) {
+        if (online == candidate ||
+            onlineStrippedAgency == candidate ||
+            onlineStrippedConv == candidate ||
+            (onlineUsername.length >= 3 && onlineUsername == candidate)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Get last seen DateTime for a specific user/client if available
+  DateTime? getLastSeen(String? targetId, {String? targetEmail}) {
+    final lastSeenMap = _state.userLastSeen;
+    if (lastSeenMap.isEmpty) return null;
+
+    final candidates = <String>{};
+    void addCandidates(String? input) {
+      if (input == null) return;
+      final str = input.trim();
+      if (str.isEmpty || str.startsWith('{')) return;
+      final lower = str.toLowerCase();
+      candidates.add(lower);
+
+      if (lower.startsWith('agency-')) {
+        final stripped = lower.substring(7);
+        if (stripped.isNotEmpty) candidates.add(stripped);
+      } else if (!lower.contains('@')) {
+        candidates.add('agency-$lower');
+      }
+
+      if (lower.startsWith('conv-')) {
+        final stripped = lower.substring(5);
+        if (stripped.isNotEmpty) candidates.add(stripped);
+      }
+
+      if (lower.contains('@')) {
+        final username = lower.split('@').first;
+        if (username.length >= 3) {
+          candidates.add(username);
+        }
+      }
+    }
+
+    addCandidates(targetId);
+    addCandidates(targetEmail);
+
+    if (candidates.isEmpty) return null;
+
+    for (final entry in lastSeenMap.entries) {
+      final key = entry.key.trim().toLowerCase();
+      if (key.isEmpty || key.startsWith('{')) continue;
+
+      final keyStrippedAgency = key.startsWith('agency-') ? key.substring(7) : key;
+      final keyStrippedConv = keyStrippedAgency.startsWith('conv-') ? keyStrippedAgency.substring(5) : keyStrippedAgency;
+      final keyUsername = key.contains('@') ? key.split('@').first : key;
+
+      for (final candidate in candidates) {
+        if (key == candidate ||
+            keyStrippedAgency == candidate ||
+            keyStrippedConv == candidate ||
+            (keyUsername.length >= 3 && keyUsername == candidate)) {
+          return entry.value;
+        }
+      }
+    }
+    return null;
+  }
 
   /// Fired when server confirms a message was written to DB.
   /// Payload: `{ _id, conversationId, status: 'sent', createdAt }`
@@ -301,23 +418,137 @@ class SocketService with WidgetsBindingObserver {
       ));
     });
 
-    // Presence & Online Status Handlers (presence:res according to API_DOCUMENTATION.md)
-    _socket?.on(SocketEvents.presenceRes, (data) {
-      if (data is Map<String, dynamic>) {
-        final String userId = (data['emailId'] ?? data['userId'] ?? data['user_id'] ?? '').toString();
-        final bool isOnline = data['isOnline'] ?? data['is_online'] ?? false;
-        if (userId.isNotEmpty) {
+    // Presence & Online Status Handlers (presence:res, presence_res, etc.)
+    void handlePresenceRes(dynamic data) {
+      if (data is Map) {
+        final String userId = (data['emailId'] ?? data['userId'] ?? data['user_id'] ?? data['_id'] ?? data['id'] ?? '').toString().trim();
+        final bool isOnline = data['isOnline'] ?? data['is_online'] ?? data['online'] ?? false;
+        if (userId.isNotEmpty && !userId.startsWith('{')) {
           final updatedSet = Set<String>.from(_state.onlineUserIds);
+          final updatedLastSeen = Map<String, DateTime>.from(_state.userLastSeen);
           if (isOnline) {
             updatedSet.add(userId);
           } else {
-            updatedSet.remove(userId);
+            final target = userId.toLowerCase();
+            final targetStripped = target.replaceAll('agency-', '').replaceAll('conv-', '');
+            updatedSet.removeWhere((id) {
+              final itemLower = id.toLowerCase();
+              final itemStripped = itemLower.replaceAll('agency-', '').replaceAll('conv-', '');
+              return itemLower == target ||
+                     itemStripped == targetStripped ||
+                     (itemLower.contains('@') && itemLower.split('@').first == target) ||
+                     (target.contains('@') && target.split('@').first == itemLower);
+            });
+            final bool wasOnline = isUserOnline(userId);
+            dynamic rawTime = data['lastSeen'] ?? data['last_seen'] ?? data['timestamp'] ?? data['updatedAt'];
+            if (rawTime != null) {
+              final parsed = DateFormatter.parseToLocal(rawTime);
+              if (parsed != null) updatedLastSeen[userId] = parsed;
+            } else if (wasOnline) {
+              updatedLastSeen[userId] = DateTime.now();
+            }
           }
-          _updateState(_state.copyWith(onlineUserIds: updatedSet));
+          _updateState(_state.copyWith(onlineUserIds: updatedSet, userLastSeen: updatedLastSeen));
           _onlineUsersController.add(updatedSet);
         }
       }
-    });
+    }
+
+    void handleOnlineUsersList(dynamic data) {
+      final ids = <String>{};
+      void extractIds(dynamic item) {
+        if (item is Map) {
+          final id = (item['userId'] ?? item['user_id'] ?? item['email'] ?? item['emailId'] ?? item['_id'] ?? item['id'])?.toString();
+          if (id != null && id.isNotEmpty && !id.startsWith('{')) ids.add(id);
+        } else if (item is String) {
+          final id = item.trim();
+          if (id.isNotEmpty && !id.startsWith('{')) ids.add(id);
+        } else if (item != null) {
+          final id = item.toString().trim();
+          if (id.isNotEmpty && !id.startsWith('{')) ids.add(id);
+        }
+      }
+
+      if (data is List) {
+        for (final item in data) {
+          extractIds(item);
+        }
+      } else if (data is Map) {
+        final users = data['users'] ?? data['onlineUsers'] ?? data['data'] ?? data['online_users'];
+        if (users is List) {
+          for (final item in users) {
+            extractIds(item);
+          }
+        } else {
+          extractIds(data);
+        }
+      }
+      _updateState(_state.copyWith(onlineUserIds: ids));
+      _onlineUsersController.add(ids);
+    }
+
+    void handleUserOnline(dynamic data) {
+      String? userId;
+      if (data is Map) {
+        userId = (data['userId'] ?? data['user_id'] ?? data['email'] ?? data['emailId'] ?? data['_id'] ?? data['id'])?.toString();
+      } else if (data != null) {
+        userId = data.toString().trim();
+      }
+      if (userId != null && userId.isNotEmpty && !userId.startsWith('{')) {
+        final updatedSet = Set<String>.from(_state.onlineUserIds)..add(userId);
+        _updateState(_state.copyWith(onlineUserIds: updatedSet));
+        _onlineUsersController.add(updatedSet);
+      }
+    }
+
+    void handleUserOffline(dynamic data) {
+      String? userId;
+      if (data is Map) {
+        userId = (data['userId'] ?? data['user_id'] ?? data['email'] ?? data['emailId'] ?? data['_id'] ?? data['id'])?.toString();
+      } else if (data != null) {
+        userId = data.toString().trim();
+      }
+      if (userId != null && userId.isNotEmpty && !userId.startsWith('{')) {
+        final target = userId.toLowerCase();
+        final targetStripped = target.replaceAll('agency-', '').replaceAll('conv-', '');
+        final updatedSet = Set<String>.from(_state.onlineUserIds);
+        final updatedLastSeen = Map<String, DateTime>.from(_state.userLastSeen);
+        updatedSet.removeWhere((id) {
+          final itemLower = id.toLowerCase();
+          final itemStripped = itemLower.replaceAll('agency-', '').replaceAll('conv-', '');
+          return itemLower == target ||
+                 itemStripped == targetStripped ||
+                 (itemLower.contains('@') && itemLower.split('@').first == target) ||
+                 (target.contains('@') && target.split('@').first == itemLower);
+        });
+        final bool wasOnline = isUserOnline(userId);
+        dynamic rawTime = (data is Map) ? (data['lastSeen'] ?? data['last_seen'] ?? data['timestamp'] ?? data['updatedAt']) : null;
+        if (rawTime != null) {
+          final parsed = DateFormatter.parseToLocal(rawTime);
+          if (parsed != null) updatedLastSeen[userId] = parsed;
+        } else if (wasOnline) {
+          updatedLastSeen[userId] = DateTime.now();
+        }
+        _updateState(_state.copyWith(onlineUserIds: updatedSet, userLastSeen: updatedLastSeen));
+        _onlineUsersController.add(updatedSet);
+      }
+    }
+
+    _socket?.on(SocketEvents.presenceRes, handlePresenceRes);
+    _socket?.on('presence_res', handlePresenceRes);
+    _socket?.on('presence:response', handlePresenceRes);
+
+    _socket?.on(SocketEvents.onlineUsersList, handleOnlineUsersList);
+    _socket?.on('users:online', handleOnlineUsersList);
+    _socket?.on('users_online', handleOnlineUsersList);
+    _socket?.on('online_users', handleOnlineUsersList);
+    _socket?.on('get_online_users_res', handleOnlineUsersList);
+
+    _socket?.on(SocketEvents.userOnline, handleUserOnline);
+    _socket?.on('user:online', handleUserOnline);
+
+    _socket?.on(SocketEvents.userOffline, handleUserOffline);
+    _socket?.on('user:offline', handleUserOffline);
 
     // Typing Indicators Handler
     _socket?.on(SocketEvents.userTyping, (data) {
@@ -330,33 +561,6 @@ class SocketService with WidgetsBindingObserver {
           _updateState(_state.copyWith(typingUsers: updatedTyping));
           _typingController.add(updatedTyping);
         }
-      }
-    });
-
-    // Online Status Presence Handler
-    _socket?.on(SocketEvents.onlineUsersList, (data) {
-      if (data is List) {
-        final ids = data.map((e) => e.toString()).toSet();
-        _updateState(_state.copyWith(onlineUserIds: ids));
-        _onlineUsersController.add(ids);
-      }
-    });
-
-    _socket?.on(SocketEvents.userOnline, (data) {
-      final userId = data?.toString();
-      if (userId != null && userId.isNotEmpty) {
-        final updatedSet = Set<String>.from(_state.onlineUserIds)..add(userId);
-        _updateState(_state.copyWith(onlineUserIds: updatedSet));
-        _onlineUsersController.add(updatedSet);
-      }
-    });
-
-    _socket?.on(SocketEvents.userOffline, (data) {
-      final userId = data?.toString();
-      if (userId != null && userId.isNotEmpty) {
-        final updatedSet = Set<String>.from(_state.onlineUserIds)..remove(userId);
-        _updateState(_state.copyWith(onlineUserIds: updatedSet));
-        _onlineUsersController.add(updatedSet);
       }
     });
   }
@@ -490,16 +694,23 @@ class SocketService with WidgetsBindingObserver {
   }
 
   /// Check User Presence Online Status (presence:check)
-  /// Backend API spec uses 'userId' key (not 'emailId') in the payload.
   void checkUserPresence(String emailId) {
     if (emailId.isNotEmpty) {
-      emit(SocketEvents.presenceCheck, {'userId': emailId, 'emailId': emailId});
+      final payload = {'userId': emailId, 'emailId': emailId, 'user_id': emailId};
+      emit(SocketEvents.presenceCheck, payload);
+      emit('presence_check', payload);
+      emit('check_presence', payload);
+      emit('user:presence', payload);
     }
   }
 
   /// Request Online Users List
   void _requestOnlineUsers() {
     emit(SocketEvents.getOnlineUsers, {});
+    emit('get_online_users', {});
+    emit('users:online', {});
+    emit('getOnlineUsers', {});
+    emit('online_users', {});
   }
 
   /// App Lifecycle Observer: Handles Background Reconnects
