@@ -17,12 +17,77 @@ class PaymentAccountModel {
     this.status = '',
   });
 
+  bool get hasBankInfo {
+    return bankName.trim().isNotEmpty ||
+        accountNo.trim().isNotEmpty ||
+        accountName.trim().isNotEmpty ||
+        upiId.trim().isNotEmpty;
+  }
+
   bool get isPendingApproval {
     final lower = status.trim().toLowerCase();
     return lower.contains('pending') || lower == '0' || lower == 'in_review' || lower == 'waiting';
   }
 
+  bool get isApproved {
+    final lower = status.trim().toLowerCase();
+    if (isPendingApproval) return false;
+    if (lower == 'approved' ||
+        lower == 'success' ||
+        lower == 'successful' ||
+        lower == 'verified' ||
+        lower == 'active' ||
+        lower == 'accepted' ||
+        lower == 'employee-approved' ||
+        lower == '1' ||
+        lower == 'true' ||
+        lower == 'yes' ||
+        lower == 'ok' ||
+        lower == 'pass' ||
+        lower == 'passed' ||
+        lower == 'completed' ||
+        lower == 'enable' ||
+        lower == 'enabled' ||
+        lower.contains('approved')) {
+      return true;
+    }
+    if ((lower.isEmpty || lower == 'null') && hasBankInfo) {
+      return true;
+    }
+    return false;
+  }
+
   factory PaymentAccountModel.fromJson(Map<String, dynamic> json) {
+    String extractStatus() {
+      final keys = [
+        'status',
+        'approval_status',
+        'is_approved',
+        'approved',
+        'bank_status',
+        'account_status',
+        'payout_status',
+        'verify_status',
+        'verification_status',
+        'status_code',
+        'status_text',
+        'read_status',
+        'readStatus',
+        'stage_status',
+        'state',
+      ];
+      for (final key in keys) {
+        if (json.containsKey(key) && json[key] != null) {
+          final val = json[key].toString().trim();
+          if (val.isNotEmpty && val.toLowerCase() != 'null') {
+            if (val == '1' || val.toLowerCase() == 'true') return 'APPROVED';
+            return val;
+          }
+        }
+      }
+      return '';
+    }
+
     return PaymentAccountModel(
       accountName: json['account_name']?.toString() ??
           json['accountHolderName']?.toString() ??
@@ -54,13 +119,7 @@ class PaymentAccountModel {
           json['qr_code']?.toString() ??
           json['imageUrl']?.toString() ??
           json['image_url']?.toString(),
-      status: json['status']?.toString() ??
-          json['approval_status']?.toString() ??
-          json['read_status']?.toString() ??
-          json['readStatus']?.toString() ??
-          json['stage_status']?.toString() ??
-          json['state']?.toString() ??
-          '',
+      status: extractStatus(),
     );
   }
 

@@ -62,22 +62,24 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   Future<void> _fetchRechargeSummary() async {
     try {
       final apiClient = ApiClient();
-      int userId = 22;
+      int userId = 0;
       final currentUser = LocalStorageRepositoryImpl().getUser();
       if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
         final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
         if (digitsOnly.isNotEmpty) {
-          userId = int.tryParse(digitsOnly) ?? 22;
+          userId = int.tryParse(digitsOnly) ?? 0;
         }
       }
-      if (userId == 22) {
-        final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-        if (storedUserId != null && storedUserId.isNotEmpty) {
-          final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-          if (digitsOnly.isNotEmpty) {
-            userId = int.tryParse(digitsOnly) ?? 22;
+      if (userId == 0) {
+        try {
+          final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+          if (storedUserId != null && storedUserId.isNotEmpty) {
+            final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
+            if (digitsOnly.isNotEmpty) {
+              userId = int.tryParse(digitsOnly) ?? 0;
+            }
           }
-        }
+        } catch (_) {}
       }
 
       final response = await apiClient.post(
@@ -1202,22 +1204,24 @@ class _UserRechargeSingleLineNotificationsWidgetState extends State<_UserRecharg
   Future<void> _loadRecords() async {
     try {
       final apiClient = ApiClient();
-      int userId = 22;
+      int userId = 0;
       final currentUser = LocalStorageRepositoryImpl().getUser();
       if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
         final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
         if (digitsOnly.isNotEmpty) {
-          userId = int.tryParse(digitsOnly) ?? 22;
+          userId = int.tryParse(digitsOnly) ?? 0;
         }
       }
-      if (userId == 22) {
-        final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-        if (storedUserId != null && storedUserId.isNotEmpty) {
-          final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-          if (digitsOnly.isNotEmpty) {
-            userId = int.tryParse(digitsOnly) ?? 22;
+      if (userId == 0) {
+        try {
+          final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+          if (storedUserId != null && storedUserId.isNotEmpty) {
+            final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
+            if (digitsOnly.isNotEmpty) {
+              userId = int.tryParse(digitsOnly) ?? 0;
+            }
           }
-        }
+        } catch (_) {}
       }
 
       final response = await apiClient.post(

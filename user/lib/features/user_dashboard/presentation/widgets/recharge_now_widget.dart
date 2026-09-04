@@ -22,14 +22,14 @@ import '../../../../storage/secure_storage_service.dart';
 
 class RechargeNowWidget extends StatefulWidget {
   final Function(RechargeRecordModel)? onRechargeSubmitted;
-  final int bookId;
-  final int agencyId;
+  final int? bookId;
+  final int? agencyId;
 
   const RechargeNowWidget({
     super.key,
     this.onRechargeSubmitted,
-    this.bookId = 324,
-    this.agencyId = 23,
+    this.bookId,
+    this.agencyId,
   });
 
   @override
@@ -59,22 +59,58 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
 
   final List<int> _quickAmounts = [100, 500, 1000, 2000, 5000];
 
-  Future<int> _resolveUserId() async {
-    final currentUser = LocalStorageRepositoryImpl().getUser();
-    if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-      final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
+  Future<dynamic> _resolveUserId() async {
+    try {
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
+        final raw = currentUser.id.trim();
+        final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+        return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
       }
-    }
-    final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-    if (storedUserId != null && storedUserId.isNotEmpty) {
-      final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
+    } catch (_) {}
+    try {
+      final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+      if (storedUserId != null && storedUserId.isNotEmpty) {
+        final raw = storedUserId.trim();
+        final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+        return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
       }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<dynamic> _resolveAgencyId() async {
+    if (widget.agencyId != null && widget.agencyId! > 0) {
+      return widget.agencyId;
     }
-    return 22;
+    try {
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      final userAgency = currentUser?.agencyId;
+      if (userAgency != null &&
+          userAgency.isNotEmpty &&
+          userAgency != 'null' &&
+          userAgency != '0') {
+        final digitsOnly = userAgency.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          return int.tryParse(digitsOnly) ?? userAgency;
+        }
+        return userAgency;
+      }
+    } catch (_) {}
+    try {
+      final storedAgentId = await SecureStorageService().read(StorageKeys.chatAgentId);
+      if (storedAgentId != null &&
+          storedAgentId.isNotEmpty &&
+          storedAgentId != 'null' &&
+          storedAgentId != '0') {
+        final digitsOnly = storedAgentId.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          return int.tryParse(digitsOnly) ?? storedAgentId;
+        }
+        return storedAgentId;
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _fetchBooks() async {
@@ -206,7 +242,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
     }
   }
 
-  int _getBookId(String? bookName) {
+  int? _getBookId(String? bookName) {
     if (bookName != null && bookName.isNotEmpty) {
       final normalized = bookName.trim().toLowerCase();
       for (final entry in _dynamicBookIds.entries) {
@@ -521,11 +557,11 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
     final conversationId = ApiEndpoints.buildConversationId(agentId, userEmail);
 
     final chatText = '📥 RECHARGE DEPOSIT REQUEST SUBMITTED\n'
-        '• User ID: ${currentUser?.email ?? currentUser?.id ?? "22"}\n'
+        '• User ID: ${currentUser?.email ?? currentUser?.id ?? currentUser?.name ?? ""}\n'
         '• QR ID: ${_qrId ?? "N/A"}\n'
         '• Range ID: ${_rangeId ?? "N/A"}\n'
         '• Amount: ₹${record.amount.toStringAsFixed(0)}\n'
-        '• Employee ID: ${_empId ?? widget.agencyId}\n'
+        '• Employee ID: ${_empId ?? widget.agencyId ?? await _resolveAgencyId()}\n'
         '• Book ID: ${_getBookId(_selectedBook)} (${record.bookName})\n'
         '• Transaction ID: $txnId\n'
         '• Payment Proof: ${_selectedScreenshot != null ? "[Screenshot Attached]" : "Not Attached"}';

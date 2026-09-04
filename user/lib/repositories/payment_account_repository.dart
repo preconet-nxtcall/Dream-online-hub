@@ -65,12 +65,23 @@ class PaymentAccountRepositoryImpl implements PaymentAccountRepository {
       }
 
       if (data is Map<String, dynamic>) {
-        if (data['success'] == true || data.containsKey('account_name') || data.containsKey('data')) {
+        if (data['success'] == true ||
+            data.containsKey('account_name') ||
+            data.containsKey('bank_name') ||
+            data.containsKey('data')) {
           final accountData = (data['data'] is Map<String, dynamic>)
               ? data['data'] as Map<String, dynamic>
               : (data['payment_account'] is Map<String, dynamic>)
                   ? data['payment_account'] as Map<String, dynamic>
-                  : data;
+                  : (data['bank_details'] is Map<String, dynamic>)
+                      ? data['bank_details'] as Map<String, dynamic>
+                      : (data['account'] is Map<String, dynamic>)
+                          ? data['account'] as Map<String, dynamic>
+                          : (data['bank_account'] is Map<String, dynamic>)
+                              ? data['bank_account'] as Map<String, dynamic>
+                              : (data['user_account'] is Map<String, dynamic>)
+                                  ? data['user_account'] as Map<String, dynamic>
+                                  : data;
 
           return PaymentAccountModel.fromJson(accountData);
         }

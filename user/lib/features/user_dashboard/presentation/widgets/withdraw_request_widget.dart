@@ -10,6 +10,7 @@ import '../../../../models/dto/chat/send_message_request_dto.dart';
 import '../../../../models/user/payment_account_model.dart';
 import '../../../../network/api_client.dart';
 import '../../../../network/chat_api_client.dart';
+import '../../../../providers/auth_provider.dart';
 import '../../../../providers/chat_provider.dart';
 import '../../../../repositories/payment_account_repository.dart';
 import '../../../../socket/socket_events.dart';
@@ -38,14 +39,18 @@ class WithdrawRequestModel {
 
 class WithdrawRequestWidget extends StatefulWidget {
   final Function(WithdrawRequestModel model)? onWithdrawSubmitted;
-  final int bookId;
-  final int agencyId;
+  final int? bookId;
+  final int? agencyId;
+  final PaymentAccountRepository? repository;
+  final dynamic userId; 
 
   const WithdrawRequestWidget({
     super.key,
     this.onWithdrawSubmitted,
-    this.bookId = 324,
-    this.agencyId = 23,
+    this.bookId,
+    this.agencyId,
+    this.repository,
+    this.userId,
   });
 
   @override
@@ -77,35 +82,24 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     try {
       setState(() => _isLoadingAccount = true);
       final userId = await _resolveUserId();
-      final repo = PaymentAccountRepositoryImpl();
+      final repo = widget.repository ?? PaymentAccountRepositoryImpl();
       final account = await repo.getPaymentAccount(userId);
 
       if (!mounted) return;
 
       if (account != null) {
+        final bool hasBankInfo = account.hasBankInfo;
+        final bool isApproved = account.isApproved;
+        final bool isPending = account.isPendingApproval;
+        final bool isValidApproved = (isApproved || (hasBankInfo && !isPending)) && hasBankInfo;
         final rawStatus = account.status.trim().toUpperCase();
-        final bool isApproved = rawStatus == 'APPROVED' ||
-            rawStatus == 'SUCCESS' ||
-            rawStatus == 'SUCCESSFUL' ||
-            rawStatus == 'VERIFIED' ||
-            rawStatus == 'ACTIVE' ||
-            rawStatus == 'ACCEPTED' ||
-            rawStatus == 'EMPLOYEE-APPROVED' ||
-            rawStatus == '1';
-
-        final bool hasBankInfo = account.bankName.isNotEmpty ||
-            account.accountNo.isNotEmpty ||
-            account.accountName.isNotEmpty ||
-            account.upiId.isNotEmpty;
-
-        final bool isValidApproved = isApproved && hasBankInfo && !account.isPendingApproval;
 
         setState(() {
           _savedAccount = account;
           _isApprovedAccountAvailable = isValidApproved;
           _accountStatusText = rawStatus.isNotEmpty
               ? rawStatus
-              : (account.isPendingApproval ? 'PENDING' : 'NOT APPROVED');
+              : (isPending ? 'PENDING' : (isValidApproved ? 'APPROVED' : 'NOT APPROVED'));
           _isLoadingAccount = false;
         });
 
@@ -159,35 +153,91 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.all(16),
               child: PaymentAccountWidget(
+                repository: widget.repository,
                 onClose: () => Navigator.of(ctx).pop(),
               ),
             ),
           ),
         ),
       ),
-    );
+    ).then((_) {
+      if (mounted) {
+        _fetchPaymentAccount();
+      }
+    });
   }
 
-  Future<int> _resolveUserId() async {
-    final currentUser = LocalStorageRepositoryImpl().getUser();
-    if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-      final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
-      }
+  Future<dynamic> _resolveUserId() async {
+    if (widget.userId != null && widget.userId.toString().trim().isNotEmpty) {
+      final raw = widget.userId.toString().trim();
+      final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+      return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
     }
-    final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-    if (storedUserId != null && storedUserId.isNotEmpty) {
-      final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
+    try {
+      final authProv = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProv.currentUser;
+      if (user?.id != null && user!.id.trim().isNotEmpty) {
+        final raw = user.id.trim();
+        final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+        return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
       }
+    } catch (_) {}
+    try {
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
+        final raw = currentUser.id.trim();
+        final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+        return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
+      }
+    } catch (_) {}
+    try {
+      final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+      if (storedUserId != null && storedUserId.isNotEmpty) {
+        final raw = storedUserId.trim();
+        final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+        return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<dynamic> _resolveAgencyId() async {
+    if (widget.agencyId != null && widget.agencyId! > 0) {
+      return widget.agencyId;
     }
-    return 22;
+    try {
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      final userAgency = currentUser?.agencyId;
+      if (userAgency != null &&
+          userAgency.isNotEmpty &&
+          userAgency != 'null' &&
+          userAgency != '0') {
+        final digitsOnly = userAgency.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          return int.tryParse(digitsOnly) ?? userAgency;
+        }
+        return userAgency;
+      }
+    } catch (_) {}
+    try {
+      final storedAgentId = await SecureStorageService().read(StorageKeys.chatAgentId);
+      if (storedAgentId != null &&
+          storedAgentId.isNotEmpty &&
+          storedAgentId != 'null' &&
+          storedAgentId != '0') {
+        final digitsOnly = storedAgentId.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          return int.tryParse(digitsOnly) ?? storedAgentId;
+        }
+        return storedAgentId;
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _fetchBooks() async {
     try {
+      if (widget.repository != null) return;
       final apiClient = ApiClient();
       final userId = await _resolveUserId();
       final response = await apiClient.post(
@@ -315,7 +365,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     }
   }
 
-  int _getBookId(String? bookName) {
+  int? _getBookId(String? bookName) {
     if (bookName != null && bookName.isNotEmpty) {
       final normalized = bookName.trim().toLowerCase();
       for (final entry in _dynamicBookIds.entries) {
@@ -396,6 +446,8 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         imageBase64 = _savedAccount!.image!;
       }
 
+      final targetAgencyId = await _resolveAgencyId();
+
       final options = Options(validateStatus: (status) => status != null && status < 500);
 
       var response = await apiClient.post(
@@ -408,7 +460,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
           'amount': parsedAmount,
           'deatil': description,
           'description': description,
-          'emp_id': widget.agencyId,
+          'emp_id': targetAgencyId,
           'image': imageBase64,
         },
       );
@@ -424,7 +476,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
           'amount': parsedAmount.toString(),
           'deatil': description,
           'description': description,
-          'emp_id': widget.agencyId.toString(),
+          'emp_id': (targetAgencyId ?? '').toString(),
           'image': imageBase64,
         };
 
@@ -456,7 +508,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
             'amount': parsedAmount,
             'deatil': description,
             'description': description,
-            'emp_id': widget.agencyId,
+            'emp_id': targetAgencyId,
             'image': imageBase64,
           },
         );
@@ -550,7 +602,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     final conversationId = ApiEndpoints.buildConversationId(agentId, userEmail);
 
     final chatText = '📤 WITHDRAWAL REQUEST SUBMITTED\n'
-        '• User ID: ${currentUser?.email ?? currentUser?.id ?? "22"}\n'
+        '• User ID: ${currentUser?.email ?? currentUser?.id ?? currentUser?.name ?? ""}\n'
         '• Game Book: ${model.bookName}\n'
         '• Amount: ₹${model.amount.toStringAsFixed(0)}\n'
         '• Bank Account Details: ${description.isNotEmpty ? description : model.description}';

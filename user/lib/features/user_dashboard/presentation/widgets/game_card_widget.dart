@@ -738,21 +738,25 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
   }
 
   Future<int> _resolveUserId() async {
-    final currentUser = LocalStorageRepositoryImpl().getUser();
-    if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-      final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
+    try {
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
+        final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          final parsed = int.tryParse(digitsOnly);
+          if (parsed != null && parsed > 0) return parsed;
+        }
       }
-    }
-    final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-    if (storedUserId != null && storedUserId.isNotEmpty) {
-      final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
+      final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+      if (storedUserId != null && storedUserId.isNotEmpty) {
+        final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          final parsed = int.tryParse(digitsOnly);
+          if (parsed != null && parsed > 0) return parsed;
+        }
       }
-    }
-    return 22;
+    } catch (_) {}
+    return 0;
   }
 
   int _resolveBookId() {

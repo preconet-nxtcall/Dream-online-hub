@@ -91,22 +91,24 @@ class GameRepositoryImpl implements GameRepository {
   @override
   Future<List<GameCardModel>> fetchGames({String? category}) async {
     try {
-      int userId = 22;
+      int? userId;
       final currentUser = LocalStorageRepositoryImpl().getUser();
       if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
         final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
         if (digitsOnly.isNotEmpty) {
-          userId = int.tryParse(digitsOnly) ?? 22;
+          userId = int.tryParse(digitsOnly);
         }
       }
-      if (userId == 22) {
-        final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-        if (storedUserId != null && storedUserId.isNotEmpty) {
-          final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-          if (digitsOnly.isNotEmpty) {
-            userId = int.tryParse(digitsOnly) ?? 22;
+      if (userId == null) {
+        try {
+          final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+          if (storedUserId != null && storedUserId.isNotEmpty) {
+            final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
+            if (digitsOnly.isNotEmpty) {
+              userId = int.tryParse(digitsOnly);
+            }
           }
-        }
+        } catch (_) {}
       }
 
       final response = await _apiClient.post(
@@ -114,7 +116,7 @@ class GameRepositoryImpl implements GameRepository {
         options: Options(validateStatus: (status) => status != null && status < 500),
         data: {
           'action': 'all_books',
-          'user_id': userId,
+          'user_id': userId ?? 0,
         },
       );
 

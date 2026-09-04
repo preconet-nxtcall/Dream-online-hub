@@ -91,21 +91,19 @@ class GameRepositoryImpl implements GameRepository {
   @override
   Future<List<GameCardModel>> fetchGames({String? category}) async {
     try {
-      int userId = 22;
+      dynamic userId;
       final currentUser = LocalStorageRepositoryImpl().getUser();
       if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-        final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-        if (digitsOnly.isNotEmpty) {
-          userId = int.tryParse(digitsOnly) ?? 22;
-        }
+        final raw = currentUser.id.trim();
+        final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+        userId = digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
       }
-      if (userId == 22) {
+      if (userId == null) {
         final storedUserId = await SecureStorageService().read(StorageKeys.userId);
         if (storedUserId != null && storedUserId.isNotEmpty) {
-          final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-          if (digitsOnly.isNotEmpty) {
-            userId = int.tryParse(digitsOnly) ?? 22;
-          }
+          final raw = storedUserId.trim();
+          final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+          userId = digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
         }
       }
 

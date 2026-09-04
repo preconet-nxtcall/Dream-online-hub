@@ -109,9 +109,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
           _ifscCodeCtrl.text = account.ifscCode;
           _upiIdCtrl.text = account.upiId;
           _existingImageUrl = account.image;
-          if (account.isPendingApproval) {
-            _isPendingApproval = true;
-          }
+          _isPendingApproval = account.isPendingApproval;
           _isLoading = false;
         });
       } else if (mounted) {

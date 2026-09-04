@@ -78,29 +78,29 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
     return fallbackDateVal?.toString() ?? 'Recent';
   }
 
-  Future<int> _resolveUserId() async {
-    int userId = 22;
+  Future<dynamic> _resolveUserId() async {
     if (widget.userId != null && widget.userId.toString().isNotEmpty) {
-      final digitsOnly = widget.userId.toString().replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
-      }
+      final raw = widget.userId.toString().trim();
+      final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+      return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
     }
-    final currentUser = LocalStorageRepositoryImpl().getUser();
-    if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-      final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
+    try {
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
+        final raw = currentUser.id.trim();
+        final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+        return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
       }
-    }
-    final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-    if (storedUserId != null && storedUserId.isNotEmpty) {
-      final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) {
-        return int.tryParse(digitsOnly) ?? 22;
+    } catch (_) {}
+    try {
+      final storedUserId = await SecureStorageService().read(StorageKeys.userId);
+      if (storedUserId != null && storedUserId.isNotEmpty) {
+        final raw = storedUserId.trim();
+        final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+        return digitsOnly.isNotEmpty ? (int.tryParse(digitsOnly) ?? raw) : raw;
       }
-    }
-    return userId;
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _fetchBackendRecords({bool silent = false}) async {

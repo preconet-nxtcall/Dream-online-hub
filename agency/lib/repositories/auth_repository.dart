@@ -261,21 +261,24 @@ class AuthRepositoryImpl implements AuthRepository {
   }) async {
     try {
       final currentUser = getCachedUser();
-      int userId = 22;
+      int? userId;
       if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
         final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
         if (digitsOnly.isNotEmpty) {
-          userId = int.tryParse(digitsOnly) ?? 22;
+          userId = int.tryParse(digitsOnly);
         }
       }
-      if (userId == 22) {
+      if (userId == null) {
         final storedUserId = await _secureStorage.read(StorageKeys.userId);
         if (storedUserId != null && storedUserId.isNotEmpty) {
           final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
           if (digitsOnly.isNotEmpty) {
-            userId = int.tryParse(digitsOnly) ?? 22;
+            userId = int.tryParse(digitsOnly);
           }
         }
+      }
+      if (userId == null) {
+        throw ServerException(message: 'User session not found. Please log in again.');
       }
 
       final response = await _apiClient.post(
