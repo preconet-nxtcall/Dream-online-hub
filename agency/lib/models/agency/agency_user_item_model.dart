@@ -48,7 +48,7 @@ class AgencyUserItem {
       if (str.startsWith('http')) {
         avatarStr = str;
       } else {
-        avatarStr = 'https://fairbizcrm.com/uploads/photos/$str';
+        avatarStr = 'https://dreamonlinehub.club/uploads/photos/$str';
       }
     }
 

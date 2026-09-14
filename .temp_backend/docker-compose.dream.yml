@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # 1. PHP Office Manage Application
+  office-manage:
+    image: php:8.2-apache
+    container_name: fb_office_manage
+    restart: always
+    volumes:
+      - ./office-manage:/var/www/html
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=gamecrm
+      - JWT_SECRET=super-secret-jwt-key-agent-chat-2026
+    command: >
+      bash -c "docker-php-ext-install mysqli pdo pdo_mysql && a2enmod rewrite && mkdir -p /var/www/html/uploads/photos /var/www/html/uploads/ckeditor /var/www/html/uploads/documents && chmod -R 777 /var/www/html/uploads && apache2-foreground"
+    networks:
+      - fb_network
+
+  # 2. Node.js Chat Backend
+  chat-app:
+    build:
+      context: ./chat
+      dockerfile: Dockerfile
+    container_name: fb_chat_backend
+    restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - MONGO_URI=${MONGO_URI:-mongodb://mongodb:27017/agent_chat}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - JWT_SECRET=${JWT_SECRET:-super-secret-jwt-key-agent-chat-2026}
+      - PHP_API_URL=${PHP_API_URL:-http://office-manage/api.php}
+      - WASABI_REGION=${WASABI_REGION:-us-east-1}
+      - WASABI_ACCESS_KEY_ID=${WASABI_ACCESS_KEY_ID:-BQ5HHKEMK4W7ZJ0YBUZ1}
+      - WASABI_SECRET_ACCESS_KEY=${WASABI_SECRET_ACCESS_KEY:-hHknKfbjNTeNO6rpfqZAm2ZBDhZejQnhi4G0CdXe}
+      - WASABI_ENDPOINT=${WASABI_ENDPOINT:-https://s3.us-east-1.wasabisys.com}
+      - WASABI_BUCKET=${WASABI_BUCKET:-chat-recordings}
+      - WASABI_CDN_BASE_URL=${WASABI_CDN_BASE_URL:-https://s3.us-east-1.wasabisys.com/chat-recordings}
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=gamecrm
+    depends_on:
+      - mongodb
+      - redis
+      - office-manage
+      - mysql
+    networks:
+      - fb_network
+
+  # 3. MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: fb_mysql
+    restart: always
+    command: --sql-mode=""
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=gamecrm
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./office-manage/telewiz_ofcmanage_db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - fb_network
+
+  # 4. MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: fb_mongodb
+    restart: always
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - fb_network
+
+  # 5. Redis Service
+  redis:
+    image: redis:7-alpine
+    container_name: fb_redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - fb_network
+
+  # 6. Master Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: fb_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.dream.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/nginx/certs:ro
+    depends_on:
+      - office-manage
+      - chat-app
+    networks:
+      - fb_network
+
+volumes:
+  mysql_data:
+  mongo_data:
+  redis_data:
+
+networks:
+  fb_network:
+    driver: bridge

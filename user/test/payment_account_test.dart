@@ -115,6 +115,27 @@ void main() {
       expect(approvedModel.isPendingApproval, isFalse);
       expect(readStatusPendingModel.isPendingApproval, isTrue);
     });
+
+    test('PaymentAccountModel parses get_qr_code response with bank_detail and qr_image_url', () {
+      final qrResponse = {
+        'success': true,
+        'qr_available': true,
+        'qr_image_url': 'http://example.com/qr.png',
+        'qr_id': 1,
+        'range_id': 2,
+        'emp_id': 3,
+        'bank_id': 4,
+        'bank_name': 'State Bank of India',
+        'bank_detail': 'Account Name: John Doe, IFSC: SBIN0001234',
+      };
+
+      final model = PaymentAccountModel.fromJson(qrResponse);
+
+      expect(model.accountName, equals('John Doe'));
+      expect(model.ifscCode, equals('SBIN0001234'));
+      expect(model.bankName, equals('State Bank of India'));
+      expect(model.image, equals('http://example.com/qr.png'));
+    });
   });
 
   group('PaymentAccountWidget Widget Tests', () {
@@ -126,11 +147,11 @@ void main() {
 
     testWidgets('Renders all fields, labels, and Save Payment Account button', (WidgetTester tester) async {
       mockRepo.accountToReturn = const PaymentAccountModel(
-        accountName: 'FairBiz User',
+        accountName: 'DreamHub User',
         accountNo: '1234567890',
         ifscCode: 'IFSC0001',
         bankName: 'SBI Bank',
-        upiId: 'fairbiz@upi',
+        upiId: 'dreamhub@upi',
       );
 
       await tester.pumpWidget(
@@ -159,11 +180,11 @@ void main() {
       expect(find.text('Close Details'), findsOneWidget);
 
       // Verify prefilled field values
-      expect(find.text('FairBiz User'), findsOneWidget);
+      expect(find.text('DreamHub User'), findsOneWidget);
       expect(find.text('1234567890'), findsOneWidget);
       expect(find.text('SBI Bank'), findsOneWidget);
       expect(find.text('IFSC0001'), findsOneWidget);
-      expect(find.text('fairbiz@upi'), findsOneWidget);
+      expect(find.text('dreamhub@upi'), findsOneWidget);
     });
 
     testWidgets('Triggers updatePaymentAccount repository call on Save Payment Account click', (WidgetTester tester) async {
@@ -173,7 +194,7 @@ void main() {
         ifscCode: 'IFSC123',
         bankName: 'Axis Bank',
         upiId: 'user@axis',
-        image: 'https://fairbizcrm.com/uploads/photo.png',
+        image: 'https://dreamonlinehub.club/uploads/photo.png',
       );
 
       await tester.pumpWidget(
@@ -212,7 +233,7 @@ void main() {
         ifscCode: 'IFSC999',
         bankName: 'HDFC Bank',
         upiId: 'pending@upi',
-        image: 'https://fairbizcrm.com/uploads/photo.png',
+        image: 'https://dreamonlinehub.club/uploads/photo.png',
         status: 'pending',
       );
 
@@ -252,7 +273,7 @@ void main() {
         ifscCode: 'HDFC000123',
         bankName: 'HDFC Bank',
         upiId: 'user@gmail.com',
-        image: 'https://fairbizcrm.com/uploads/user_qr.png',
+        image: 'https://dreamonlinehub.club/uploads/user_qr.png',
         status: 'pending',
       );
 

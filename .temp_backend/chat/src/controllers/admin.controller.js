@@ -1,0 +1,521 @@
+import { Agent } from '../models/Agent.js';
+import { User } from '../models/User.js';
+import { Conversation } from '../models/Conversation.js';
+import { Message } from '../models/Message.js';
+import { config } from '../config/env.js';
+import { queryMysql } from '../config/mysql.js';
+
+async function syncWithTelewiz(role, emailId, agentId) {
+  try {
+    const isUserAdmin = role === 'admin' || String(emailId || '').toUpperCase().includes('ADMIN') || String(agentId || '').toUpperCase().includes('ADMIN');
+    
+    if (isUserAdmin) {
+      let usersData = null;
+      try {
+        usersData = await queryMysql('SELECT id, name, email, mob, img, type, show_status, agency_id, agency_unq_id FROM users');
+      } catch (sqlErr) {
+        console.warn('[Admin Sync] MySQL direct query error, falling back to PHP:', sqlErr.message);
+      }
+
+      if (!usersData || usersData.length === 0) {
+        const syncRes = await fetch(config.phpApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'read_users' })
+        });
+        if (syncRes.ok) {
+          const syncData = await syncRes.json();
+          if (syncData.success && Array.isArray(syncData.data)) {
+            usersData = syncData.data;
+          }
+        }
+      }
+
+      if (Array.isArray(usersData) && usersData.length > 0) {
+        // Pre-build agency unique ID map
+        const agencyMap = {};
+        for (const u of usersData) {
+          const uType = String(u.type || '').toUpperCase();
+          if (uType === 'ADMIN' || uType === 'AGENCY') {
+            agencyMap[String(u.id)] = u.agency_unq_id || (uType === 'ADMIN' ? `ADMIN-${u.id}` : `AGENCY-${u.id}`);
+          }
+        }
+
+        const activeEmails = [];
+        const activeAgents = [];
+
+        for (const u of usersData) {
+          const uType = String(u.type || '').toUpperCase();
+          const uStatus = String(u.show_status || u.status || 'ACTIVE').toUpperCase();
+          const uImg = u.img || u.avatar || '';
+
+          if (uType === 'ADMIN' || uType === 'AGENCY') {
+            const agencyUnqId = u.agency_unq_id || (uType === 'ADMIN' ? `ADMIN-${u.id}` : `AGENCY-${u.id}`);
+            activeAgents.push(agencyUnqId);
+            await Agent.findByIdAndUpdate(
+              agencyUnqId,
+              {
+                id: u.id,
+                emailId: u.email,
+                name: u.name,
+                mob: u.mob,
+                img: uImg,
+                type: uType,
+                status: uStatus === 'ACTIVE' ? 'active' : 'inactive'
+              },
+              { upsert: true }
+            );
+          } else if (uType === 'USER' || !uType || uType === '') {
+            activeEmails.push(u.email);
+            const existingUser = await User.findOne({ $or: [{ _id: u.email }, { emailId: u.email }] });
+            let userAgencyId = u.agency_id || '';
+            let userAgencyUnqId = u.agency_unq_id || agencyMap[String(userAgencyId)] || '';
+            if (!userAgencyUnqId && userAgencyId) {
+              const agentDoc = await Agent.findOne({ id: Number(userAgencyId) });
+              userAgencyUnqId = agentDoc ? agentDoc._id : '';
+            }
+
+            if (!u.agency_id && existingUser && (existingUser.agency_id || existingUser.agency_unq_id)) {
+              userAgencyId = existingUser.agency_id || '';
+              userAgencyUnqId = existingUser.agency_unq_id || '';
+            }
+
+            await User.findByIdAndUpdate(
+              u.email,
+              {
+                id: u.id,
+                emailId: u.email,
+                name: u.name,
+                mob: u.mob,
+                img: uImg,
+                agency_id: userAgencyId,
+                agency_unq_id: userAgencyUnqId,
+                agentId: userAgencyUnqId,
+                type: 'USER',
+                status: uStatus === 'ACTIVE' ? 'active' : 'inactive'
+              },
+              { upsert: true }
+            );
+          }
+        }
+
+        // Soft delete (deactivate) missing users and agents in MongoDB
+        await User.updateMany({ _id: { $nin: activeEmails } }, { $set: { status: 'inactive' } });
+        await Agent.updateMany({ _id: { $nin: activeAgents } }, { $set: { status: 'inactive' } });
+      }
+    } else {
+      let numericAgencyId = null;
+      if (agentId && agentId.startsWith('AGENCY-')) {
+        numericAgencyId = agentId.split('-')[1];
+      }
+      if (!numericAgencyId) {
+        const agent = await Agent.findOne({ $or: [{ _id: emailId }, { emailId }] });
+        if (agent && agent.id) {
+          numericAgencyId = String(agent.id);
+        }
+      }
+
+      if (numericAgencyId) {
+        let agencyUsersData = null;
+        try {
+          agencyUsersData = await queryMysql(
+            'SELECT id, name, email, mob, img, type, show_status, agency_id, agency_unq_id FROM users WHERE (agency_id = ? OR agency_unq_id = ? OR id = ?)',
+            [String(numericAgencyId), `AGENCY-${numericAgencyId}`, Number(numericAgencyId)]
+          );
+        } catch (sqlErr) {
+          console.warn('[Agent Sync] MySQL direct query error, falling back to PHP:', sqlErr.message);
+        }
+
+        if (!agencyUsersData || agencyUsersData.length === 0) {
+          const syncRes = await fetch(config.phpApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get_by_agency_id', agency_id: String(numericAgencyId) })
+          });
+          if (syncRes.ok) {
+            const syncData = await syncRes.json();
+            if (syncData.success && Array.isArray(syncData.data)) {
+              agencyUsersData = syncData.data;
+            }
+          }
+        }
+
+        if (Array.isArray(agencyUsersData) && agencyUsersData.length > 0) {
+          // Pre-build agency unique ID map
+          const agencyMap = {};
+          for (const u of agencyUsersData) {
+            const uType = String(u.type || '').toUpperCase();
+            if (uType === 'ADMIN' || uType === 'AGENCY') {
+              agencyMap[String(u.id)] = u.agency_unq_id || (uType === 'ADMIN' ? `ADMIN-${u.id}` : `AGENCY-${u.id}`);
+            }
+          }
+
+          const activeEmails = [];
+          const agentUnqId = agentId || `AGENCY-${numericAgencyId}`;
+
+          for (const u of agencyUsersData) {
+            const uType = String(u.type || '').toUpperCase();
+            const uStatus = String(u.show_status || u.status || 'ACTIVE').toUpperCase();
+            const uImg = u.img || u.avatar || '';
+
+            if (uType === 'ADMIN' || uType === 'AGENCY') {
+              const agencyUnqId = u.agency_unq_id || (uType === 'ADMIN' ? `ADMIN-${u.id}` : `AGENCY-${u.id}`);
+              await Agent.findByIdAndUpdate(
+                agencyUnqId,
+                {
+                  id: u.id,
+                  emailId: u.email,
+                  name: u.name,
+                  mob: u.mob,
+                  img: uImg,
+                  type: uType,
+                  status: uStatus === 'ACTIVE' ? 'active' : 'inactive'
+                },
+                { upsert: true }
+              );
+            } else if (uType === 'USER' || !uType || uType === '') {
+              activeEmails.push(u.email);
+              const userAgencyId = u.agency_id || String(numericAgencyId);
+              let userAgencyUnqId = u.agency_unq_id || agencyMap[String(userAgencyId)] || '';
+              if (!userAgencyUnqId && userAgencyId) {
+                const agentDoc = await Agent.findOne({ id: Number(userAgencyId) });
+                userAgencyUnqId = agentDoc ? agentDoc._id : '';
+              }
+              await User.findByIdAndUpdate(
+                u.email,
+                {
+                  id: u.id,
+                  emailId: u.email,
+                  name: u.name,
+                  mob: u.mob,
+                  img: uImg,
+                  agency_id: userAgencyId,
+                  agency_unq_id: userAgencyUnqId,
+                  agentId: userAgencyUnqId,
+                  type: 'USER',
+                  status: uStatus === 'ACTIVE' ? 'active' : 'inactive'
+                },
+                { upsert: true }
+              );
+            }
+          }
+
+          // Soft delete (deactivate) missing users assigned to this agent in MongoDB
+          await User.updateMany(
+            { agency_unq_id: agentUnqId, _id: { $nin: activeEmails } },
+            { $set: { status: 'inactive' } }
+          );
+        }
+      }
+    }
+
+    // Clean up legacy/incorrect entries in User collection (where their email matches an Agent)
+    const agentEmails = (await Agent.find({}, 'emailId')).map(a => a.emailId).filter(Boolean);
+    if (agentEmails.length > 0) {
+      await User.deleteMany({ $or: [{ _id: { $in: agentEmails } }, { emailId: { $in: agentEmails } }] });
+    }
+  } catch (err) {
+    console.error('[Admin Sync] Failed to sync with Telewiz:', err.message);
+  }
+}
+
+export async function createAgent(req, res) {
+  try {
+    const { id, name, emailId, password } = req.body;
+    if (!emailId || !password) {
+      return res.status(400).json({ error: 'emailId and password are required' });
+    }
+
+    const agencyUnqId = id || `AGENCY-${Date.now()}`;
+    const agent = await Agent.findByIdAndUpdate(
+      agencyUnqId,
+      {
+        emailId,
+        password,
+        name: name || emailId,
+        type: 'AGENCY',
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.json({
+      message: 'Agent created successfully.',
+      agent
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+export async function createUser(req, res) {
+  try {
+    const { name, emailId, mob, password, agentId } = req.body;
+    if (!name || !emailId || !password) {
+      return res.status(400).json({ error: 'name, emailId, and password are required' });
+    }
+
+    // Create user on Telewiz API
+    const remoteRes = await fetch(config.phpApiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create_user',
+        name,
+        email: emailId,
+        mob: mob || '',
+        password
+      })
+    });
+
+    if (!remoteRes.ok) {
+      const errorData = await remoteRes.json().catch(() => ({}));
+      return res.status(remoteRes.status).json({ error: errorData.message || 'Failed to create user on Telewiz API' });
+    }
+
+    const remoteData = await remoteRes.json();
+    if (!remoteData.success) {
+      return res.status(400).json({ error: remoteData.message || 'Telewiz API user creation failed' });
+    }
+
+    const numericUserId = remoteData.id;
+    const userAgencyId = agentId && agentId.includes('-') ? agentId.split('-')[1] : '';
+    const userAgencyUnqId = agentId || '';
+
+    const newUser = await User.findByIdAndUpdate(
+      emailId,
+      {
+        id: numericUserId,
+        emailId,
+        password,
+        name,
+        mob: mob || '',
+        agency_id: userAgencyId,
+        agency_unq_id: userAgencyUnqId,
+        agentId: userAgencyUnqId,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.json({
+      message: 'User created successfully.',
+      user: newUser
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+export async function listAgents(req, res) {
+  try {
+    const agentDoc = await Agent.findOne({ $or: [{ _id: req.user.emailId }, { emailId: req.user.emailId }] });
+    const isAdmin = req.user && (req.user.role === 'admin' || (agentDoc && agentDoc.type === 'ADMIN') || String(req.user.emailId || '').toUpperCase().includes('ADMIN') || String(req.user.agentId || '').toUpperCase().includes('ADMIN'));
+    
+    // Sync latest users and agents from Telewiz API
+    await syncWithTelewiz(req.user.role, req.user.emailId, req.user.agentId);
+
+    if (!isAdmin) {
+      // Find all admin agents (both users and agencies can message admin)
+      const adminAgents = await Agent.find({
+        $or: [
+          { type: 'ADMIN' },
+          { _id: /ADMIN/i },
+          { emailId: /ADMIN/i }
+        ]
+      }).sort({ createdAt: -1 });
+
+      if (req.user && req.user.role === 'user') {
+        // A regular user can message Admin + their assigned Agent
+        const userDoc = await User.findOne({
+          $or: [
+            { emailId: req.user.emailId },
+            { _id: req.user.emailId },
+            { _id: req.user._id },
+            { id: req.user.id }
+          ]
+        });
+
+        const assignedId = userDoc ? (userDoc.agentId || userDoc.agency_unq_id || userDoc.agency_id) : req.user.agentId;
+        if (assignedId) {
+          const cleanId = String(assignedId);
+          const numId = cleanId.includes('-') ? cleanId.split('-').pop() : cleanId;
+          const assignedAgent = await Agent.findOne({
+            $or: [
+              { _id: cleanId },
+              { _id: `AGENCY-${numId}` },
+              { emailId: cleanId },
+              { id: isNaN(numId) ? -1 : Number(numId) }
+            ]
+          });
+
+          if (assignedAgent) {
+            const alreadyInList = adminAgents.some(a => String(a._id) === String(assignedAgent._id));
+            if (!alreadyInList) {
+              adminAgents.push(assignedAgent);
+            }
+          }
+        }
+      }
+
+      return res.json({ agents: adminAgents });
+    }
+
+    // Admin sees all agents (both agencies and admins)
+    const agents = await Agent.find().sort({ createdAt: -1 });
+    return res.json({ agents });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+export async function listUsers(req, res) {
+  try {
+    // Sync latest users and agents from Telewiz API
+    await syncWithTelewiz(req.user.role, req.user.emailId, req.user.agentId);
+
+    const agentDoc = await Agent.findOne({ $or: [{ _id: req.user.emailId }, { emailId: req.user.emailId }] });
+    const isAdmin = req.user && (req.user.role === 'admin' || (agentDoc && agentDoc.type === 'ADMIN') || String(req.user.emailId || '').toUpperCase().includes('ADMIN') || String(req.user.agentId || '').toUpperCase().includes('ADMIN'));
+
+    if (req.user && req.user.role === 'user') {
+      // Regular users cannot message other users
+      return res.json({ users: [] });
+    }
+
+    let filter = {};
+    if (!isAdmin) {
+      filter = {
+        $or: [
+          { agency_unq_id: { $exists: true, $ne: '' } },
+          { agency_id: { $exists: true, $ne: '' } },
+          { agentId: { $exists: true, $ne: '' } }
+        ]
+      };
+    }
+
+    let users = await User.find(filter).sort({ createdAt: -1 });
+    if (req.user && req.user.role === 'agent' && !isAdmin) {
+      let agentIdNum = req.user.agentId || '';
+      if (agentIdNum.includes('-')) {
+        const parts = agentIdNum.split('-');
+        agentIdNum = parts[parts.length - 1];
+      }
+
+      users = users.filter(u => {
+        const userAgentId = String(u.agentId || '');
+        const userAgencyId = String(u.agency_id || '');
+        const agentIdStr = String(req.user.agentId || '');
+
+        return (
+          userAgentId === agentIdStr ||
+          userAgencyId === String(agentIdNum) ||
+          userAgencyId === agentIdStr
+        );
+      });
+    }
+
+    return res.json({ users });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+export async function assignUsers(req, res) {
+  try {
+    const agentDoc = await Agent.findOne({ $or: [{ _id: req.user.emailId }, { emailId: req.user.emailId }] });
+    const isAdmin = req.user && (req.user.role === 'admin' || (agentDoc && agentDoc.type === 'ADMIN') || String(req.user.emailId || '').toUpperCase().includes('ADMIN') || String(req.user.agentId || '').toUpperCase().includes('ADMIN'));
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Access denied: Agents cannot assign users.' });
+    }
+
+    const { emailIds, agentId } = req.body;
+    if (!Array.isArray(emailIds) || emailIds.length === 0 || !agentId) {
+      return res.status(400).json({ error: 'emailIds array and agentId are required' });
+    }
+
+    // Verify agent exists
+    const agent = await Agent.findById(agentId);
+    if (!agent) {
+      return res.status(400).json({ error: `Agent with ID "${agentId}" does not exist` });
+    }
+
+    // Extract agency numeric ID if present
+    let agencyId = '';
+    if (agentId && agentId.includes('-')) {
+      const parts = agentId.split('-');
+      const lastPart = parts[parts.length - 1];
+      if (!isNaN(lastPart)) {
+        agencyId = lastPart;
+      }
+    }
+
+    // Update all users
+    const result = await User.updateMany(
+      { _id: { $in: emailIds } },
+      { $set: { agentId, agency_unq_id: agentId, agency_id: agencyId } }
+    );
+
+    return res.json({
+      message: `Successfully assigned ${result.modifiedCount} users to agent "${agent.name}"`,
+      modifiedCount: result.modifiedCount
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+export async function deleteUsers(req, res) {
+  try {
+    const agentDoc = await Agent.findOne({ $or: [{ _id: req.user.emailId }, { emailId: req.user.emailId }] });
+    const isAdmin = req.user && (req.user.role === 'admin' || (agentDoc && agentDoc.type === 'ADMIN') || String(req.user.emailId || '').toUpperCase().includes('ADMIN') || String(req.user.agentId || '').toUpperCase().includes('ADMIN'));
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Access denied: Agents cannot delete users.' });
+    }
+
+    const { emailIds } = req.body;
+    if (!Array.isArray(emailIds) || emailIds.length === 0) {
+      return res.status(400).json({ error: 'emailIds array is required' });
+    }
+
+    // Call Telewiz API to delete each user
+    const usersToDelete = await User.find({ _id: { $in: emailIds } });
+    for (const u of usersToDelete) {
+      if (u.id) {
+        try {
+          await fetch(config.phpApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'delete_user',
+              id: u.id
+            })
+          });
+        } catch (apiErr) {
+          console.error(`[Admin User Delete] Failed to delete user ${u.id} on Telewiz API:`, apiErr.message);
+        }
+      }
+    }
+
+    // Delete conversations first
+    const conversations = await Conversation.find({ emailId: { $in: emailIds } });
+    const conversationIds = conversations.map(c => c._id);
+
+    // Delete messages
+    if (conversationIds.length > 0) {
+      await Message.deleteMany({ conversationId: { $in: conversationIds } });
+    }
+
+    // Delete conversations
+    await Conversation.deleteMany({ emailId: { $in: emailIds } });
+
+    // Delete users
+    const result = await User.deleteMany({ _id: { $in: emailIds } });
+
+    return res.json({
+      message: `Successfully deleted ${result.deletedCount} users, their conversations, and messages.`,
+      deletedCount: result.deletedCount
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}

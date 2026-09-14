@@ -1332,46 +1332,49 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
         children: [
           // Circular Logo Avatar with Gold Glow Ring
           Container(
-            width: 48,
-            height: 48,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF1E1403),
+              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xFF0E0921),
               border: Border.all(
-                color: const Color(0xFFF59E0B),
+                color: const Color(0xFF00B2FF),
                 width: 1.8,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
+                  color: const Color(0xFF00B2FF).withValues(alpha: 0.45),
                   blurRadius: 12,
                 ),
               ],
             ),
             alignment: Alignment.center,
             child: (avatarUrl != null && avatarUrl.startsWith('http'))
-                ? ClipOval(
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
                     child: Image.network(
                       avatarUrl,
-                      width: 48,
-                      height: 48,
+                      width: 52,
+                      height: 52,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => ClipOval(
+                      errorBuilder: (_, __, ___) => ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
                         child: Image.asset(
                           'assets/icons/app_logo.png',
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
                   )
-                : ClipOval(
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
                     child: Image.asset(
                       'assets/icons/app_logo.png',
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
+                      width: 52,
+                      height: 52,
+                      fit: BoxFit.contain,
                     ),
                   ),
           ),
@@ -1388,7 +1391,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                   text: TextSpan(
                     children: [
                       TextSpan(
-                        text: 'Fair',
+                        text: 'Dream',
                         style: GoogleFonts.plusJakartaSans(
                           color: Colors.white,
                           fontSize: 20,
@@ -1397,24 +1400,24 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                         ),
                       ),
                       TextSpan(
-                        text: 'Biz ',
+                        text: 'Hub ',
                         style: GoogleFonts.plusJakartaSans(
-                          color: const Color(0xFFFF9400),
+                          color: const Color(0xFF00B2FF),
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
                           letterSpacing: -0.5,
                           shadows: [
                             Shadow(
-                              color: const Color(0xFFFF9400).withValues(alpha: 0.5),
+                              color: const Color(0xFF00B2FF).withValues(alpha: 0.5),
                               blurRadius: 10,
                             ),
                           ],
                         ),
                       ),
                       TextSpan(
-                        text: 'Agency CRM',
+                        text: 'Agency Portal',
                         style: GoogleFonts.plusJakartaSans(
-                          color: const Color(0xFFFF9400),
+                          color: const Color(0xFF00B2FF),
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.2,
@@ -1768,27 +1771,28 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF1F1403),
+                      borderRadius: BorderRadius.circular(10),
+                      color: const Color(0xFF0E0921),
                       border: Border.all(
-                        color: const Color(0xFFF59E0B),
+                        color: const Color(0xFF00B2FF),
                         width: 1.5,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
+                          color: const Color(0xFF00B2FF).withValues(alpha: 0.45),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                     alignment: Alignment.center,
-                    child: ClipOval(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
                       child: Image.asset(
                         'assets/icons/app_logo.png',
                         width: 44,
                         height: 44,
-                        fit: BoxFit.cover,
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),

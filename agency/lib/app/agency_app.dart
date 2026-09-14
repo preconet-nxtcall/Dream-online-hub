@@ -26,7 +26,7 @@ class AgencyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp.router(
-            title: 'FairBiz Agency CRM',
+            title: 'Dream Online Hub Agency',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             themeMode: ThemeMode.light,

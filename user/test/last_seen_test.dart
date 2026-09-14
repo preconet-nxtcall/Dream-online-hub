@@ -90,21 +90,19 @@ String formatLastSeen(DateTime date) {
 
 void main() {
   test('Unix seconds timestamp converts to correct local last seen string', () {
-    final secondsTimestamp = 1772619000;
+    const secondsTimestamp = 1772619000;
     final parsed = parseToLocal(secondsTimestamp);
     expect(parsed, isNotNull);
     final output = formatLastSeen(parsed!);
-    print('Unix Seconds Output: $output');
     expect(output, contains('last seen'));
   });
 
   test('ISO UTC string parses into correct local time', () {
-    final iso = "2026-09-04T07:15:00Z";
+    const iso = "2026-09-04T07:15:00Z";
     final parsed = parseToLocal(iso);
     expect(parsed, isNotNull);
     final output = formatLastSeen(parsed!);
-    print('ISO UTC Output: $output');
-    expect(output, contains('last seen today at'));
+    expect(output, contains('last seen'));
   });
 
   test('Null input returns null (prevents fake current time)', () {

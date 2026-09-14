@@ -298,21 +298,21 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const isDark = true;
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E2128) : Colors.white,
+        color: const Color(0xFF070D22),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF32285A).withValues(alpha: 0.8) : const Color(0xFFE2E8F0),
-          width: 1.2,
+          color: const Color(0xFF0066FF).withValues(alpha: 0.6),
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? const Color(0xFFF97316).withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
-            blurRadius: 14,
+            color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+            blurRadius: 20,
             offset: const Offset(0, 4),
           ),
         ],
@@ -326,7 +326,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
             width: double.infinity,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFFF97316), Color(0xFFFFB800)],
+                colors: [Color(0xFF0066FF), Color(0xFF00B2FF)],
               ),
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
@@ -337,21 +337,21 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Row with Orange Shield Badge & Subtitle
+                // Header Row with Blue Shield Badge & Subtitle
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                          colors: [Color(0xFF0077FF), Color(0xFF0044CE)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFF97316).withValues(alpha: 0.3),
+                            color: const Color(0xFF0066FF).withValues(alpha: 0.4),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -370,10 +370,10 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                         children: [
                           Text(
                             _isEditing ? 'Update Payment Account' : 'Payment Account Details',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              color: Colors.white,
                               letterSpacing: 0.1,
                             ),
                           ),
@@ -382,9 +382,9 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                             _isEditing
                                 ? 'Modify saved bank, IFSC & UPI payout info'
                                 : 'Saved bank & UPI payout details for withdrawals',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 10.5,
-                              color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                              color: Colors.white60,
                             ),
                           ),
                         ],
@@ -401,9 +401,9 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: widget.onClose,
-                        icon: Icon(
+                        icon: const Icon(
                           Icons.close_rounded,
-                          color: isDark ? Colors.white70 : Colors.black54,
+                          color: Colors.white70,
                           size: 20,
                         ),
                       )
@@ -626,14 +626,14 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                                     colors: [Color(0xFF6B7280), Color(0xFF4B5563)],
                                   )
                                 : const LinearGradient(
-                                    colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                                    colors: [Color(0xFF0077FF), Color(0xFF0044CE)],
                                     begin: Alignment.centerLeft,
                                     end: Alignment.centerRight,
                                   ),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: (_isPendingApproval ? const Color(0xFF6B7280) : const Color(0xFFF97316)).withValues(alpha: 0.35),
+                                color: (_isPendingApproval ? const Color(0xFF6B7280) : const Color(0xFF0066FF)).withValues(alpha: 0.4),
                                 blurRadius: 10,
                                 offset: const Offset(0, 3),
                               ),
@@ -727,80 +727,79 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
     required bool isDark,
     TextInputType keyboardType = TextInputType.text,
   }) {
-        final bool isFieldEnabled = _isEditing && !_isPendingApproval;
+    final bool isFieldEnabled = _isEditing && !_isPendingApproval;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                const SizedBox(width: 3),
-                const Text(
-                  '*',
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF00B2FF),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
             ),
-            const SizedBox(height: 5),
-            TextField(
-              controller: controller,
-              keyboardType: keyboardType,
-              readOnly: !isFieldEnabled,
-              enabled: isFieldEnabled,
-          style: TextStyle(
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-            fontSize: 12.5,
+            const SizedBox(width: 3),
+            const Text(
+              '*',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          readOnly: !isFieldEnabled,
+          enabled: isFieldEnabled,
+          cursorColor: const Color(0xFF00B2FF),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(
-              color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+              color: Colors.white.withValues(alpha: 0.4),
               fontSize: 12,
               fontWeight: FontWeight.normal,
             ),
             filled: true,
-            fillColor: _isEditing
-                ? (isDark ? const Color(0xFF14102B).withValues(alpha: 0.6) : const Color(0xFFF8FAFC))
-                : (isDark ? const Color(0xFF14102B).withValues(alpha: 0.3) : const Color(0xFFF1F5F9)),
+            fillColor: const Color(0xFF050B1E),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             suffixIcon: Icon(
               icon,
-              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+              color: const Color(0xFF00B2FF),
               size: 18,
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: isDark ? const Color(0xFF332B56) : const Color(0xFFE2E8F0),
-                width: 1.1,
+                color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+                width: 1.2,
               ),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: isDark ? const Color(0xFF241C42) : const Color(0xFFE2E8F0),
+                color: const Color(0xFF0066FF).withValues(alpha: 0.25),
                 width: 1.0,
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
-                color: Color(0xFFF97316),
-                width: 1.4,
+                color: Color(0xFF00B2FF),
+                width: 1.5,
               ),
             ),
           ),
@@ -916,19 +915,19 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        const Row(
           children: [
             Text(
               'QR CODE / PASSBOOK IMAGE',
               style: TextStyle(
-                color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                color: Color(0xFF00B2FF),
                 fontSize: 10.5,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.4,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(width: 3),
-            const Text(
+            SizedBox(width: 3),
+            Text(
               '*',
               style: TextStyle(
                 color: Colors.redAccent,
@@ -945,15 +944,13 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: _isEditing
-                  ? (isDark ? const Color(0xFF14102B).withValues(alpha: 0.6) : const Color(0xFFF8FAFC))
-                  : (isDark ? const Color(0xFF14102B).withValues(alpha: 0.3) : const Color(0xFFF1F5F9)),
+              color: const Color(0xFF050B1E),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: (hasNewFile || hasExistingFile)
-                    ? const Color(0xFFF97316).withValues(alpha: 0.5)
-                    : (isDark ? const Color(0xFF332B56) : const Color(0xFFE2E8F0)),
-                width: 1.1,
+                    ? const Color(0xFF0066FF).withValues(alpha: 0.6)
+                    : const Color(0xFF0066FF).withValues(alpha: 0.4),
+                width: 1.2,
               ),
             ),
             child: Row(
@@ -962,27 +959,27 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF2D274E) : const Color(0xFFE2E8F0),
+                    color: const Color(0xFF0A183C),
                     borderRadius: BorderRadius.circular(7),
                     border: Border.all(
-                      color: isDark ? const Color(0xFF483E7A) : const Color(0xFFCBD5E1),
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.5),
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.add_photo_alternate_outlined,
                         size: 13,
-                        color: isDark ? Colors.white : const Color(0xFF334155),
+                        color: Color(0xFF00B2FF),
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         'Choose File',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF334155),
+                          color: Color(0xFF00B2FF),
                         ),
                       ),
                     ],

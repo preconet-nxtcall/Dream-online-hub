@@ -26,7 +26,7 @@ class UserApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp.router(
-            title: 'FairBiz CRM',
+            title: 'Dream Online Hub',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             themeMode: ThemeMode.light,

@@ -20,7 +20,7 @@ abstract class GameRepository {
 class GameRepositoryImpl implements GameRepository {
   final ApiClient _apiClient;
   List<String> _bannerUrls = [
-    'https://fairbizcrm.com/uploads/photos/1784883728_Slider.png',
+    'https://dreamonlinehub.club/uploads/photos/1784883728_Slider.png',
   ];
 
   GameRepositoryImpl({ApiClient? apiClient})
@@ -138,8 +138,8 @@ class GameRepositoryImpl implements GameRepository {
               if (url != null && url.isNotEmpty) {
                 if (!url.startsWith('http')) {
                   url = url.startsWith('/')
-                      ? 'https://fairbizcrm.com$url'
-                      : 'https://fairbizcrm.com/$url';
+                      ? 'https://dreamonlinehub.club$url'
+                      : 'https://dreamonlinehub.club/$url';
                 }
                 extractedBanners.add(url);
               }
@@ -192,80 +192,11 @@ class GameRepositoryImpl implements GameRepository {
           }
         }
 
-        if (dynamicGames.isNotEmpty) {
-          return dynamicGames;
-        }
+        return dynamicGames;
       }
     } catch (_) {}
 
-    return const [
-      GameCardModel(
-        id: '324',
-        name: 'LUCKY VAULT',
-        code: 'LV',
-        result: '***-**-***',
-        status: 'Running Open',
-        isOpen: true,
-        openTime: '10:00 AM',
-        closeTime: '11:00 AM',
-        category: 'Main Markets',
-      ),
-      GameCardModel(
-        id: '323',
-        name: 'DICE VERSE',
-        code: 'DV',
-        result: '***-**-***',
-        status: 'Running Open',
-        isOpen: true,
-        openTime: '11:15 AM',
-        closeTime: '12:15 PM',
-        category: 'Main Markets',
-      ),
-      GameCardModel(
-        id: '322',
-        name: 'JACKPOT SPIN',
-        code: 'JS',
-        result: '140-59-234',
-        status: 'Running Open',
-        isOpen: true,
-        openTime: '01:00 PM',
-        closeTime: '02:00 PM',
-        category: 'Main Markets',
-      ),
-      GameCardModel(
-        id: '321',
-        name: 'GOLD RUSH PRO',
-        code: 'GR',
-        result: '***-**-***',
-        status: 'Running Open',
-        isOpen: true,
-        openTime: '03:30 PM',
-        closeTime: '05:30 PM',
-        category: 'Main Markets',
-      ),
-      GameCardModel(
-        id: '310',
-        name: 'INFINITY FORTUNE',
-        code: 'IF',
-        result: '345-28-190',
-        status: 'Closed',
-        isOpen: false,
-        openTime: '06:00 PM',
-        closeTime: '08:00 PM',
-        category: 'Main Markets',
-      ),
-      GameCardModel(
-        id: '309',
-        name: 'CROWN RICHES',
-        code: 'CR',
-        result: '***-**-***',
-        status: 'Running Open',
-        isOpen: true,
-        openTime: '09:30 PM',
-        closeTime: '11:45 PM',
-        category: 'Main Markets',
-      ),
-    ];
+    return const [];
   }
 
   GameCardModel _parseGameCardModel(Map item, {bool? forceSubscribed}) {
@@ -286,9 +217,9 @@ class GameRepositoryImpl implements GameRepository {
 
     if (imageUrl != null && imageUrl.isNotEmpty && !imageUrl.startsWith('http')) {
       if (imageUrl.startsWith('/')) {
-        imageUrl = 'https://fairbizcrm.com$imageUrl';
+        imageUrl = 'https://dreamonlinehub.club$imageUrl';
       } else {
-        imageUrl = 'https://fairbizcrm.com/$imageUrl';
+        imageUrl = 'https://dreamonlinehub.club/$imageUrl';
       }
     }
 

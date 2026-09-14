@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.fairbiz.agency"
+    namespace = "com.dreamhub.agency"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.fairbiz.agency"
+        applicationId = "com.dreamhub.agency"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // minSdk 23 required by flutter_secure_storage v9+ and the `record` plugin
@@ -31,7 +31,7 @@ android {
         release {
             // ⚠️ PRODUCTION: Replace with your real keystore before publishing to Play Store.
             // signingConfig = signingConfigs.getByName("release")
-            // To create a keystore: keytool -genkey -v -keystore fairbiz-agency.jks ...
+            // To create a keystore: keytool -genkey -v -keystore dreamhub-agency.jks ...
             signingConfig = signingConfigs.getByName("debug") // ← swap this for production
             isMinifyEnabled = false
             isShrinkResources = false

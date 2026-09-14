@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
 
@@ -89,119 +88,55 @@ class _SplashScreenState extends State<SplashScreen>
             children: [
               const Spacer(),
 
-              // Glowing Animated Logo Box
+              // Glowing Animated Logo Box & Banner Header
               ScaleTransition(
                 scale: _scaleAnim,
                 child: FadeTransition(
                   opacity: _fadeAnim,
                   child: Column(
                     children: [
+                      // Upper Glowing App Logo Badge
                       Container(
-                        width: 90,
-                        height: 90,
+                        width: 95,
+                        height: 95,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(22),
                           color: const Color(0xFF0E0921),
                           border: Border.all(
-                            color: const Color(0xFFFFC700),
-                            width: 2.5,
+                            color: const Color(0xFF00B2FF),
+                            width: 2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFFC700).withValues(alpha: 0.4),
-                              blurRadius: 28,
+                              color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
+                              blurRadius: 24,
                               spreadRadius: 2,
                             ),
                             BoxShadow(
-                              color: const Color(0xFF7C3AED).withValues(alpha: 0.5),
-                              blurRadius: 40,
-                              spreadRadius: 4,
+                              color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
+                              blurRadius: 36,
+                              spreadRadius: 2,
                             ),
                           ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(45),
+                          borderRadius: BorderRadius.circular(20),
                           child: Image.asset(
                             'assets/images/app_logo.png',
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
 
-                      // FairBiz Branding Title
-                      RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'Fair',
-                              style: GoogleFonts.plusJakartaSans(
-                                color: Colors.white,
-                                fontSize: 42,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.8,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'Biz',
-                              style: GoogleFonts.plusJakartaSans(
-                                color: const Color(0xFFFF9400),
-                                fontSize: 42,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.8,
-                                shadows: [
-                                  Shadow(
-                                    color: const Color(0xFFFF9400).withValues(alpha: 0.6),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                      // DreamHub Official Brand Banner Logo Below
+                      Container(
+                        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 100),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Image.asset(
+                          'assets/images/dreamhub_banner_logo.png',
+                          fit: BoxFit.contain,
                         ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Tagline Subtitle matching image logo
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 4,
-                            height: 4,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF94A3B8),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Fair Online Hub',
-                            style: GoogleFonts.outfit(
-                              color: const Color(0xFFF8FAFC),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 2.5,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 4,
-                            height: 4,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF94A3B8),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),

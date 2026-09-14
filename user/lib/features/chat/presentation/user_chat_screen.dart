@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/api_endpoints.dart';
@@ -46,7 +47,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
   bool _hasText = false;
   StreamSubscription<Set<String>>? _onlineSub;
   bool _showScrollToBottomBtn = false;
-  String _agencyDisplayName = 'Assigned Support Agency';
+  String _agencyDisplayName = 'DreamHub Official Support';
   String? _agencyEmail;
   bool _hasAgencyAssigned = true;
 
@@ -141,9 +142,9 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
           : chatAgentId;
 
       // Initialize agency display name
-      String initialAgencyName = (widget.userItem?.name.isNotEmpty == true)
+      String initialAgencyName = (widget.userItem?.name.isNotEmpty == true && widget.userItem!.name != 'Assigned Support Agency')
           ? widget.userItem!.name
-          : 'Agency #$validAgency';
+          : 'DreamHub Official Support';
 
       if (mounted) {
         setState(() {
@@ -168,8 +169,11 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
               SocketService.instance.checkUserPresence(fetchedEmail);
             }
             if (fetchedName.isNotEmpty && mounted) {
+              final formattedName = (fetchedName == 'Assigned Support Agency' || fetchedName.startsWith('Agency #'))
+                  ? 'DreamHub Official Support'
+                  : fetchedName;
               setState(() {
-                _agencyDisplayName = fetchedName;
+                _agencyDisplayName = formattedName;
               });
             }
           }
@@ -374,7 +378,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
 
     return Scaffold(
       backgroundColor: const Color(0xFFECE5DD),
-      appBar: _buildLightAppBar(context, chatProvider),
+      appBar: _buildDashboardAppBar(context, chatProvider),
       body: SafeArea(
         child: Column(
           children: [
@@ -390,7 +394,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                     Expanded(
                       child: Text(
                         chatProvider.errorMessage!,
-                        style: const TextStyle(color: Colors.black87, fontSize: 12),
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
                       ),
                     ),
                   ],
@@ -410,7 +414,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                           : Stack(
                               children: [
                                 RefreshIndicator(
-                                  color: const Color(0xFF075E54),
+                                  color: const Color(0xFF00D2FF),
                                   onRefresh: () async {
                                     final targetId = chatProvider.activeConversationId ?? widget.userId;
                                     await chatProvider.fetchMessages(
@@ -443,10 +447,10 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                                             child: Center(
                                               child: TextButton.icon(
                                                 onPressed: () => chatProvider.loadMoreMessages(),
-                                                icon: const Icon(Icons.refresh_rounded, size: 16, color: Color(0xFF075E54)),
+                                                icon: const Icon(Icons.refresh_rounded, size: 16, color: Color(0xFF00D2FF)),
                                                 label: const Text(
                                                   'Failed to load older messages. Tap to retry',
-                                                  style: TextStyle(fontSize: 12, color: Color(0xFF075E54), fontWeight: FontWeight.bold),
+                                                  style: TextStyle(fontSize: 12, color: Color(0xFF00D2FF), fontWeight: FontWeight.bold),
                                                 ),
                                               ),
                                             ),
@@ -462,7 +466,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                                                 height: 18,
                                                 child: CircularProgressIndicator(
                                                   strokeWidth: 2,
-                                                  color: Color(0xFF075E54),
+                                                  color: Color(0xFF00D2FF),
                                                 ),
                                               ),
                                             ),
@@ -475,18 +479,18 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                                             child: Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFF075E54).withValues(alpha: 0.1),
+                                                color: const Color(0xFF0066FF).withValues(alpha: 0.15),
                                                 borderRadius: BorderRadius.circular(16),
-                                                border: Border.all(color: const Color(0xFF075E54).withValues(alpha: 0.2)),
+                                                border: Border.all(color: const Color(0xFF0066FF).withValues(alpha: 0.3)),
                                               ),
                                               child: const Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  Icon(Icons.arrow_upward_rounded, size: 13, color: Color(0xFF075E54)),
+                                                  Icon(Icons.arrow_upward_rounded, size: 13, color: Color(0xFF00D2FF)),
                                                   SizedBox(width: 4),
                                                   Text(
                                                     'Scroll up for older history',
-                                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF075E54)),
+                                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF00D2FF)),
                                                   ),
                                                 ],
                                               ),
@@ -506,7 +510,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                                           if (showDate) DateSeparatorWidget(date: msg.timestamp),
                                           ChatMessageBubble(
                                             message: msg,
-                                            accentColor: const Color(0xFF075E54),
+                                            accentColor: const Color(0xFF0066FF),
                                             onReply: () => chatProvider.setReplyingTo(msg),
                                             onDelete: () => chatProvider.deleteMessage(msg.id),
                                           ),
@@ -516,7 +520,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                                   ),
                                 ),
 
-                                // Floating WhatsApp-style Scroll-to-Bottom button
+                                // Floating Scroll-to-Bottom button
                                 if (_showScrollToBottomBtn)
                                   Positioned(
                                     right: 16,
@@ -526,12 +530,14 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF075E54),
+                                          gradient: const LinearGradient(
+                                            colors: [Color(0xFF00D2FF), Color(0xFF0066FF)],
+                                          ),
                                           borderRadius: BorderRadius.circular(20),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withValues(alpha: 0.25),
-                                              blurRadius: 6,
+                                              color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                                              blurRadius: 10,
                                               offset: const Offset(0, 3),
                                             ),
                                           ],
@@ -560,18 +566,18 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
 
             if (chatProvider.isAgencyTyping)
               const TypingIndicatorWidget(
-                agencyName: 'Assigned Support Agency',
-                accentColor: Color(0xFF075E54),
+                agencyName: 'DreamHub Official Support',
+                accentColor: Color(0xFF00D2FF),
               ),
 
-            _buildLightInputField(context),
+            _buildDashboardInputField(context),
           ],
         ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildLightAppBar(BuildContext context, ChatProvider chatProvider) {
+  PreferredSizeWidget _buildDashboardAppBar(BuildContext context, ChatProvider chatProvider) {
     final isHigherAdmin = chatProvider.isHigherAuthorityActive;
     final activeTitle = isHigherAdmin ? 'Admin Higher Authority' : _agencyDisplayName;
     final activeRecipient = chatProvider.activeRecipientId ?? widget.userId;
@@ -583,26 +589,58 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
         : (lastSeen != null ? DateFormatter.formatLastSeen(lastSeen) : 'offline');
 
     return PreferredSize(
-      preferredSize: const Size.fromHeight(66),
+      preferredSize: const Size.fromHeight(68),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1F2C34),
+          color: const Color(0xFF070D22),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0B1536), Color(0xFF070D22)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
           border: Border(
             bottom: BorderSide(
-              color: isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF00A884),
-              width: 1.2,
+              color: isHigherAdmin
+                  ? const Color(0xFF8B5CF6).withValues(alpha: 0.8)
+                  : const Color(0xFF0066FF).withValues(alpha: 0.7),
+              width: 1.5,
             ),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: (isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF0066FF)).withValues(alpha: 0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-                  onPressed: () => context.pop(),
+                // Back Button Box
+                InkWell(
+                  onTap: () => context.pop(),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2346),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+                        width: 1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 17),
+                  ),
                 ),
+                const SizedBox(width: 10),
+
+                // Support Avatar Box
                 Container(
                   width: 42,
                   height: 42,
@@ -611,17 +649,31 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                     gradient: LinearGradient(
                       colors: isHigherAdmin
                           ? [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)]
-                          : [const Color(0xFF00A884), const Color(0xFF059669)],
+                          : [const Color(0xFF00D2FF), const Color(0xFF0066FF), const Color(0xFF0038B8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    border: Border.all(
+                      color: isHigherAdmin ? const Color(0xFFA78BFA) : const Color(0xFF00E5FF),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF0066FF)).withValues(alpha: 0.5),
+                        blurRadius: 10,
+                      ),
+                    ],
                   ),
                   alignment: Alignment.center,
                   child: Icon(
                     isHigherAdmin ? Icons.shield_rounded : Icons.support_agent_rounded,
                     color: Colors.white,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 const SizedBox(width: 10),
+
+                // Support Title & Subtitle
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -631,13 +683,14 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                         activeTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: GoogleFonts.plusJakartaSans(
                           color: Colors.white,
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: 0.3,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Row(
                         children: [
                           Container(
@@ -645,18 +698,26 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                             height: 7,
                             decoration: BoxDecoration(
                               color: isOnline
-                                  ? (isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF00A884))
-                                  : const Color(0xFF8696A0),
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFF8F9BBA),
                               shape: BoxShape.circle,
+                              boxShadow: isOnline
+                                  ? [
+                                      BoxShadow(
+                                        color: const Color(0xFF10B981).withValues(alpha: 0.8),
+                                        blurRadius: 6,
+                                      ),
+                                    ]
+                                  : null,
                             ),
                           ),
                           const SizedBox(width: 5),
                           Text(
                             activeSubtitle,
-                            style: TextStyle(
+                            style: GoogleFonts.plusJakartaSans(
                               color: isOnline
-                                  ? (isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF00A884))
-                                  : const Color(0xFF8696A0),
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFF8F9BBA),
                               fontSize: 11.5,
                               fontWeight: isOnline ? FontWeight.w700 : FontWeight.w500,
                             ),
@@ -667,16 +728,17 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                   ),
                 ),
 
-                // Higher Authority Admin / Agency Button
+                // Higher Authority Admin / Agency Button Badge
                 if (!_hasAgencyAssigned)
-                  // Static non-clickable Admin badge for unassigned users
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(12),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: const Color(0xFF8B5CF6),
+                        color: const Color(0xFFA78BFA),
                         width: 1.2,
                       ),
                     ),
@@ -685,15 +747,15 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                       children: [
                         Icon(
                           Icons.shield_rounded,
-                          size: 14,
-                          color: Color(0xFFC4B5FD),
+                          size: 13,
+                          color: Colors.white,
                         ),
                         SizedBox(width: 4),
                         Text(
                           'Admin',
                           style: TextStyle(
-                            color: Color(0xFFC4B5FD),
-                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
                             fontSize: 11,
                           ),
                         ),
@@ -701,36 +763,43 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                     ),
                   )
                 else
-                  // Clickable button for assigned users: Switch between Admin & Agency chat
                   GestureDetector(
                     onTap: () => chatProvider.toggleHigherAuthority(widget.userId),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isHigherAdmin
-                            ? const Color(0xFF8B5CF6).withValues(alpha: 0.25)
-                            : const Color(0xFF00A884).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: isHigherAdmin
+                              ? [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)]
+                              : [const Color(0xFF00D2FF), const Color(0xFF0066FF)],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF00A884),
+                          color: isHigherAdmin ? const Color(0xFFA78BFA) : const Color(0xFF00E5FF),
                           width: 1.2,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isHigherAdmin ? const Color(0xFF8B5CF6) : const Color(0xFF0066FF)).withValues(alpha: 0.4),
+                            blurRadius: 8,
+                          ),
+                        ],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             isHigherAdmin ? Icons.business_center_rounded : Icons.shield_rounded,
-                            size: 14,
-                            color: isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF00A884),
+                            size: 13,
+                            color: Colors.white,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             isHigherAdmin ? 'Agency' : 'Admin',
-                            style: TextStyle(
-                              color: isHigherAdmin ? const Color(0xFFC4B5FD) : const Color(0xFF00A884),
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
                               fontWeight: FontWeight.w800,
-                              fontSize: 11,
+                              fontSize: 11.5,
                             ),
                           ),
                         ],
@@ -745,7 +814,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildLightInputField(BuildContext context) {
+  Widget _buildDashboardInputField(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: const BoxDecoration(
@@ -762,7 +831,7 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF075E54), size: 24),
+              icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF0066FF), size: 24),
               onPressed: () {
                 showModalBottomSheet(
                   context: context,
@@ -786,43 +855,59 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
                 ),
                 child: TextField(
                   controller: _messageController,
-                  style: const TextStyle(color: Color(0xFF111B21), fontSize: 14.5),
+                  style: GoogleFonts.plusJakartaSans(color: const Color(0xFF111B21), fontSize: 14.5),
                   maxLines: 4,
                   minLines: 1,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Type your message to Agency...',
-                    hintStyle: TextStyle(color: Color(0xFF667781), fontSize: 13.5),
+                    hintStyle: GoogleFonts.plusJakartaSans(color: const Color(0xFF667781), fontSize: 13.5),
                     border: InputBorder.none,
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             if (_hasText)
               Container(
-                width: 44,
-                height: 44,
-                decoration: const BoxDecoration(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF075E54),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00D2FF), Color(0xFF0066FF)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+                      blurRadius: 8,
+                    ),
+                  ],
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                  icon: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
                   onPressed: () => _sendMessage(),
                 ),
               )
             else
               Container(
-                width: 44,
-                height: 44,
-                decoration: const BoxDecoration(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF075E54),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00D2FF), Color(0xFF0066FF)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+                      blurRadius: 8,
+                    ),
+                  ],
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.mic_rounded, color: Colors.white, size: 20),
+                  icon: const Icon(Icons.mic_rounded, color: Colors.white, size: 19),
                   onPressed: () {
                     showModalBottomSheet(
                       context: context,
@@ -911,21 +996,21 @@ class _UserChatScreenState extends State<UserChatScreen> with TickerProviderStat
               height: 72,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF075E54).withValues(alpha: 0.12),
-                border: Border.all(color: const Color(0xFF075E54).withValues(alpha: 0.3), width: 1.5),
+                color: const Color(0xFF0066FF).withValues(alpha: 0.12),
+                border: Border.all(color: const Color(0xFF0066FF).withValues(alpha: 0.3), width: 1.5),
               ),
-              child: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF075E54), size: 36),
+              child: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF0066FF), size: 36),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Assigned Support Thread',
-              style: TextStyle(color: Color(0xFF111B21), fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              'DreamHub Official Support',
+              style: GoogleFonts.plusJakartaSans(color: const Color(0xFF111B21), fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Send a message to your assigned agency for support, deposits, or account assistance.',
+            Text(
+              'Send a message for instant support, deposits, withdrawals, or account assistance.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF667781), fontSize: 13),
+              style: GoogleFonts.plusJakartaSans(color: const Color(0xFF667781), fontSize: 13),
             ),
           ],
         ),

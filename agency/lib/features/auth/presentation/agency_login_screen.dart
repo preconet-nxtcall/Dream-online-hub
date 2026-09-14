@@ -96,13 +96,13 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                   children: [
                     // Brand Logo Header
                     Container(
-                      width: 76,
-                      height: 76,
+                      width: 86,
+                      height: 86,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(20),
                         color: const Color(0xFF0E0921),
                         border: Border.all(
-                          color: const Color(0xFFFFC700),
+                          color: const Color(0xFF00B2FF),
                           width: 2,
                         ),
                         boxShadow: [
@@ -112,17 +112,17 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                             offset: const Offset(0, 8),
                           ),
                           BoxShadow(
-                            color: const Color(0xFFFFC700).withValues(alpha: 0.25),
+                            color: const Color(0xFF00B2FF).withValues(alpha: 0.25),
                             blurRadius: 14,
                             spreadRadius: 1,
                           ),
                         ],
                       ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(38),
+                        borderRadius: BorderRadius.circular(18),
                         child: Image.asset(
                           'assets/images/app_logo.png',
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
@@ -133,7 +133,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                       text: TextSpan(
                         children: [
                           TextSpan(
-                            text: 'Fair',
+                            text: 'Dream',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 32,
                               fontWeight: FontWeight.w900,
@@ -142,15 +142,15 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                             ),
                           ),
                           TextSpan(
-                            text: 'Biz',
+                            text: 'Hub',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 32,
                               fontWeight: FontWeight.w900,
-                              color: const Color(0xFFFF9400),
+                              color: const Color(0xFF00B2FF),
                               letterSpacing: -0.5,
                               shadows: [
                                 Shadow(
-                                  color: const Color(0xFFFF9400).withValues(alpha: 0.4),
+                                  color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
                                   blurRadius: 10,
                                   offset: const Offset(0, 2),
                                 ),
@@ -176,11 +176,11 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                         ),
                         const SizedBox(width: 7),
                         Text(
-                          'Agency CRM',
+                          'Agency Portal',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w900,
-                            color: const Color(0xFFFF9400),
+                            color: const Color(0xFF00B2FF),
                             letterSpacing: 2.5,
                           ),
                         ),
@@ -197,7 +197,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Sign in to access your FairBiz Agency CRM Dashboard',
+                      'Sign in to access your Dream Online Hub Agency Dashboard',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
                         fontSize: 13.5,

@@ -1,10 +1,10 @@
 class ApiEndpoints {
   // ─── PHP Office Manager (Login, User/Agency Profile) ───────────────────────
-  static const String baseUrl = 'https://fairbizcrm.com/';
+  static const String baseUrl = 'https://dreamonlinehub.club/';
 
   // ─── Chat Server (Node.js + Socket.IO — Production) ─────────────────────────
-  static const String chatBaseUrl = 'https://fairbizcrm.com/chat';
-  static const String chatSocketUrl = 'https://fairbizcrm.com/';
+  static const String chatBaseUrl = 'https://dreamonlinehub.club/chat';
+  static const String chatSocketUrl = 'https://dreamonlinehub.club/';
   static const String fixedToken = 'chat_fixed_auth_token_2026_prod';
 
   // ─── PHP Auth ───────────────────────────────────────────────────────────────

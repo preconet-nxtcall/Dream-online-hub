@@ -112,18 +112,18 @@ class _DraggableFloatingChatButtonState extends State<DraggableFloatingChatButto
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(30),
                       gradient: const LinearGradient(
-                        colors: [Color(0xFFFF7A00), Color(0xFFFF9900), Color(0xFFE66700)],
+                        colors: [Color(0xFF00D2FF), Color(0xFF0066FF), Color(0xFF0038B8)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.6),
-                        width: 1.3,
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.8),
+                        width: 1.5,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFF7A00).withValues(alpha: _isDragging ? 0.7 : 0.45),
-                          blurRadius: _isDragging ? 22 : 14,
+                          color: const Color(0xFF0066FF).withValues(alpha: _isDragging ? 0.75 : 0.5),
+                          blurRadius: _isDragging ? 22 : 16,
                           spreadRadius: _isDragging ? 3 : 1,
                           offset: Offset(0, _isDragging ? 6 : 4),
                         ),
@@ -139,7 +139,13 @@ class _DraggableFloatingChatButtonState extends State<DraggableFloatingChatButto
                             Stack(
                               clipBehavior: Clip.none,
                               children: [
-                                Icon(widget.icon, color: Colors.white, size: 20),
+                                Icon(
+                                  widget.icon == Icons.chat_bubble_rounded
+                                      ? Icons.headset_mic_rounded
+                                      : widget.icon,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                                 Positioned(
                                   right: -2,
                                   top: -2,
@@ -161,8 +167,8 @@ class _DraggableFloatingChatButtonState extends State<DraggableFloatingChatButto
                               style: GoogleFonts.outfit(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                                letterSpacing: 0.4,
+                                fontSize: 14.5,
+                                letterSpacing: 0.3,
                               ),
                             ),
                           ],

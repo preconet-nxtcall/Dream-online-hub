@@ -105,6 +105,54 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  /// Send OTP to phone number
+  Future<Map<String, dynamic>?> sendOtp(String phone) async {
+    _status = AuthStatus.authenticating;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final res = await _authRepository.sendOtp(phone);
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return res;
+    } on ServerException catch (e) {
+      _errorMessage = e.message;
+      _status = AuthStatus.error;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _errorMessage = 'Failed to send OTP: ${e.toString()}';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Verify OTP for phone number
+  Future<bool> verifyOtp(String phone, String otp) async {
+    _status = AuthStatus.authenticating;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final success = await _authRepository.verifyOtp(phone, otp);
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return success;
+    } on ServerException catch (e) {
+      _errorMessage = e.message;
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'OTP verification failed: ${e.toString()}';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Perform user registration
   Future<bool> register(String fullName, String email, String phone, String password) async {
     _status = AuthStatus.authenticating;

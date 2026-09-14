@@ -128,19 +128,32 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         if (!mounted) return;
         final data = response.data;
         List rawList = [];
-        if (data is Map<String, dynamic> && data['success'] == true) {
-          if (data['data'] is List && (data['data'] as List).isNotEmpty) {
-            rawList.addAll(data['data'] as List);
-          } else if (data['recharges'] is List && (data['recharges'] as List).isNotEmpty) {
-            rawList.addAll(data['recharges'] as List);
-          } else if (data['categorized'] is Map) {
-            final cat = data['categorized'] as Map;
-            if (cat['pending'] is List) rawList.addAll(cat['pending'] as List);
-            if (cat['successful'] is List) rawList.addAll(cat['successful'] as List);
-            if (cat['rejected'] is List) rawList.addAll(cat['rejected'] as List);
-          } else if (data['data'] is List) {
-            rawList.addAll(data['data'] as List);
+        if (data is Map<String, dynamic>) {
+          final isSuccess = data['success'] == true ||
+              data['success'] == 1 ||
+              data['success'] == '1' ||
+              data['success'] == 'true';
+
+          if (isSuccess || data['data'] != null || data['recharges'] != null || data['categorized'] != null) {
+            if (data['data'] is List && (data['data'] as List).isNotEmpty) {
+              rawList.addAll(data['data'] as List);
+            } else if (data['recharges'] is List && (data['recharges'] as List).isNotEmpty) {
+              rawList.addAll(data['recharges'] as List);
+            } else if (data['records'] is List && (data['records'] as List).isNotEmpty) {
+              rawList.addAll(data['records'] as List);
+            } else if (data['list'] is List && (data['list'] as List).isNotEmpty) {
+              rawList.addAll(data['list'] as List);
+            } else if (data['categorized'] is Map) {
+              final cat = data['categorized'] as Map;
+              if (cat['pending'] is List) rawList.addAll(cat['pending'] as List);
+              if (cat['successful'] is List) rawList.addAll(cat['successful'] as List);
+              if (cat['rejected'] is List) rawList.addAll(cat['rejected'] as List);
+            } else if (data['data'] is List) {
+              rawList.addAll(data['data'] as List);
+            }
           }
+        } else if (data is List) {
+          rawList.addAll(data);
         }
 
         for (final item in rawList) {
@@ -192,6 +205,30 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
             ),
           );
         }
+
+        // Also merge local submitted recharges so newly created recharges show instantly
+        final localList = LocalStorageRepositoryImpl().getSubmittedRecharges();
+        for (final item in localList) {
+          if (item is Map) {
+            final idStr = item['id']?.toString() ?? '';
+            final formattedId = idStr.startsWith('#') ? idStr : '#$idStr';
+            if (idStr.isNotEmpty && !fetched.any((r) => r.id == formattedId)) {
+              fetched.insert(
+                0,
+                RechargeRecordModel(
+                  id: formattedId,
+                  bookName: item['bookName']?.toString() ?? 'Lucky Vault',
+                  transactionDetails: item['transactionDetails']?.toString() ?? '',
+                  amount: double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0,
+                  status: item['status']?.toString() ?? 'EMPLOYEE-PENDING',
+                  date: item['date']?.toString() ?? 'Just now',
+                  imageUrl: item['imageUrl']?.toString() ?? item['image_url']?.toString(),
+                  invoiceUrl: item['invoiceUrl']?.toString() ?? item['invoice_url']?.toString(),
+                ),
+              );
+            }
+          }
+        }
       } else {
         // Fetch Withdraw Records (action: withdraw_records, status_type: _selectedStatusFilter)
         final withdrawResponse = await apiClient.post(
@@ -206,27 +243,58 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
         if (!mounted) return;
         List rawWithdrawList = [];
-        if (withdrawResponse.data is Map<String, dynamic> && withdrawResponse.data['success'] == true) {
-          final wData = withdrawResponse.data;
-          if (wData['data'] is List && (wData['data'] as List).isNotEmpty) {
-            rawWithdrawList.addAll(wData['data'] as List);
-          } else if (wData['withdrawals'] is List && (wData['withdrawals'] as List).isNotEmpty) {
-            rawWithdrawList.addAll(wData['withdrawals'] as List);
-          } else if (wData['categorized'] is Map) {
-            final cat = wData['categorized'] as Map;
-            if (cat['pending'] is List) rawWithdrawList.addAll(cat['pending'] as List);
-            if (cat['successful'] is List) rawWithdrawList.addAll(cat['successful'] as List);
-            if (cat['rejected'] is List) rawWithdrawList.addAll(cat['rejected'] as List);
+        final wData = withdrawResponse.data;
+        if (wData is Map<String, dynamic>) {
+          final isSuccess = wData['success'] == true ||
+              wData['success'] == 1 ||
+              wData['success'] == '1' ||
+              wData['success'] == 'true';
+
+          if (isSuccess || wData['data'] != null || wData['withdrawals'] != null || wData['categorized'] != null) {
+            if (wData['data'] is List && (wData['data'] as List).isNotEmpty) {
+              rawWithdrawList.addAll(wData['data'] as List);
+            } else if (wData['withdrawals'] is List && (wData['withdrawals'] as List).isNotEmpty) {
+              rawWithdrawList.addAll(wData['withdrawals'] as List);
+            } else if (wData['records'] is List && (wData['records'] as List).isNotEmpty) {
+              rawWithdrawList.addAll(wData['records'] as List);
+            } else if (wData['list'] is List && (wData['list'] as List).isNotEmpty) {
+              rawWithdrawList.addAll(wData['list'] as List);
+            } else if (wData['categorized'] is Map) {
+              final cat = wData['categorized'] as Map;
+              if (cat['pending'] is List) rawWithdrawList.addAll(cat['pending'] as List);
+              if (cat['successful'] is List) rawWithdrawList.addAll(cat['successful'] as List);
+              if (cat['rejected'] is List) rawWithdrawList.addAll(cat['rejected'] as List);
+            } else if (wData['data'] is List) {
+              rawWithdrawList.addAll(wData['data'] as List);
+            }
           }
+        } else if (wData is List) {
+          rawWithdrawList.addAll(wData);
         }
 
         for (final item in rawWithdrawList) {
           final wId = item['withdrawal_id'] ?? item['id'] ?? '';
           final wIdStr = wId.toString();
           final rawAmount = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
-          final rawStatus = item['status']?.toString() ?? 'PENDING';
+
+          final rawStatus = (item['stage_status']?.toString().isNotEmpty == true)
+              ? item['stage_status'].toString()
+              : ((item['status_category']?.toString().isNotEmpty == true)
+                  ? item['status_category'].toString()
+                  : (item['status']?.toString() ?? 'PENDING'));
+
           final rawBookName = item['book_name']?.toString() ?? item['book']?.toString() ?? 'Lucky Vault';
-          final rawDetail = item['deatil']?.toString() ?? item['detail']?.toString() ?? item['description']?.toString() ?? 'Withdrawal Request';
+
+          final rawDetail = (item['deatil']?.toString().trim().isNotEmpty == true)
+              ? item['deatil'].toString().trim()
+              : ((item['detail']?.toString().trim().isNotEmpty == true)
+                  ? item['detail'].toString().trim()
+                  : ((item['description']?.toString().trim().isNotEmpty == true)
+                      ? item['description'].toString().trim()
+                      : ((item['remark']?.toString().trim().isNotEmpty == true)
+                          ? item['remark'].toString().trim()
+                          : 'Withdrawal Request')));
+
           final formattedDate = item['formatted_date']?.toString() ??
               _formatDate(item['date_ts'] ?? item['created_at'], item['date']);
           final rawWUserName = item['user_name']?.toString() ??
@@ -236,6 +304,12 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               item['email']?.toString() ??
               (item['user_id'] != null ? 'User ${item['user_id']}' : null);
 
+          final rawImageUrl = (item['emp_agency_image_url']?.toString().trim().isNotEmpty == true)
+              ? item['emp_agency_image_url'].toString().trim()
+              : ((item['image_url']?.toString().trim().isNotEmpty == true)
+                  ? item['image_url'].toString().trim()
+                  : (item['image']?.toString() ?? item['emp_agency_image']?.toString()));
+
           fetched.add(
             RechargeRecordModel(
               id: wIdStr.startsWith('#') ? wIdStr : '#W$wIdStr',
@@ -244,7 +318,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               amount: rawAmount,
               status: rawStatus,
               date: formattedDate,
-              imageUrl: item['image_url']?.toString() ?? item['image']?.toString(),
+              imageUrl: rawImageUrl,
               userName: rawWUserName,
             ),
           );
@@ -386,9 +460,18 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
     return _records.where((rec) {
       final status = (rec.status).toLowerCase();
-      final isPending = status.contains('pending');
-      final isSuccessful = status.contains('done') || status.contains('successful') || status.contains('approved');
-      final isRejected = status.contains('reject') || status.contains('failed') || status.contains('declined');
+      final isPending = status.contains('pending') || status.contains('process') || status.contains('wait');
+      final isSuccessful = status.contains('done') ||
+          status.contains('successful') ||
+          status.contains('success') ||
+          status.contains('approved') ||
+          status.contains('complete') ||
+          status.contains('accept') ||
+          status.contains('finish');
+      final isRejected = status.contains('reject') ||
+          status.contains('failed') ||
+          status.contains('declined') ||
+          status.contains('cancel');
 
       bool matchesStatus = false;
       if (filter == 'pending') {
@@ -414,7 +497,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = widget.isCompactSingleLine ? Theme.of(context).brightness == Brightness.dark : true;
 
     final filtered = _filteredRecords;
     final totalRecords = filtered.length;
@@ -434,16 +517,19 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
       decoration: widget.isCompactSingleLine
           ? null
           : BoxDecoration(
-              color: isDark ? const Color(0xFF13111C) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              color: isDark ? const Color(0xFF070D22) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: const Color(0xFFF97316).withValues(alpha: 0.4),
+                color: isDark
+                    ? const Color(0xFF0066FF).withValues(alpha: 0.4)
+                    : const Color(0xFFE2E8F0),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-                  blurRadius: 16,
+                  color: const Color(0xFF0066FF).withValues(alpha: isDark ? 0.15 : 0.05),
+                  blurRadius: 20,
+                  spreadRadius: 1,
                   offset: const Offset(0, 4),
                 ),
               ],
@@ -508,12 +594,12 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                             height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Color(0xFFF97316),
+                              color: Color(0xFF00B2FF),
                             ),
                           )
                         : const Icon(
                             Icons.refresh_rounded,
-                            color: Color(0xFFF97316),
+                            color: Color(0xFF00B2FF),
                             size: 22,
                           ),
                     tooltip: 'Sync Database Records',
@@ -570,8 +656,8 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                     icon: Icons.grid_view_rounded,
                     statusValue: 'all',
                     isSelected: _selectedStatusFilter == 'all',
-                    activeBg: const Color(0xFF232530),
-                    activeFg: const Color(0xFF38BDF8),
+                    activeBg: const Color(0xFF0A1E3F),
+                    activeFg: const Color(0xFF00B2FF),
                     isDark: isDark,
                   ),
                   const SizedBox(width: 8),
@@ -582,7 +668,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                     icon: Icons.access_time_rounded,
                     statusValue: 'pending',
                     isSelected: _selectedStatusFilter == 'pending',
-                    activeBg: const Color(0xFF232530),
+                    activeBg: const Color(0xFF2E2105),
                     activeFg: const Color(0xFFFFB800),
                     isDark: isDark,
                   ),
@@ -594,7 +680,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                     icon: Icons.check_circle_outline_rounded,
                     statusValue: 'successful',
                     isSelected: _selectedStatusFilter == 'successful',
-                    activeBg: const Color(0xFF232530),
+                    activeBg: const Color(0xFF052E16),
                     activeFg: const Color(0xFF10B981),
                     isDark: isDark,
                   ),
@@ -606,7 +692,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                     icon: Icons.cancel_outlined,
                     statusValue: 'rejected',
                     isSelected: _selectedStatusFilter == 'rejected',
-                    activeBg: const Color(0xFF232530),
+                    activeBg: const Color(0xFF2E080A),
                     activeFg: const Color(0xFFEF4444),
                     isDark: isDark,
                   ),
@@ -630,10 +716,10 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                     child: Container(
                       height: 42,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF8FAFC),
+                        color: isDark ? const Color(0xFF050B1E) : const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
+                          color: isDark ? const Color(0xFF0066FF).withValues(alpha: 0.4) : const Color(0xFFE2E8F0),
                           width: 1,
                         ),
                       ),
@@ -655,10 +741,10 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                             color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                             fontSize: 13.5,
                           ),
-                          prefixIcon: Icon(
+                          prefixIcon: const Icon(
                             Icons.search_rounded,
                             size: 18,
-                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                            color: Color(0xFF00B2FF),
                           ),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -685,23 +771,23 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                         height: 38,
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF8FAFC),
+                          color: isDark ? const Color(0xFF050B1E) : const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
+                            color: isDark ? const Color(0xFF0066FF).withValues(alpha: 0.4) : const Color(0xFFCBD5E1),
                             width: 1,
                           ),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<int>(
                             value: _pageSize,
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF00B2FF)),
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.bold,
                               color: isDark ? Colors.white : Colors.black87,
                             ),
-                            dropdownColor: isDark ? const Color(0xFF1E1B2E) : Colors.white,
+                            dropdownColor: isDark ? const Color(0xFF070D22) : Colors.white,
                             onChanged: (val) {
                               if (val != null) {
                                 setState(() {
@@ -732,10 +818,10 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A1828) : const Color(0xFFFAF7F2),
+                color: isDark ? const Color(0xFF0A122E) : const Color(0xFFFAF7F2),
                 border: Border.symmetric(
                   horizontal: BorderSide(
-                    color: isDark ? const Color(0xFF2D293E) : const Color(0xFFF1EFE9),
+                    color: isDark ? const Color(0xFF0066FF).withValues(alpha: 0.25) : const Color(0xFFF1EFE9),
                     width: 1,
                   ),
                 ),
@@ -749,7 +835,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w900,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                        color: isDark ? const Color(0xFF00B2FF) : const Color(0xFF475569),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -761,7 +847,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w900,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                        color: isDark ? const Color(0xFF00B2FF) : const Color(0xFF475569),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -774,7 +860,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w900,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                        color: isDark ? const Color(0xFF00B2FF) : const Color(0xFF475569),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -809,7 +895,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               separatorBuilder: (_, __) => Divider(
                 height: 1,
                 thickness: 0.8,
-                color: isDark ? const Color(0xFF262235) : const Color(0xFFF1F5F9),
+                color: isDark ? const Color(0xFF0066FF).withValues(alpha: 0.15) : const Color(0xFFF1F5F9),
               ),
               itemBuilder: (ctx, index) {
                 final item = displayedRecords[index];
@@ -925,7 +1011,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                color: isDark ? const Color(0xFF00B2FF) : const Color(0xFF64748B),
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -1094,11 +1180,11 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161424) : const Color(0xFFFAF8F5),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+        color: isDark ? const Color(0xFF070D22) : const Color(0xFFFAF8F5),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
         border: Border(
           top: BorderSide(
-            color: isDark ? const Color(0xFF262235) : const Color(0xFFE2E8F0),
+            color: isDark ? const Color(0xFF0066FF).withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
             width: 1,
           ),
         ),
@@ -1147,9 +1233,16 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
                         color: _currentPage == p
-                            ? const Color(0xFFF97316)
-                            : (isDark ? const Color(0xFF262235) : const Color(0xFFE2E8F0)),
+                            ? const Color(0xFF0066FF)
+                            : (isDark ? const Color(0xFF050B1E) : const Color(0xFFE2E8F0)),
                         borderRadius: BorderRadius.circular(8),
+                        border: _currentPage == p
+                            ? null
+                            : Border.all(
+                                color: isDark
+                                    ? const Color(0xFF0066FF).withValues(alpha: 0.3)
+                                    : Colors.transparent,
+                              ),
                       ),
                       child: Text(
                         '$p',
@@ -1214,12 +1307,12 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
             gradient: isSelected ? activeGradient : null,
             color: isSelected
                 ? null
-                : (isDark ? const Color(0xFF1B1833) : const Color(0xFFF1F5F9)),
+                : (isDark ? const Color(0xFF050B1E) : const Color(0xFFF1F5F9)),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isSelected
                   ? Colors.transparent
-                  : (isDark ? const Color(0xFF2D2A4A) : const Color(0xFFE2E8F0)),
+                  : (isDark ? const Color(0xFF0066FF).withValues(alpha: 0.3) : const Color(0xFFE2E8F0)),
               width: 1.2,
             ),
             boxShadow: isSelected
@@ -1284,12 +1377,12 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? activeBg : (isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF1F5F9)),
+          color: isSelected ? activeBg : (isDark ? const Color(0xFF050B1E) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
                 ? activeFg.withValues(alpha: 0.6)
-                : (isDark ? const Color(0xFF2D293E) : const Color(0xFFE2E8F0)),
+                : (isDark ? const Color(0xFF0066FF).withValues(alpha: 0.25) : const Color(0xFFE2E8F0)),
             width: 1.2,
           ),
         ),

@@ -1,0 +1,232 @@
+# 📘 Transaction Status Update API Documentation
+
+This API endpoint is called by the **PHP backend** to send real-time status updates (Recharge / Withdraw approvals or rejections) to the **Node.js Chat Server**.
+
+---
+
+## 📌 Endpoint Overview
+
+* **URL Path**: `/api/v1/transaction/status-update`
+* **HTTP Method**: `POST`
+* **Content-Type**: `application/json`
+* **Authentication**: Requires Fixed/Bypass API Token in the `Authorization` header.
+
+### Required HTTP Headers
+```http
+Content-Type: application/json
+Authorization: Bearer <YOUR_FIXED_BYPASS_TOKEN>
+```
+
+---
+
+## 📋 Payload Field Specifications
+
+Below is the complete dictionary of all supported JSON body payload parameters:
+
+| Parameter Name | Data Type | Required? | Default Fallback | Description & Accepted Values | Example |
+| :--- | :--- | :---: | :--- | :--- | :--- |
+| **`sender_id`** *(or `senderId`)* | `String` | **REQUIRED** | None | ID or Email of the Admin/Agent performing the approval. Used for message attribution and conversation matching. | `"admin@system.com"` |
+| **`recipient_id`** *(or `recipientId`, `userId`)* | `String` | **REQUIRED** | None | Unique Identifier of the player/user receiving the notification. Accepts User `_id`, numeric user `id`, or `emailId`. | `"player_12345"` |
+| **`transaction_id`** *(or `transactionId`, `txn_id`, `recharge_id`, `withdraw_id`)* | `String` \| `Number` | **REQUIRED** | None | PHP transaction ID created for recharge or withdrawal. | `"1", "2" ...` |
+| **`utr`** *(or `utr_no`, `utrNo`)* | `String` | **Optional** | `null` | UTR / Bank reference number. Formatted as `UTR: <utr>`. | `"UTR8827103948"` |
+| **`status`** | `String` | **REQUIRED** | None | Transaction outcome. Allowed values: `"approved"`, `"rejected"`. | `"approved"` |
+| **`type`** | `String` | **REQUIRED** | None | Transaction type. Allowed values: `"recharge"`, `"withdraw"`. | `"recharge"` |
+| **`amount`** | `Number` \| `String` | **Optional** | `null` | The monetary amount involved in the transaction. | `500` |
+| **`reason`** *(or `remarks`)* | `String` | **Optional** | `null` | Reason or remarks for approval or rejection. | `"Invalid UTR reference"` |
+| **`book_name`** *(or `bookName`, `book_id`, `bookId`)* | `String` \| `Number` | **Optional** | `null` | Name or numeric ID of the game/book linked to the transaction. | `"Diamond Book"` |
+| **`custom_message`** | `String` | **Optional** | Auto-generated template | Custom text override. If supplied, bypasses the auto-generated template and displays this exact text in chat. | `"Your bonus has been credited!"` |
+| **`invoice_url`** *(or `invoiceUrl`, `invoice_link`, `invoiceLink`, `invoice`)* | `String` | **Optional** | `null` | Direct URL to download transaction invoice PDF or receipt. If sent, renders a "Download Invoice" button in the chat response. | `"https://example.com/invoices/inv_1042.pdf"` |
+
+---
+
+## 🔍 Detailed Field Breakdown
+
+### 1. `sender_id` (REQUIRED)
+- **Type**: `String`
+- **Is Optional?**: ❌ **No (Required)**
+- **Behavior**: Identifies the admin or agent who approved/rejected the request. Node.js uses this to match/create the conversation thread and attribute the message sender properly.
+
+### 2. `recipient_id` (REQUIRED)
+- **Type**: `String`
+- **Is Optional?**: ❌ **No (Required)**
+- **Behavior**: The server resolves this identifier to locate the user's MongoDB record and identify their active chat session. Accepts numeric user ID (`123`), string ID (`"user_123"`), or user email (`"user@example.com"`).
+
+### 3. `transaction_id` (REQUIRED)
+- **Type**: `String` or `Number`
+- **Is Optional?**: ❌ **No (Required)**
+- **Accepted Keys**: `transaction_id`, `transactionId`, `txn_id`, `recharge_id`, `withdraw_id`
+- **Behavior**: The numeric or string transaction ID created by the PHP server (e.g., `"1"`, `"1042"`). Included in the chat message as `Txn ID: <transaction_id>`.
+
+### 4. `utr` (OPTIONAL)
+- **Type**: `String`
+- **Is Optional?**: ✅ **Yes**
+- **Accepted Keys**: `utr`, `utr_no`, `utrNo`
+- **Behavior**: The 12-digit UTR reference / bank transaction number. Included in the chat message if provided as `UTR: <utr>`.
+
+### 5. `status` (REQUIRED)
+- **Type**: `String`
+- **Is Optional?**: ❌ **No (Required)**
+- **Accepted Values**: `"approved"`, `"rejected"`
+- **Behavior**: Controls the status emoji and text.
+  - `"approved"` ➔ Adds `✅` and marks request as `APPROVED`.
+  - `"rejected"` ➔ Adds `❌` and marks request as `REJECTED`.
+
+### 6. `type` (REQUIRED)
+- **Type**: `String`
+- **Is Optional?**: ❌ **No (Required)**
+- **Accepted Values**: `"recharge"`, `"withdraw"`
+- **Behavior**: Determines the label used in the auto-generated chat message text (*"Recharge"* vs *"Withdrawal"*).
+
+### 7. `amount` (OPTIONAL)
+- **Type**: `Number` or `String`
+- **Is Optional?**: ✅ **Yes**
+- **Behavior**: Formatted into the text message as `Amount: ₹<amount>`.
+
+### 8. `reason` (OPTIONAL)
+- **Type**: `String`
+- **Is Optional?**: ✅ **Yes**
+- **Behavior**: Attached to rejected or approved messages as `Reason: <reason>`. You can use key `reason` or `remarks`.
+
+### 9. `book_name` (OPTIONAL)
+- **Type**: `String` or `Number`
+- **Is Optional?**: ✅ **Yes**
+- **Behavior**: Included in the text message as `Book: <book_name>`. You can pass `book_name` or `book_id`.
+
+### 10. `custom_message` (OPTIONAL)
+- **Type**: `String`
+- **Is Optional?**: ✅ **Yes**
+- **Behavior**: Overrides all auto-formatting. When present, the server uses this exact string as the chat message text.
+
+### 11. `invoice_url` (OPTIONAL)
+- **Type**: `String`
+- **Is Optional?**: ✅ **Yes**
+- **Accepted Keys**: `invoice_url`, `invoiceUrl`, `invoice_link`, `invoiceLink`, `invoice`
+- **Behavior**: Direct URL to transaction invoice/receipt file. When present, the Node.js Chat Server attaches this URL to the message payload and displays an interactive **Download Invoice** button directly inside the chat response bubble.
+
+---
+
+## 🧪 Sample Request Payloads
+
+### Sample 1: Approved Recharge with Invoice (Standard)
+```json
+{
+  "sender_id": "admin_agent@system.com",
+  "recipient_id": "player_99182",
+  "type": "recharge",
+  "status": "approved",
+  "amount": 1000,
+  "transaction_id": "1042",
+  "utr": "UTR8827103948",
+  "book_name": "Royal Cricket Book",
+  "invoice_url": "https://example.com/invoices/inv_1042.pdf"
+}
+```
+**Chat Message Text Generated:**
+```
+✅ Your Recharge request has been APPROVED.
+Amount: ₹1000 | Txn ID: 1042 | UTR: UTR8827103948 | Book: Royal Cricket Book
+```
+
+---
+
+### Sample 2: Rejected Recharge
+```json
+{
+  "sender_id": "admin_agent@system.com",
+  "recipient_id": "player_99182",
+  "type": "recharge",
+  "status": "rejected",
+  "amount": 1000,
+  "transaction_id": "1042",
+  "utr": "UTR8827103948",
+  "reason": "Payment signature mismatch or expired QR"
+}
+```
+**Chat Message Text Generated:**
+```
+❌ Your Recharge request has been REJECTED.
+Amount: ₹1000 | Txn ID: 1042 | UTR: UTR8827103948 | Reason: Payment signature mismatch or expired QR
+```
+
+---
+
+### Sample 3: Approved Withdrawal
+```json
+{
+  "sender_id": "finance_admin@system.com",
+  "recipient_id": "player_99182",
+  "type": "withdraw",
+  "status": "approved",
+  "amount": 2500,
+  "transaction_id": "581"
+}
+```
+**Chat Message Text Generated:**
+```
+✅ Your Withdrawal request has been APPROVED.
+Amount: ₹2500 | Txn ID: 581
+```
+
+---
+
+### Sample 4: Rejected Withdrawal
+```json
+{
+  "sender_id": "finance_admin@system.com",
+  "recipient_id": "player_99182",
+  "type": "withdraw",
+  "status": "rejected",
+  "amount": 2500,
+  "transaction_id": "581",
+  "reason": "Bank account IFSC code invalid"
+}
+```
+**Chat Message Text Generated:**
+```
+❌ Your Withdrawal request has been REJECTED.
+Amount: ₹2500 | Txn ID: 581 | Reason: Bank account IFSC code invalid
+```
+
+---
+
+### Sample 5: Custom Message Override
+```json
+{
+  "sender_id": "system_admin",
+  "recipient_id": "player_99182",
+  "custom_message": "🎉 Welcome bonus of ₹500 credited to your account balance!"
+}
+```
+**Chat Message Text Generated:**
+```
+🎉 Welcome bonus of ₹500 credited to your account balance!
+```
+
+---
+
+## 📤 Server Responses
+
+### Success (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Transaction status update processed successfully",
+  "messageId": "c4d32a10-8b1e-4589-a212-0f0e34771e11",
+  "conversationId": "conv_admin_agent@system.com_player_99182",
+  "text": "✅ Your Recharge request has been APPROVED.\nAmount: ₹1000 | Txn ID: 1042 | UTR: UTR8827103948 | Book: Royal Cricket Book"
+}
+```
+
+### Missing Required Parameter (`400 Bad Request`)
+```json
+{
+  "error": "Missing required field(s): transaction_id"
+}
+```
+
+### Missing / Invalid Token (`401 Unauthorized`)
+```json
+{
+  "error": "Authorization header with Bearer token required"
+}
+```

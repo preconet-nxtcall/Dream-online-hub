@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -56,8 +57,6 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
 
   Map<String, int> _dynamicBookIds = {};
   List<String> _books = [];
-
-  final List<int> _quickAmounts = [100, 500, 1000, 2000, 5000];
 
   Future<dynamic> _resolveUserId() async {
     try {
@@ -295,25 +294,68 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
     try {
       final apiClient = ApiClient();
       final targetBookId = _getBookId(_selectedBook);
-      final response = await apiClient.post(
+      final resolvedAgencyId = await _resolveAgencyId();
+
+      final options = Options(validateStatus: (status) => status != null && status < 500);
+      final payload = {
+        'action': 'get_qr_code',
+        'book_id': targetBookId,
+        'agency_id': resolvedAgencyId,
+        'amount': amount,
+      };
+
+      var response = await apiClient.post(
         ApiEndpoints.getQrCode,
-        options: Options(validateStatus: (status) => status != null && status < 500),
-        data: {
-          'action': 'get_qr_code',
-          'book_id': targetBookId,
-          'agency_id': widget.agencyId,
-          'amount': amount,
-        },
+        options: options,
+        data: payload,
       );
 
+      var data = response.data;
+      if (response.statusCode == 400 || data is! Map<String, dynamic> || data['success'] != true) {
+        try {
+          final formResp = await apiClient.post(
+            ApiEndpoints.getQrCode,
+            options: Options(
+              contentType: Headers.formUrlEncodedContentType,
+              validateStatus: (status) => status != null && status < 500,
+            ),
+            data: {
+              'action': 'get_qr_code',
+              'book_id': (targetBookId ?? '').toString(),
+              'agency_id': (resolvedAgencyId ?? '').toString(),
+              'amount': amount.toString(),
+            },
+          );
+          if (formResp.data is Map<String, dynamic> && formResp.data['success'] == true) {
+            data = formResp.data;
+          }
+        } catch (_) {}
+      }
+
       if (!mounted) return;
-      final data = response.data;
+
       if (data is Map<String, dynamic> && data['success'] == true) {
         if (data['qr_available'] == true) {
+          String? rawQrUrl = data['qr_image_url']?.toString() ??
+              data['qr_image']?.toString() ??
+              data['image_url']?.toString() ??
+              data['image']?.toString();
+
+          if (rawQrUrl != null && rawQrUrl.isNotEmpty && rawQrUrl != 'null') {
+            if (!rawQrUrl.startsWith('http://') && !rawQrUrl.startsWith('https://')) {
+              final cleanPath = rawQrUrl.startsWith('/') ? rawQrUrl.substring(1) : rawQrUrl;
+              if (cleanPath.startsWith('uploads/')) {
+                rawQrUrl = '${ApiEndpoints.baseUrl}$cleanPath';
+              } else {
+                rawQrUrl = '${ApiEndpoints.baseUrl}uploads/photos/$cleanPath';
+              }
+            }
+          }
+
           setState(() {
             _isLoadingQr = false;
             _qrAvailable = true;
-            _qrImageUrl = data['qr_image_url']?.toString();
+            _qrImageUrl = rawQrUrl;
             _qrId = data['qr_id'] != null ? int.tryParse(data['qr_id'].toString()) : null;
             _rangeId = data['range_id'] != null ? int.tryParse(data['range_id'].toString()) : null;
             _empId = data['emp_id'] != null ? int.tryParse(data['emp_id'].toString()) : null;
@@ -345,30 +387,30 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
       setState(() {
         _isLoadingQr = false;
         _qrAvailable = true;
-        _qrImageUrl = 'https://fairbizcrm.com/uploads/photos/1785149229_QR.png';
+        _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1785149229_QR.png';
         _qrId = 5;
         _rangeId = 2;
-        _empId = widget.agencyId;
+        _empId = widget.agencyId ?? 29;
         _qrMessage = null;
       });
     } else if (amount >= 1001 && amount <= 10000) {
       setState(() {
         _isLoadingQr = false;
         _qrAvailable = true;
-        _qrImageUrl = 'https://fairbizcrm.com/uploads/photos/1785149209_QR.png';
+        _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1785149209_QR.png';
         _qrId = 4;
         _rangeId = 3;
-        _empId = widget.agencyId;
+        _empId = widget.agencyId ?? 29;
         _qrMessage = null;
       });
     } else if (amount >= 1 && amount <= 100) {
       setState(() {
         _isLoadingQr = false;
         _qrAvailable = true;
-        _qrImageUrl = 'https://fairbizcrm.com/uploads/photos/1784640233_QR.png';
+        _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1784640233_QR.png';
         _qrId = 1;
         _rangeId = 1;
-        _empId = widget.agencyId;
+        _empId = widget.agencyId ?? 29;
         _qrMessage = null;
       });
     } else {
@@ -941,64 +983,51 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final maxHeight = MediaQuery.of(context).size.height * 0.88;
 
     return Container(
-      constraints: BoxConstraints(maxHeight: maxHeight),
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF121024) : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        color: const Color(0xFF070D22),
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF0D1736),
+            Color(0xFF070D22),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         border: Border.all(
-          color: const Color(0xFFF97316).withValues(alpha: 0.5),
+          color: const Color(0xFF0066FF).withValues(alpha: 0.6),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFF97316).withValues(alpha: 0.2),
-            blurRadius: 24,
-            offset: const Offset(0, -4),
+            color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(22, 16, 22, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-          // 0. Drag Handle Pill
-          Center(
-            child: Container(
-              width: 44,
-              height: 4.5,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF3B335C) : Colors.grey[300],
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // 1. Sleek Modern Header Card
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 1. Header Row (Recharge Now Title & Secure Payments Badge)
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF6B00), Color(0xFFF59E0B)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: const Color(0xFF0066FF),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFF97316).withValues(alpha: 0.4),
-                      blurRadius: 10,
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                      blurRadius: 12,
                       offset: const Offset(0, 3),
                     ),
                   ],
@@ -1009,28 +1038,75 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                   size: 24,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Recharge Deposit Request',
-                      style: TextStyle(
-                        fontSize: 18.5,
+                      'Recharge Now',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        letterSpacing: 0.2,
+                        color: Colors.white,
+                        letterSpacing: -0.3,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Submit UTR & screenshot to Agency Support',
+                      'Add balance to your account and enjoy uninterrupted gaming.',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.6),
+                        height: 1.25,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Secure Payments Chip
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A1B44),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+                    width: 1,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      color: Color(0xFF00B2FF),
+                      size: 14,
+                    ),
+                    SizedBox(width: 4),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Secure',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            height: 1.0,
+                          ),
+                        ),
+                        Text(
+                          'Payments',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            color: Color(0xFF00B2FF),
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1039,20 +1115,17 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
           ),
           const SizedBox(height: 20),
 
-          const Divider(height: 1, thickness: 0.8, color: Color(0xFF2E2952)),
-          const SizedBox(height: 20),
-
           // 2. Select Book Dropdown
-          _buildLabel('SELECT BOOK MARKET', isDark),
+          _buildRefLabel('SELECT BOOK *'),
           const SizedBox(height: 8),
           Container(
-            height: 48,
+            height: 50,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1B1833) : const Color(0xFFF8FAFC),
+              color: const Color(0xFF050B1E),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isDark ? const Color(0xFF2E2952) : const Color(0xFFE2E8F0),
+                color: const Color(0xFF0066FF).withValues(alpha: 0.4),
                 width: 1.2,
               ),
             ),
@@ -1061,29 +1134,28 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 value: _selectedBook,
                 hint: Row(
                   children: [
-                    const Icon(Icons.collections_bookmark_rounded,
-                        size: 18, color: Color(0xFFF97316)),
+                    const Icon(Icons.menu_book_rounded, size: 18, color: Color(0xFF00B2FF)),
                     const SizedBox(width: 10),
                     Text(
                       _books.isEmpty
                           ? 'No Book Account Available (Get ID First)'
-                          : 'Select Target Book',
+                          : 'Select Book',
                       style: TextStyle(
                         fontSize: 13.5,
                         color: _books.isEmpty
                             ? const Color(0xFFEF4444)
-                            : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                            : Colors.white.withValues(alpha: 0.5),
                       ),
                     ),
                   ],
                 ),
                 isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFFF97316)),
-                dropdownColor: isDark ? const Color(0xFF1B1833) : Colors.white,
-                style: TextStyle(
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF00B2FF)),
+                dropdownColor: const Color(0xFF070D22),
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : Colors.black87,
+                  color: Colors.white,
                 ),
                 onChanged: (val) {
                   setState(() => _selectedBook = val);
@@ -1098,7 +1170,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                       value: book,
                       child: Row(
                         children: [
-                          const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFD700)),
+                          const Icon(Icons.star_rounded, size: 16, color: Color(0xFF00B2FF)),
                           const SizedBox(width: 8),
                           Text(book),
                         ],
@@ -1108,274 +1180,328 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
-          // 3. Recharge Amount Input + Quick Chips
-          _buildLabel('RECHARGE AMOUNT (₹)', isDark),
+          // 3. Recharge Amount Input & Quick Chips
+          _buildRefLabel('RECHARGE AMOUNT *'),
           const SizedBox(height: 8),
           Container(
-            height: 48,
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1B1833) : const Color(0xFFF8FAFC),
+              color: const Color(0xFF050B1E),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isDark ? const Color(0xFF2E2952) : const Color(0xFFE2E8F0),
+                color: const Color(0xFF0066FF).withValues(alpha: 0.4),
                 width: 1.2,
               ),
             ),
-            child: TextField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Enter Amount (e.g. 500)',
-                hintStyle: TextStyle(
-                  fontSize: 13.5,
-                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                ),
-                prefixIcon: const Icon(
-                  Icons.currency_rupee_rounded,
-                  size: 20,
-                  color: Color(0xFFF97316),
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Quick Amount Suggestion Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                for (final amt in _quickAmounts)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            _amountController.text = amt.toString();
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF97316).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: const Color(0xFFF97316).withValues(alpha: 0.3),
-                              width: 1,
+                const Icon(
+                  Icons.currency_rupee_rounded,
+                  size: 20,
+                  color: Color(0xFF00B2FF),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: TextField(
+                    controller: _amountController,
+                    keyboardType: TextInputType.number,
+                    cursorColor: const Color(0xFF00B2FF),
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Enter Amount',
+                      hintStyle: TextStyle(
+                        fontSize: 13.5,
+                        color: Colors.white.withValues(alpha: 0.4),
+                      ),
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+
+                // Embedded Quick Amount Chips
+                Row(
+                  children: [
+                    for (final amt in [100, 500, 1000, 5000])
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _amountController.text = amt.toString();
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0A183C),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                                width: 0.8,
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            '₹$amt',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFF97316),
+                            child: Text(
+                              '+${amt >= 1000 ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k' : amt}',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF00B2FF),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
-          
+          const SizedBox(height: 14),
+
           // QR Code Card dynamically fetched from Backend
           _buildQrCodeCard(isDark),
-          
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
           // 4. Transaction ID / UTR Input
-          _buildLabel('TRANSACTION ID / UTR NUMBER', isDark),
+          _buildRefLabel('TRANSACTION ID *'),
           const SizedBox(height: 8),
           Container(
-            height: 48,
+            height: 50,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1B1833) : const Color(0xFFF8FAFC),
+              color: const Color(0xFF050B1E),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isDark ? const Color(0xFF2E2952) : const Color(0xFFE2E8F0),
+                color: const Color(0xFF0066FF).withValues(alpha: 0.4),
                 width: 1.2,
               ),
             ),
-            child: TextField(
-              controller: _txnIdController,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Enter 12-digit UTR or Reference ID',
-                hintStyle: TextStyle(
-                  fontSize: 13.5,
-                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                ),
-                prefixIcon: const Icon(
+            child: Row(
+              children: [
+                const Icon(
                   Icons.receipt_long_rounded,
                   size: 20,
-                  color: Color(0xFFF97316),
+                  color: Color(0xFF00B2FF),
                 ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _txnIdController,
+                    cursorColor: const Color(0xFF00B2FF),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Enter Transaction ID',
+                      hintStyle: TextStyle(
+                        fontSize: 13.5,
+                        color: Colors.white.withValues(alpha: 0.4),
+                      ),
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // 5. Upload Screenshot Area (Matching Reference dotted/dashed style)
+          _buildRefLabel('UPLOAD SCREENSHOT *'),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF050B1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                width: 1.2,
               ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A183C),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFF00B2FF).withValues(alpha: 0.6),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.cloud_upload_outlined,
+                    color: Color(0xFF00B2FF),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedScreenshot != null
+                            ? _selectedScreenshot!.path.split('/').last
+                            : 'Choose Screenshot File',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'JPG, PNG or PDF (Max 5MB)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Choose File Button
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0066FF), Color(0xFF0044CE)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _pickImage,
+                      borderRadius: BorderRadius.circular(14),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.file_upload_outlined,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Choose File',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // 5. Upload Screenshot Area
-          _buildLabel('UPLOAD PAYMENT SCREENSHOT', isDark),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              // Dashed Golden Border Upload Button
-              Expanded(
-                child: GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    height: 72,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF18152B) : const Color(0xFFFFFDF5),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFFFB800),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _selectedScreenshot != null
-                                ? _selectedScreenshot!.path.split('/').last
-                                : 'Choose Screenshot File',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white70 : const Color(0xFF475569),
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFB800).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.cloud_upload_rounded,
-                            color: Color(0xFFFFB800),
-                            size: 22,
-                          ),
-                        ),
-                      ],
+          // 6. Info Notice Banner (Matching Reference)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0066FF).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFF0066FF).withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFF00B2FF),
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Please make sure the details are correct before submitting. Your recharge will be verified shortly.',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: Colors.white.withValues(alpha: 0.7),
+                      height: 1.3,
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-
-              // Image Preview Box / NO IMAGE Indicator
-              Stack(
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1B1833) : Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF2E2952) : const Color(0xFFE2E8F0),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: _selectedScreenshot != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(13),
-                            child: Image.file(_selectedScreenshot!, fit: BoxFit.cover),
-                          )
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.image_outlined,
-                                size: 26,
-                                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'NO IMAGE',
-                                style: TextStyle(
-                                  fontSize: 8.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                  if (_selectedScreenshot != null)
-                    Positioned(
-                      top: 2,
-                      right: 2,
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedScreenshot = null),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.7),
-                            shape: BoxShape.circle,
-                          ),
-                          padding: const EdgeInsets.all(3),
-                          child: const Icon(Icons.close_rounded, size: 12, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // 6. Modern Premium Action Button
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _isSubmitting ? null : _submitForm,
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                width: double.infinity,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF97316), Color(0xFFEA580C)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFF97316).withValues(alpha: 0.4),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+          // 7. Submit Button (Recharge Now ->)
+          Container(
+            width: double.infinity,
+            height: 52,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(26),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0077FF), Color(0xFF0044CE)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
                 ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isSubmitting ? null : _submitForm,
+                borderRadius: BorderRadius.circular(26),
                 child: _isSubmitting
                     ? const Center(
                         child: SizedBox(
@@ -1384,52 +1510,27 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                         ),
                       )
-                    : const Row(
+                    : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                          SizedBox(width: 10),
                           Text(
-                            'SUBMIT RECHARGE REQUEST',
-                            style: TextStyle(
-                              color: Colors.white,
+                            'Recharge Now',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
                               fontWeight: FontWeight.w900,
-                              fontSize: 14.5,
-                              letterSpacing: 0.5,
+                              color: Colors.white,
+                              letterSpacing: 0.4,
                             ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 18,
                           ),
                         ],
                       ),
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
-    ),
-  ),
-);
-  }
-
-  Widget _buildLabel(String label, bool isDark) {
-    return RichText(
-      text: TextSpan(
-        children: [
-          TextSpan(
-            text: label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-              letterSpacing: 0.6,
-            ),
-          ),
-          const TextSpan(
-            text: ' *',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFEF4444),
             ),
           ),
         ],
@@ -1536,10 +1637,8 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         margin: const EdgeInsets.only(top: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark
-                ? [const Color(0xFF1B1833), const Color(0xFF121024)]
-                : [const Color(0xFFF0FDF4), const Color(0xFFFFFFFF)],
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0A183C), Color(0xFF050B1E)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -1699,31 +1798,13 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
+            const Text(
               'Tap QR code to zoom in',
               style: TextStyle(
                 fontSize: 11,
-                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                color: Colors.white54,
                 fontWeight: FontWeight.w500,
               ),
-            ),
-            const SizedBox(height: 12),
-
-            // Metadata Chips Row (QR ID, Range ID, Agency ID)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (_qrId != null)
-                  _buildMetaChip('QR ID: #$_qrId', isDark),
-                if (_rangeId != null) ...[
-                  const SizedBox(width: 6),
-                  _buildMetaChip('Range: #$_rangeId', isDark),
-                ],
-                if (_empId != null) ...[
-                  const SizedBox(width: 6),
-                  _buildMetaChip('Agency: #$_empId', isDark),
-                ],
-              ],
             ),
           ],
         ),
@@ -1733,20 +1814,14 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildMetaChip(String label, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2E2952) : const Color(0xFFE2E8F0),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-        ),
+  Widget _buildRefLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF00B2FF),
+        letterSpacing: 0.5,
       ),
     );
   }

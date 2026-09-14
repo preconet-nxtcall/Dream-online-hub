@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.fairbiz.user"
+    namespace = "com.dreamhub.user"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.fairbiz.user"
+        applicationId = "com.dreamhub.user"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // minSdk 23 required by flutter_secure_storage v9+ and the `record` plugin

@@ -157,11 +157,22 @@ class PaymentAccountRepositoryImpl implements PaymentAccountRepository {
       }
 
       if (data is Map<String, dynamic>) {
-        if (data['success'] == true || data['status'] == true || response.statusCode == 200) {
+        if (data['success'] == false ||
+            data['status'] == false ||
+            data['status'] == '0' ||
+            data['status'] == 'error' ||
+            data['status'] == 'failed') {
+          return false;
+        }
+        if (data['success'] == true ||
+            data['status'] == true ||
+            data['status'] == 'success' ||
+            data['status'] == '1' ||
+            response.statusCode == 200) {
           return true;
         }
       }
-      return true;
+      return false;
     } catch (e) {
       AppLogger.error('Failed to update payment account: $e');
       return false;

@@ -20,7 +20,7 @@ abstract class GameRepository {
 class GameRepositoryImpl implements GameRepository {
   final ApiClient _apiClient;
   List<String> _bannerUrls = [
-    'https://fairbizcrm.com/uploads/photos/1784883728_Slider.png',
+    'https://dreamonlinehub.club/uploads/photos/1784883728_Slider.png',
   ];
 
   GameRepositoryImpl({ApiClient? apiClient})
@@ -142,8 +142,8 @@ class GameRepositoryImpl implements GameRepository {
               if (url != null && url.isNotEmpty) {
                 if (!url.startsWith('http')) {
                   url = url.startsWith('/')
-                      ? 'https://fairbizcrm.com$url'
-                      : 'https://fairbizcrm.com/$url';
+                      ? 'https://dreamonlinehub.club$url'
+                      : 'https://dreamonlinehub.club/$url';
                 }
                 extractedBanners.add(url);
               }
@@ -290,9 +290,9 @@ class GameRepositoryImpl implements GameRepository {
 
     if (imageUrl != null && imageUrl.isNotEmpty && !imageUrl.startsWith('http')) {
       if (imageUrl.startsWith('/')) {
-        imageUrl = 'https://fairbizcrm.com$imageUrl';
+        imageUrl = 'https://dreamonlinehub.club$imageUrl';
       } else {
-        imageUrl = 'https://fairbizcrm.com/$imageUrl';
+        imageUrl = 'https://dreamonlinehub.club/$imageUrl';
       }
     }
 

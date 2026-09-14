@@ -211,6 +211,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           options: Options(validateStatus: (status) => status != null && status < 500),
           data: {
             'action': 'withdraw_records',
+            if (targetClientId.isNotEmpty) 'user_id': targetClientId,
             'status_type': _selectedStatusFilter,
           },
         );
@@ -235,9 +236,25 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           final wId = item['withdrawal_id'] ?? item['id'] ?? '';
           final wIdStr = wId.toString();
           final rawAmount = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
-          final rawStatus = item['status']?.toString() ?? 'PENDING';
+
+          final rawStatus = (item['stage_status']?.toString().isNotEmpty == true)
+              ? item['stage_status'].toString()
+              : ((item['status_category']?.toString().isNotEmpty == true)
+                  ? item['status_category'].toString()
+                  : (item['status']?.toString() ?? 'PENDING'));
+
           final rawBookName = item['book_name']?.toString() ?? item['book']?.toString() ?? 'Lucky Vault';
-          final rawDetail = item['deatil']?.toString() ?? item['detail']?.toString() ?? item['description']?.toString() ?? 'Withdrawal Request';
+
+          final rawDetail = (item['deatil']?.toString().trim().isNotEmpty == true)
+              ? item['deatil'].toString().trim()
+              : ((item['detail']?.toString().trim().isNotEmpty == true)
+                  ? item['detail'].toString().trim()
+                  : ((item['description']?.toString().trim().isNotEmpty == true)
+                      ? item['description'].toString().trim()
+                      : ((item['remark']?.toString().trim().isNotEmpty == true)
+                          ? item['remark'].toString().trim()
+                          : 'Withdrawal Request')));
+
           final formattedDate = item['formatted_date']?.toString() ??
               _formatDate(item['date_ts'] ?? item['created_at'], item['date']);
           final rawWUserName = item['user_name']?.toString() ??
@@ -247,6 +264,12 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               item['email']?.toString() ??
               (item['user_id'] != null ? 'User ${item['user_id']}' : null);
 
+          final rawImageUrl = (item['emp_agency_image_url']?.toString().trim().isNotEmpty == true)
+              ? item['emp_agency_image_url'].toString().trim()
+              : ((item['image_url']?.toString().trim().isNotEmpty == true)
+                  ? item['image_url'].toString().trim()
+                  : (item['image']?.toString() ?? item['emp_agency_image']?.toString()));
+
           fetched.add(
             RechargeRecordModel(
               id: wIdStr.startsWith('#') ? wIdStr : '#W$wIdStr',
@@ -255,7 +278,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
               amount: rawAmount,
               status: rawStatus,
               date: formattedDate,
-              imageUrl: item['image_url']?.toString() ?? item['image']?.toString(),
+              imageUrl: rawImageUrl,
               userName: rawWUserName,
             ),
           );

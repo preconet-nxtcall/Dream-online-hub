@@ -9,8 +9,6 @@ import '../../../../models/game/game_card_model.dart';
 import '../../../../network/api_client.dart';
 import '../../../../storage/local_storage_repository.dart';
 import '../../../../storage/secure_storage_service.dart';
-import '../../../../theme/app_colors.dart';
-import '../../../../theme/app_spacing.dart';
 
 class GameCardWidget extends StatefulWidget {
   final GameCardModel game;
@@ -65,11 +63,6 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Result validation logic: omit empty ------- or placeholder asterisks design
-    final rawResult = widget.game.result.trim();
-    final hasActualResult = rawResult.replaceAll('*', '').replaceAll('-', '').trim().isNotEmpty;
-    final displayResultText = rawResult.replaceAll('*', '-');
 
     if (widget.isSquare) {
       return ScaleTransition(
@@ -401,340 +394,199 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
     return ScaleTransition(
       scale: _scaleAnimation,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : Colors.white,
           borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF0C1636),
+              Color(0xFF070D22),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           border: Border.all(
-            color: isDark
-                ? const Color(0xFFFFD700).withValues(alpha: 0.3)
-                : const Color(0xFFFFD700).withValues(alpha: 0.6),
-            width: 1.5,
+            color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+            width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+              color: const Color(0xFF0066FF).withValues(alpha: 0.15),
               blurRadius: 10,
-              offset: const Offset(0, 4),
+              offset: const Offset(0, 3),
             ),
           ],
         ),
-        child: Column(
-          children: [
-            // Top Section: Avatar Badge, Game Name, Result Pill, Status Chip
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Game Code / Image Logo Box
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2C2F36),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFFFFD700).withValues(alpha: 0.3),
-                      ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              // Left: Square rounded game logo thumbnail
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF050B1E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFF0066FF).withValues(alpha: 0.35),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 6,
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    alignment: Alignment.center,
-                    child: (widget.game.imageUrl != null && widget.game.imageUrl!.isNotEmpty)
-                        ? Image.network(
-                            widget.game.imageUrl!,
-                            fit: BoxFit.cover,
-                            width: 52,
-                            height: 52,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Text(
-                                widget.game.code,
-                                style: const TextStyle(
-                                  color: Color(0xFFFFD700),
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 18,
-                                  letterSpacing: 0.5,
-                                ),
-                              );
-                            },
-                          )
-                        : Text(
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                alignment: Alignment.center,
+                child: (widget.game.imageUrl != null && widget.game.imageUrl!.isNotEmpty)
+                    ? Image.network(
+                        widget.game.imageUrl!,
+                        fit: BoxFit.cover,
+                        width: 54,
+                        height: 54,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Text(
                             widget.game.code,
                             style: const TextStyle(
-                              color: Color(0xFFFFD700),
+                              color: Color(0xFF00B2FF),
                               fontWeight: FontWeight.w900,
-                              fontSize: 18,
+                              fontSize: 17,
                               letterSpacing: 0.5,
                             ),
-                          ),
-                  ),
-                  AppSpacing.hGapMd,
-
-                  // Name & Results Box
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.game.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 16,
-                                  letterSpacing: 0.3,
-                                  color: isDark ? Colors.white : Colors.black87,
-                                ),
-                              ),
-                            ),
-                            // Dynamic Status Badge Pill (RUNNING OPEN, RUNNING CLOSE, CLOSED)
-                            Builder(
-                              builder: (context) {
-                               final rawStatus = widget.game.status.trim();
-                               final upper = rawStatus.toUpperCase();
-
-                               String displayStatusText = 'Running Open';
-                               Color statusBgColor = const Color(0xFFECFDF5);
-                               Color statusTextColor = const Color(0xFF059669);
-                               Color statusBorderColor = const Color(0xFF10B981).withValues(alpha: 0.5);
-                               IconData statusIcon = Icons.play_circle_fill_rounded;
-
-                               if (upper.contains('CLOSE') && !upper.contains('RUNNING CLOSE')) {
-                                 displayStatusText = 'Closed';
-                                 statusBgColor = isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.6) : const Color(0xFFFEF2F2);
-                                 statusTextColor = isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
-                                 statusBorderColor = const Color(0xFFEF4444).withValues(alpha: 0.5);
-                                 statusIcon = Icons.lock_clock_rounded;
-                               } else if (_isSubscribed) {
-                                 // Subscribed User -> Running Open (Green)
-                                 displayStatusText = 'Running Open';
-                                 statusBgColor = isDark ? const Color(0xFF064E3B).withValues(alpha: 0.6) : const Color(0xFFECFDF5);
-                                 statusTextColor = isDark ? const Color(0xFF34D399) : const Color(0xFF059669);
-                                 statusBorderColor = const Color(0xFF10B981).withValues(alpha: 0.5);
-                                 statusIcon = Icons.play_circle_fill_rounded;
-                               } else {
-                                 // Unsubscribed User -> Running Close (Amber)
-                                 displayStatusText = 'Running Close';
-                                 statusBgColor = isDark ? const Color(0xFF78350F).withValues(alpha: 0.6) : const Color(0xFFFFFBEB);
-                                 statusTextColor = isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
-                                 statusBorderColor = const Color(0xFFF59E0B).withValues(alpha: 0.5);
-                                 statusIcon = Icons.timer_rounded;
-                               }
-
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: statusBgColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: statusBorderColor, width: 1),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(statusIcon, size: 11, color: statusTextColor),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        displayStatusText,
-                                        style: TextStyle(
-                                          color: statusTextColor,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 10.5,
-                                          letterSpacing: 0.3,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                          );
+                        },
+                      )
+                    : Text(
+                        widget.game.code,
+                        style: const TextStyle(
+                          color: Color(0xFF00B2FF),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 17,
+                          letterSpacing: 0.5,
                         ),
-                        if (hasActualResult) ...[
-                          AppSpacing.vGapXs,
-                          // Golden Yellow Result Pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFFFFD700).withValues(alpha: 0.15)
-                                  : const Color(0xFFFFF9E6),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: const Color(0xFFFFD700).withValues(alpha: 0.5),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              displayResultText,
-                              style: const TextStyle(
-                                color: Color(0xFFD97706),
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
               ),
-            ),
+              const SizedBox(width: 12),
 
-            const Divider(height: 1, thickness: 0.8),
-
-            // Bottom Section: Actions (Subscribe/Play right-aligned)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-              child: Row(
-                children: [
-                  const Spacer(),
-
-                  // Right Side: Subscribe Button (if not subscribed) OR Subscribed + Play (if subscribed)
-                  if (!_isSubscribed)
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => _showSubscribeDialog(context),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2B2D36),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: const Color(0xFFFFD700).withValues(alpha: 0.8),
-                              width: 1.2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFFD700).withValues(alpha: 0.2),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.notifications_active_outlined,
-                                color: Color(0xFFFFD700),
-                                size: 14,
-                              ),
-                              SizedBox(width: 5),
-                              Text(
-                                'Get ID',
-                                style: TextStyle(
-                                  color: Color(0xFFFFD700),
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 13,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  else ...[
-                    // Subscribed Status Tag
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF191F2B),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.6),
-                          width: 1,
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            color: Color(0xFF10B981),
-                            size: 13,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'ID Active',
-                            style: TextStyle(
-                              color: Color(0xFF10B981),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ],
+              // Center: Game Title & Subtitle Tags
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.game.name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                        letterSpacing: 0.5,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(width: 8),
-
-                    // Open Site Button
-                    GestureDetector(
-                      onTapDown: (_) => _scaleController.forward(),
-                      onTapUp: (_) {
-                        _scaleController.reverse();
-                        _fetchAndShowBookRecord();
-                      },
-                      onTapCancel: () => _scaleController.reverse(),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF2C2F36), Color(0xFF191B1F)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: const Color(0xFFFFD700).withValues(alpha: 0.8),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFFD700).withValues(alpha: 0.25),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Open Site',
-                              style: TextStyle(
-                                color: Color(0xFFFFD700),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              color: Color(0xFFFFD700),
-                              size: 13,
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _getCategoryTags(widget.game.name),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+
+              // Right: Vibrant Blue Pill Action Button ("Open Site >" / "Get ID >")
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  gradient: LinearGradient(
+                    colors: _isSubscribed
+                        ? [const Color(0xFF0052FF), const Color(0xFF0038B8)]
+                        : [const Color(0xFF0080FF), const Color(0xFF0055FF)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFF60A5FA).withValues(alpha: 0.8),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.45),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      if (_isSubscribed) {
+                        _scaleController.forward();
+                        _scaleController.reverse();
+                        _fetchAndShowBookRecord();
+                      } else {
+                        _showSubscribeDialog(context);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(22),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _isSubscribed ? 'Open Site' : 'Get ID',
+                            style: GoogleFonts.outfit(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12.5,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  String _getCategoryTags(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('sky') || lower.contains('exch')) {
+      return 'Sports   |   Casino   |   Live Games';
+    } else if (lower.contains('dream') || lower.contains('444')) {
+      return 'Casino   |   Slots   |   Live Casino';
+    } else if (lower.contains('lotus') || lower.contains('365')) {
+      return 'Sports   |   Casino   |   Cricket';
+    } else if (lower.contains('gold') || lower.contains('vault')) {
+      return 'Casino   |   Matka   |   Card Games';
+    } else {
+      return 'Sports   |   Casino   |   Games';
+    }
   }
 
   Future<int> _resolveUserId() async {
@@ -819,10 +671,25 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
           setState(() {
             _isSubscribed = true;
           });
-          final accountData = data['data'] is Map ? data['data'] as Map : {};
-          final link = accountData['website_link']?.toString() ?? '';
-          final user = accountData['username']?.toString() ?? '';
-          final pass = accountData['password']?.toString() ?? '';
+          Map accountData = {};
+          if (data['data'] is Map) {
+            accountData = data['data'] as Map;
+          } else if (data['book'] is Map) {
+            accountData = data['book'] as Map;
+          } else if (data['user_book'] is Map) {
+            accountData = data['user_book'] as Map;
+          } else if (data['record'] is Map) {
+            accountData = data['record'] as Map;
+          } else {
+            accountData = data;
+          }
+
+          final link = (accountData['website_link'] ?? accountData['site_link'] ?? accountData['link'] ?? accountData['url'] ?? '')?.toString().trim() ?? '';
+          final rawUser = (accountData['username'] ?? accountData['user_name'] ?? accountData['client_username'] ?? accountData['user'] ?? accountData['account_username'] ?? '')?.toString().trim() ?? '';
+          final user = (rawUser == 'null' || rawUser == '0') ? '' : rawUser;
+
+          final rawPass = (accountData['password'] ?? accountData['pass'] ?? accountData['client_password'] ?? accountData['account_password'] ?? '')?.toString().trim() ?? '';
+          final pass = (rawPass == 'null' || rawPass == '0') ? '' : rawPass;
           _showAccountDetailsDialog(context, link, user, pass);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -953,10 +820,25 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
       if (!mounted) return;
       final data = response.data;
       if (data is Map<String, dynamic> && data['success'] == true) {
-        final accountData = data['data'] is Map ? data['data'] as Map : {};
-        final link = accountData['website_link']?.toString() ?? '';
-        final user = accountData['username']?.toString() ?? '';
-        final pass = accountData['password']?.toString() ?? '';
+        Map accountData = {};
+        if (data['data'] is Map) {
+          accountData = data['data'] as Map;
+        } else if (data['book'] is Map) {
+          accountData = data['book'] as Map;
+        } else if (data['user_book'] is Map) {
+          accountData = data['user_book'] as Map;
+        } else if (data['record'] is Map) {
+          accountData = data['record'] as Map;
+        } else {
+          accountData = data;
+        }
+
+        final link = (accountData['website_link'] ?? accountData['site_link'] ?? accountData['link'] ?? accountData['url'] ?? '')?.toString().trim() ?? '';
+        final rawUser = (accountData['username'] ?? accountData['user_name'] ?? accountData['client_username'] ?? accountData['user'] ?? accountData['account_username'] ?? '')?.toString().trim() ?? '';
+        final user = (rawUser == 'null' || rawUser == '0') ? '' : rawUser;
+
+        final rawPass = (accountData['password'] ?? accountData['pass'] ?? accountData['client_password'] ?? accountData['account_password'] ?? '')?.toString().trim() ?? '';
+        final pass = (rawPass == 'null' || rawPass == '0') ? '' : rawPass;
 
         _showAccountDetailsDialog(context, link, user, pass);
       } else {
@@ -1013,6 +895,8 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
   }
 
   void _showAccountDetailsDialog(BuildContext context, String link, String username, String password) {
+    final bool hasFullCredentials = username.trim().isNotEmpty && password.trim().isNotEmpty;
+
     showDialog(
       context: context,
       builder: (ctx) {
@@ -1021,7 +905,9 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
             side: BorderSide(
-              color: const Color(0xFFFFD700).withValues(alpha: 0.4),
+              color: hasFullCredentials
+                  ? const Color(0xFFFFD700).withValues(alpha: 0.4)
+                  : const Color(0xFFFFB703).withValues(alpha: 0.5),
               width: 1.5,
             ),
           ),
@@ -1032,28 +918,51 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Top Glowing Success Icon Badge
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF10B981), Color(0xFF059669)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                        blurRadius: 18,
-                        spreadRadius: 3,
+                // Top Glowing Icon Badge
+                if (hasFullCredentials)
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF10B981), Color(0xFF059669)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                    ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                          blurRadius: 18,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 36),
+                  )
+                else
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFB703), Color(0xFFD97706)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFFB703).withValues(alpha: 0.45),
+                          blurRadius: 20,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const SandClockLoaderWidget(size: 34, color: Colors.white),
                   ),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 36),
-                ),
                 const SizedBox(height: 18),
 
                 // Game Name Title & Badge
@@ -1071,17 +980,32 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                    color: hasFullCredentials
+                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                        : const Color(0xFFFFB703).withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
-                  ),
-                  child: const Text(
-                    'Active ID Record',
-                    style: TextStyle(
-                      color: Color(0xFF10B981),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
+                    border: Border.all(
+                      color: hasFullCredentials
+                          ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                          : const Color(0xFFFFB703).withValues(alpha: 0.6),
                     ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!hasFullCredentials) ...[
+                        const Icon(Icons.hourglass_top_rounded, color: Color(0xFFFFB703), size: 13),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        hasFullCredentials ? 'Active ID Record' : 'Getting Username & Password...',
+                        style: TextStyle(
+                          color: hasFullCredentials ? const Color(0xFF10B981) : const Color(0xFFFFB703),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 22),
@@ -1100,19 +1024,164 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
                   const SizedBox(height: 10),
                 ],
 
-                if (link.isEmpty && username.isEmpty && password.isEmpty)
+                // Enhanced Cyber Gold Sand Clock Loading Box when username & password missing
+                if (!hasFullCredentials) ...[
                   Container(
-                    padding: const EdgeInsets.all(14),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1733),
-                      borderRadius: BorderRadius.circular(12),
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF231C3D),
+                          Color(0xFF16102B),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFFFFB703).withValues(alpha: 0.5),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFFB703).withValues(alpha: 0.18),
+                          blurRadius: 20,
+                          spreadRadius: 1,
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
-                    child: const Text(
-                      'ID active. Login credentials will be assigned shortly.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13),
+                    child: Column(
+                      children: [
+                        // Animated Sand Clock Center Badge
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFFFB703).withValues(alpha: 0.12),
+                            border: Border.all(
+                              color: const Color(0xFFFFB703).withValues(alpha: 0.35),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const SandClockLoaderWidget(size: 32, color: Color(0xFFFFB703)),
+                        ),
+                        const SizedBox(height: 12),
+
+                        Text(
+                          'Please wait a few minutes...',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.outfit(
+                            color: const Color(0xFFFFD700),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
+                            shadows: [
+                              Shadow(
+                                color: const Color(0xFFFFB703).withValues(alpha: 0.4),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Your username and password are being generated. Please wait a few minutes to get your login credentials.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            color: const Color(0xFFCBD5E1),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Progress Timeline Steps
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F0B1E),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 15),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Get ID Request Submitted',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: const Color(0xFF10B981),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  const SandClockLoaderWidget(size: 15, color: Color(0xFFFFB703), showParticles: false),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Agency Support assigning ID & Pass...',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: const Color(0xFFFFB703),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Time Estimate Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB703).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFFFB703).withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.timer_outlined, color: Color(0xFFFFB703), size: 14),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Estimated Time: 5 - 10 Minutes',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: const Color(0xFFFFB703),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 12),
+                ],
 
                 const SizedBox(height: 16),
 
@@ -1418,3 +1487,87 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
     );
   }
 }
+
+class SandClockLoaderWidget extends StatefulWidget {
+  final double size;
+  final Color color;
+  final bool showParticles;
+  const SandClockLoaderWidget({
+    super.key,
+    this.size = 36,
+    this.color = const Color(0xFFFFB703),
+    this.showParticles = true,
+  });
+
+  @override
+  State<SandClockLoaderWidget> createState() => _SandClockLoaderWidgetState();
+}
+
+class _SandClockLoaderWidgetState extends State<SandClockLoaderWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _flipAnimation;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
+
+    _flipAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 0, end: 0).chain(CurveTween(curve: Curves.ease)), weight: 60),
+      TweenSequenceItem(tween: Tween<double>(begin: 0, end: 3.14159).chain(CurveTween(curve: Curves.elasticOut)), weight: 40),
+    ]).animate(_controller);
+
+    _pulseAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.15).chain(CurveTween(curve: Curves.easeOut)), weight: 50),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.15, end: 1.0).chain(CurveTween(curve: Curves.easeIn)), weight: 50),
+    ]).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _pulseAnimation.value,
+          child: Transform.rotate(
+            angle: _flipAnimation.value,
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: widget.showParticles
+              ? [
+                  BoxShadow(
+                    color: widget.color.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : [],
+        ),
+        child: Icon(
+          Icons.hourglass_bottom_rounded,
+          color: widget.color,
+          size: widget.size,
+        ),
+      ),
+    );
+  }
+}
+

@@ -1,0 +1,1717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Assistant - Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #008069;
+      --primary-hover: #016b57;
+      --primary-light: #d9fdd3;
+      --bg-app: #f0f2f5;
+      --bg-card: #ffffff;
+      --border-color: #e9edef;
+      --text-primary: #111b21;
+      --text-secondary: #667781;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --danger-light: #fee2e2;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --font-family: 'Inter', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); }
+
+    body {
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--primary);
+      color: #ffffff;
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-weight: 700;
+      font-size: 1.25rem;
+    }
+
+    .logo-icon {
+      font-size: 1.6rem;
+    }
+
+    /* Tab-based Navigation in Header */
+    .tabs-nav {
+      display: flex;
+      height: 100%;
+      align-items: center;
+      margin-left: 3rem;
+      position: relative;
+      flex: 1;
+    }
+
+    .tab-btn {
+      color: rgba(255, 255, 255, 0.7);
+      background: none;
+      border: none;
+      padding: 0 1.25rem;
+      height: 100%;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: color 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      outline: none;
+    }
+
+    .tab-btn:hover, .tab-btn.active {
+      color: #ffffff;
+    }
+
+    .tabs-slider {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      background: #ffffff;
+      border-radius: 2px 2px 0 0;
+      transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .btn-header {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: white;
+      text-decoration: none;
+      padding: 0.45rem 1.1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .btn-header:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .main-container {
+      max-width: 1200px;
+      width: 100%;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      flex: 1;
+    }
+
+    .panel-card {
+      background: var(--bg-card);
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-title-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--primary-light);
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .panel-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Tables styling */
+    .data-table-container {
+      overflow-x: auto;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .data-table th, .data-table td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .data-table th {
+      background: #f8fafc;
+      color: var(--text-secondary);
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .data-table tr:hover {
+      background: #f8fafc;
+    }
+
+    /* Forms */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
+    }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid #ccd0d5;
+      background: #ffffff;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(0, 128, 105, 0.15);
+    }
+
+    .btn {
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn:hover { background: var(--primary-hover); }
+    .btn:active { transform: scale(0.98); }
+
+    .btn-danger {
+      background: var(--danger);
+    }
+    .btn-danger:hover { background: var(--danger-hover); }
+
+    .btn-secondary {
+      background: #f0f2f5;
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+    .btn-secondary:hover { background: #e4e6eb; }
+
+    .btn-action {
+      background: #f0f2f5;
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      font-size: 0.75rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-action:hover {
+      background: var(--primary-light);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .btn-action-danger {
+      background: #fff5f5;
+      color: var(--danger);
+      border: 1px solid #fed7d7;
+    }
+    .btn-action-danger:hover {
+      background: var(--danger-light);
+      border-color: var(--danger);
+    }
+
+    .action-group {
+      display: flex;
+      gap: 0.35rem;
+      justify-content: flex-end;
+    }
+
+    .bulk-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      background: #f8fafc;
+      padding: 0.85rem 1.25rem;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 1.25rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: #e2e8f0;
+      color: #475569;
+    }
+
+    .status-badge.active {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    /* Specific view structures */
+    #viewRegister {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+
+    @media(max-width: 768px) {
+      #viewRegister { grid-template-columns: 1fr; }
+    }
+
+    /* Mobile styles overrides */
+    /* Clean, modern style for mobile drawer buttons */
+    .admin-mobile-btn {
+      width: calc(100% - 1.7rem);
+      margin: 0.35rem 0.85rem !important;
+      padding: 0.75rem 1rem !important;
+      background: none !important;
+      border: 1px solid transparent !important;
+      text-align: left;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary) !important;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      outline: none;
+      border-radius: 12px !important;
+      text-decoration: none !important;
+    }
+
+    .admin-mobile-btn span:last-child {
+      transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .admin-mobile-btn:hover span:last-child {
+      transform: translateX(4px);
+    }
+
+    .admin-mobile-btn:active {
+      transform: scale(0.97);
+    }
+
+    .admin-mobile-btn.active {
+      background: linear-gradient(135deg, rgba(0, 128, 105, 0.08) 0%, rgba(0, 128, 105, 0.03) 100%) !important;
+      border-color: rgba(0, 128, 105, 0.15) !important;
+      color: var(--primary) !important;
+      font-weight: 700 !important;
+      box-shadow: 0 2px 8px rgba(0, 128, 105, 0.05) !important;
+    }
+
+    .admin-mobile-btn.active .admin-btn-icon-badge {
+      background-color: var(--primary) !important;
+      color: #ffffff !important;
+      box-shadow: 0 3px 8px rgba(0, 128, 105, 0.2) !important;
+    }
+
+    /* Icon badge background */
+    .admin-btn-icon-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px !important;
+      background-color: rgba(0, 0, 0, 0.03) !important;
+      border: 1px solid rgba(0, 0, 0, 0.02) !important;
+      color: var(--text-secondary) !important;
+      font-size: 1rem;
+      transition: background-color 0.15s ease, color 0.15s ease, transform 0.2s ease;
+    }
+
+    .admin-mobile-btn:hover {
+      background-color: rgba(0, 0, 0, 0.02) !important;
+      border-color: rgba(0, 0, 0, 0.03) !important;
+    }
+
+    .admin-mobile-btn.active:hover {
+      background-color: rgba(0, 128, 105, 0.09) !important;
+    }
+
+    .admin-mobile-btn:hover .admin-btn-icon-badge {
+      background-color: rgba(0, 128, 105, 0.1) !important;
+      color: var(--primary) !important;
+      transform: translateY(-1px) scale(1.03) !important;
+    }
+
+    .admin-mobile-btn.logout-btn {
+      color: #dc2626 !important;
+      border: 1px solid rgba(239, 68, 68, 0.12) !important;
+      background: rgba(239, 68, 68, 0.05) !important;
+      margin-top: auto !important;
+      margin-bottom: 1.5rem !important;
+    }
+
+    .admin-mobile-btn.logout-btn .admin-btn-icon-badge {
+      background-color: rgba(239, 68, 68, 0.08) !important;
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.05) !important;
+    }
+
+    .admin-mobile-btn.logout-btn:hover {
+      background-color: rgba(239, 68, 68, 0.09) !important;
+      border-color: rgba(239, 68, 68, 0.2) !important;
+    }
+
+    .admin-mobile-btn.logout-btn:hover .admin-btn-icon-badge {
+      background-color: #ef4444 !important;
+      color: #ffffff !important;
+      box-shadow: 0 3px 8px rgba(239, 68, 68, 0.2) !important;
+    }
+
+    /* Online pulse dot */
+    .online-indicator-dot {
+      position: absolute;
+      bottom: 0px;
+      right: 0px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: var(--status-online, #25d366);
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 6px var(--status-online, #25d366);
+      animation: pulse-dot 2s infinite;
+      z-index: 5;
+    }
+
+    @keyframes pulse-dot {
+      0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.6); }
+      70% { box-shadow: 0 0 0 5px rgba(37, 211, 102, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+    }
+
+    /* Mobile responsive overrides */
+    .mobile-menu-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      outline: none;
+      line-height: 1;
+    }
+
+    /* Admin Mobile Drawer & Overlay Styles */
+    .admin-mobile-drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.35);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+
+    .admin-mobile-drawer-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .admin-mobile-drawer {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: 290px;
+      max-width: 80%;
+      background: rgba(255, 255, 255, 0.75) !important;
+      backdrop-filter: blur(30px) saturate(190%) !important;
+      -webkit-backdrop-filter: blur(30px) saturate(190%) !important;
+      z-index: 1000;
+      box-shadow: -15px 0 40px rgba(15, 23, 42, 0.08) !important;
+      border-left: 1px solid rgba(255, 255, 255, 0.4) !important;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      transform: translateX(100%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .admin-mobile-drawer.active {
+      transform: translateX(0);
+    }
+
+    .admin-mobile-drawer-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50% !important;
+      background: rgba(0, 0, 0, 0.04) !important;
+      border: none !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary) !important;
+      font-size: 0.95rem !important;
+      font-weight: 700 !important;
+      transition: all 0.2s ease !important;
+      opacity: 0.8;
+    }
+
+    .admin-mobile-drawer-close:hover {
+      background: rgba(239, 68, 68, 0.1) !important;
+      color: #ef4444 !important;
+      transform: rotate(90deg) scale(1.05) !important;
+      opacity: 1;
+    }
+
+    .admin-mobile-nav {
+      display: flex;
+      flex-direction: column;
+    }
+
+    @media (max-width: 768px) {
+      header {
+        padding: 0 1rem;
+      }
+
+      .tabs-nav, .header-links, #profileContainer {
+        display: none !important;
+      }
+
+      .mobile-menu-btn {
+        display: flex !important;
+      }
+
+      .main-container {
+        margin: 1rem auto;
+        padding: 0 0.75rem;
+      }
+
+      .panel-card {
+        padding: 1.25rem;
+        border-radius: 8px;
+      }
+
+      .panel-title-container {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .bulk-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+        padding: 1rem;
+      }
+
+      .bulk-bar span {
+        margin-bottom: 0.25rem;
+      }
+
+      .bulk-bar div {
+        width: 100%;
+      }
+
+      .bulk-bar button {
+        width: 100%;
+      }
+
+      .data-table-container {
+        -webkit-overflow-scrolling: touch;
+        margin-top: 0.5rem;
+      }
+      
+      .action-group {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+    }
+
+    /* Profile Section Styles */
+    .profile-container {
+      position: relative;
+      display: inline-block;
+      user-select: none;
+    }
+
+    .profile-trigger {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 0.4rem 0.8rem;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .profile-trigger:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .profile-icon-img {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+
+    .profile-name-text {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #ffffff;
+      max-width: 120px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .profile-arrow {
+      font-size: 0.65rem;
+      color: rgba(255, 255, 255, 0.7);
+      transition: transform 0.2s ease;
+    }
+
+    .profile-container.active .profile-arrow {
+      transform: rotate(180deg);
+    }
+
+
+
+    @media (max-width: 640px) {
+      .profile-modal-card {
+        max-width: 360px !important;
+      }
+      .profile-modal-split {
+        flex-direction: column !important;
+      }
+      .profile-modal-split > div:first-child {
+        padding: 1.5rem 1rem !important;
+        min-height: auto !important;
+      }
+      .profile-modal-split > div:last-child {
+        padding: 1.5rem 1rem !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <span class="logo-icon">⚙️</span>
+      <span>Admin Dashboard</span>
+    </div>
+
+    <!-- Tab based navigation inside header -->
+    <div class="tabs-nav">
+      <button id="tabBtnUsers" class="tab-btn active" onclick="switchAdminTab('users')">👤 Manage Users</button>
+      <button id="tabBtnAgents" class="tab-btn" onclick="switchAdminTab('agents')">👥 Manage Agents</button>
+      <button id="tabBtnRegister" class="tab-btn" onclick="switchAdminTab('register')">➕ Register New</button>
+      <div class="tabs-slider"></div>
+    </div>
+
+    <div class="header-right" style="display: flex; align-items: center; gap: 1rem;">
+      <div class="header-links">
+        <button id="btnBackToAdminDashboard" style="display: none; background: #22c55e; border: none; color: white; padding: 0.45rem 1.1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-right: 0.5rem;" onmouseover="this.style.background='#16a34a'" onmouseout="this.style.background='#22c55e'">
+          ↩️ Return to Admin
+        </button>
+
+      </div>
+
+      <!-- Profile Section -->
+      <div class="profile-container" id="profileContainer">
+        <div class="profile-trigger" id="profileTrigger">
+          <div style="position: relative; display: flex; align-items: center;">
+            <img id="profileIcon" src="view/images/avatar.avif" alt="Avatar" class="profile-icon-img" onerror="this.onerror=null; this.src='view/images/avatar.avif';" />
+            <span class="online-indicator-dot" style="bottom: -2px; right: -2px; border: 1.5px solid #ffffff;"></span>
+          </div>
+          <span id="profileName" class="profile-name-text">Loading...</span>
+          <span class="profile-arrow">▼</span>
+        </div>
+      </div>
+
+      <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleAdminMobileDrawer(true)" style="position: relative; padding: 0; background: none; border: none; outline: none; cursor: pointer; align-items: center; justify-content: center; display: none;">
+        <div style="position: relative; display: flex; align-items: center;">
+          <img id="mobileHeaderIcon" src="view/images/avatar.avif" alt="Avatar" class="profile-icon-img" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,0.2);" onerror="this.onerror=null; this.src='view/images/avatar.avif';" />
+          <span class="online-indicator-dot"></span>
+        </div>
+      </button>
+    </div>
+  </header>
+
+  <!-- Admin Mobile Drawer -->
+  <div id="adminMobileDrawerOverlay" class="admin-mobile-drawer-overlay" onclick="toggleAdminMobileDrawer(false)"></div>
+  <div id="adminMobileDrawer" class="admin-mobile-drawer">
+    <div class="admin-mobile-drawer-header dropdown-mobile-only" style="display: none;"></div>
+    
+    <!-- Mobile User Info in Drawer -->
+    <div class="mobile-profile-info" style="padding: 2rem 1.25rem 1.5rem; background: linear-gradient(135deg, rgba(0, 128, 105, 0.04) 0%, rgba(1, 107, 87, 0.01) 100%); color: var(--text-primary); display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid rgba(0, 0, 0, 0.05); position: relative; margin-bottom: 0;">
+      <!-- Close button -->
+      <button class="admin-mobile-drawer-close" onclick="toggleAdminMobileDrawer(false)">✕</button>
+      
+      <div style="position: relative; display: flex; align-items: center; flex-shrink: 0;">
+        <img id="mobileProfileIcon" src="view/images/avatar.avif" alt="Avatar" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #ffffff; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);" onerror="this.onerror=null; this.src='view/images/avatar.avif';" />
+        <span class="online-indicator-dot" style="width: 12px; height: 12px; border-width: 2px; right: 0; bottom: 0;"></span>
+      </div>
+      <div style="display: flex; flex-direction: column; min-width: 0; line-height: 1.3;">
+        <span id="mobileProfileName" style="font-weight: 700; font-size: 1.1rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loading...</span>
+        <span id="mobileProfileRole" style="align-self: flex-start; margin-top: 0.2rem; background: rgba(0, 128, 105, 0.1); color: var(--primary); padding: 3px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Admin</span>
+      </div>
+    </div>
+
+    <div class="admin-mobile-nav" style="padding: 1rem 0; display: flex; flex-direction: column; flex: 1;">
+      <button onclick="showProfileModal()" class="admin-mobile-btn">
+        <span class="admin-btn-icon-badge">👤</span>
+        <span>Profile</span>
+      </button>
+      <button id="mobTabBtnUsers" class="admin-mobile-btn active" onclick="switchAdminTab('users')">
+        <span class="admin-btn-icon-badge">👤</span>
+        <span>Manage Users</span>
+      </button>
+      <button id="mobTabBtnAgents" class="admin-mobile-btn" onclick="switchAdminTab('agents')">
+        <span class="admin-btn-icon-badge">👥</span>
+        <span>Manage Agents</span>
+      </button>
+      <button id="mobTabBtnRegister" class="admin-mobile-btn" onclick="switchAdminTab('register')">
+        <span class="admin-btn-icon-badge">➕</span>
+        <span>Register New</span>
+      </button>
+      <button id="mobBtnBackToAdmin" onclick="document.getElementById('btnBackToAdminDashboard').click()" class="admin-mobile-btn" style="display: none;">
+        <span class="admin-btn-icon-badge">↩️</span>
+        <span>Return to Admin</span>
+      </button>
+
+      <a href="/chat/chat.html" class="admin-mobile-btn">
+        <span class="admin-btn-icon-badge">💬</span>
+        <span>Chat Portal</span>
+      </a>
+
+      <button onclick="adminLogout()" class="admin-mobile-btn logout-btn">
+        <span class="admin-btn-icon-badge">🚪</span>
+        <span>Sign Out</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="main-container">
+    
+    <!-- Tab View 1: Manage Users -->
+    <div id="viewUsers" class="panel-card">
+      <div class="panel-title-container">
+        <div class="panel-title">👤 User Directory & Assignments</div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary);" id="userCountText">Loading users...</div>
+      </div>
+
+      <!-- Bulk action header bar -->
+      <div class="bulk-bar" style="display: none;">
+        <span style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.02em;">Bulk Actions (Selected Users):</span>
+        
+        <div style="display:flex; align-items:center; gap:0.5rem; flex:1; min-width:250px;">
+          <select id="bulkAgentSelect" style="padding: 0.45rem 0.75rem; font-size: 0.85rem;">
+            <option value="">Select Agent...</option>
+          </select>
+          <button type="button" class="btn" style="padding: 0.5rem 1rem; font-size: 0.85rem; white-space:nowrap;" onclick="bulkAssign()">Assign Agent</button>
+        </div>
+
+        <button type="button" class="btn btn-danger" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; display:none; align-items:center; gap:0.4rem;" onclick="deleteSelectedUsers()">
+          🗑️ Delete Selected
+        </button>
+      </div>
+
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th id="thCheckbox" style="width: 45px; text-align: center; display: none;">
+                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" style="cursor: pointer; width: 16px; height: 16px;" />
+              </th>
+              <th>User ID</th>
+              <th>Name</th>
+              <th>Assigned Agent</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody">
+            <tr>
+              <td colspan="5" style="padding: 2.5rem; text-align: center; color: var(--text-secondary);">
+                Loading users directory...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab View 2: Manage Agents -->
+    <div id="viewAgents" class="panel-card" style="display: none;">
+      <div class="panel-title-container">
+        <div class="panel-title">👥 Agent Directory</div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary);" id="agentCountText">Loading agents...</div>
+      </div>
+
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Agent ID</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th style="text-align: right; width: 220px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="agentTableBody">
+            <tr>
+              <td colspan="4" style="padding: 2.5rem; text-align: center; color: var(--text-secondary);">
+                Loading agents directory...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab View 3: Register / Create Forms -->
+    <div id="viewRegister" style="display: none;">
+      
+      <!-- Create Agent Form -->
+      <div class="panel-card">
+        <div class="panel-title-container">
+          <div class="panel-title">➕ Register Agent</div>
+        </div>
+        <form id="formAgent" style="display: flex; flex-direction: column; flex: 1;">
+          <div class="form-group">
+            <label for="agentIdInput">Agent ID (Optional)</label>
+            <input type="text" id="agentIdInput" placeholder="e.g. agent-diana (leaves empty to auto-generate)" />
+          </div>
+          <div class="form-group">
+            <label for="agentEmailIdInput">Email ID (Optional)</label>
+            <input type="text" id="agentEmailIdInput" placeholder="e.g. diana@luxebet.com" />
+          </div>
+          <div class="form-group">
+            <label for="agentPasswordInput">Password (Optional)</label>
+            <input type="password" id="agentPasswordInput" placeholder="Default: password123" />
+          </div>
+          <div class="form-group">
+            <label for="agentNameInput">Agent Name</label>
+            <input type="text" id="agentNameInput" placeholder="e.g. Agent Diana" required />
+          </div>
+          <button type="submit" class="btn" style="margin-top: auto; padding: 0.75rem 1.5rem;">➕ Create Agent</button>
+        </form>
+      </div>
+
+      <!-- Create User Form -->
+      <div class="panel-card">
+        <div class="panel-title-container">
+          <div class="panel-title">➕ Register User</div>
+        </div>
+        <form id="formUser" style="display: flex; flex-direction: column; flex: 1;">
+          <div class="form-group">
+            <label for="emailIdInput">Email ID (Optional)</label>
+            <input type="text" id="emailIdInput" placeholder="e.g. diana-1@example.com (leaves empty to auto-generate)" />
+          </div>
+          <div class="form-group">
+            <label for="userPasswordInput">Password (Optional)</label>
+            <input type="password" id="userPasswordInput" placeholder="Default: password123" />
+          </div>
+          <div class="form-group">
+            <label for="userNameInput">User Name</label>
+            <input type="text" id="userNameInput" placeholder="e.g. Client Diana 1" required />
+          </div>
+          <div class="form-group">
+            <label for="userMobInput">Mobile Number (Optional)</label>
+            <input type="text" id="userMobInput" placeholder="e.g. 9876543210" />
+          </div>
+          <div class="form-group">
+            <label for="userAgentSelect">Assign to Agent</label>
+            <select id="userAgentSelect" required>
+              <option value="">Select Agent...</option>
+            </select>
+          </div>
+          <button type="submit" class="btn" style="margin-top: auto; padding: 0.75rem 1.5rem;">➕ Create & Assign User</button>
+        </form>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const formAgent = document.getElementById('formAgent');
+    const agentIdInput = document.getElementById('agentIdInput');
+    const agentEmailIdInput = document.getElementById('agentEmailIdInput');
+    const agentPasswordInput = document.getElementById('agentPasswordInput');
+    const agentNameInput = document.getElementById('agentNameInput');
+    const agentTableBody = document.getElementById('agentTableBody');
+    const agentCountText = document.getElementById('agentCountText');
+
+    const formUser = document.getElementById('formUser');
+    const emailIdInput = document.getElementById('emailIdInput');
+    const userPasswordInput = document.getElementById('userPasswordInput');
+    const userNameInput = document.getElementById('userNameInput');
+    const userMobInput = document.getElementById('userMobInput');
+    const userAgentSelect = document.getElementById('userAgentSelect');
+    const bulkAgentSelect = document.getElementById('bulkAgentSelect');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const userTableBody = document.getElementById('userTableBody');
+    const userCountText = document.getElementById('userCountText');
+
+    // Toggle Mobile Drawer
+    function toggleAdminMobileDrawer(open) {
+      const drawer = document.getElementById('adminMobileDrawer');
+      const overlay = document.getElementById('adminMobileDrawerOverlay');
+      if (open) {
+        drawer.classList.add('active');
+        overlay.classList.add('active');
+      } else {
+        drawer.classList.remove('active');
+        overlay.classList.remove('active');
+      }
+    }
+
+    function adminLogout() {
+      localStorage.removeItem('chat_identity');
+      document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      window.location.href = '/office/partials/logout';
+    }
+
+    let currentUser = null;
+    let isAgent = false;
+
+    function getDecodedToken() {
+      const name = 'token=';
+      const decodedCookie = decodeURIComponent(document.cookie);
+      const ca = decodedCookie.split(';');
+      let jwtToken = '';
+      for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) == ' ') {
+          c = c.substring(1);
+        }
+        if (c.indexOf(name) == 0) {
+          jwtToken = c.substring(name.length, c.length);
+          break;
+        }
+      }
+      
+      if (!jwtToken) {
+        const cached = localStorage.getItem('chat_identity');
+        if (cached) {
+          jwtToken = JSON.parse(cached).token;
+        }
+      }
+
+      if (!jwtToken) return null;
+
+      try {
+        const base64Url = jwtToken.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        return JSON.parse(jsonPayload);
+      } catch (e) {
+        console.error('Error decoding token:', e);
+        return null;
+      }
+    }
+
+    function formatAvatarUrl(url) {
+      if (!url || url === 'null' || url === 'undefined') return '';
+      let clean = String(url).trim();
+      clean = clean.replace(/^https?:\/\/(www\.)?(office-manage|fairbizcrm\.com|telewiz\.in)\/?/i, '/');
+      clean = clean.replace(/^\/\/(office-manage|fairbizcrm\.com|telewiz\.in)\/?/i, '/');
+
+      // Detect direct image filename (e.g. 1784376403_Agency.jpg) without folder path
+      const stripped = clean.replace(/^\/+/, '');
+      if (!stripped.includes('/') && /\.(jpe?g|png|webp|gif|avif|bmp|svg)$/i.test(stripped)) {
+        clean = 'uploads/photos/' + stripped;
+      } else if (clean.startsWith('photos/')) {
+        clean = 'uploads/' + clean;
+      }
+
+      if (clean.startsWith('uploads/')) {
+        clean = '/' + clean;
+      }
+      if (clean.startsWith('/') && !clean.startsWith('//')) {
+        clean = window.location.origin + clean;
+      }
+      return clean;
+    }
+
+    function getToken() {
+      const name = 'token=';
+      const decodedCookie = decodeURIComponent(document.cookie);
+      const ca = decodedCookie.split(';');
+      for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) == ' ') {
+          c = c.substring(1);
+        }
+        if (c.indexOf(name) == 0) {
+          return c.substring(name.length, c.length);
+        }
+      }
+      
+      const cached = localStorage.getItem('chat_identity');
+      if (cached) {
+        return JSON.parse(cached).token;
+      }
+      return '';
+    }
+
+    async function fetchWithAuth(url, options = {}) {
+      const token = getToken();
+      const headers = options.headers || {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      options.headers = headers;
+
+      const isChatPath = window.location.pathname.startsWith('/chat') || window.location.pathname.includes('/chat/');
+      let targetUrl = url;
+      if (url.startsWith('/api/v1') && isChatPath) {
+        targetUrl = '/chat' + url;
+      }
+
+      return fetch(targetUrl, options);
+    }
+
+    // On Load
+    window.addEventListener('load', () => {
+      // Retrieve the full profile info including avatar from chat_identity in localStorage
+      let cachedUser = null;
+      try {
+        const cached = localStorage.getItem('chat_identity');
+        if (cached) {
+          cachedUser = JSON.parse(cached).user;
+        }
+      } catch (_) {}
+
+      const decoded = getDecodedToken();
+      currentUser = cachedUser || decoded;
+      if (currentUser && decoded) {
+        currentUser.role = decoded.role;
+      }
+      const isAdmin = currentUser && (currentUser.role === 'admin' || String(currentUser._id || currentUser.emailId || '').toUpperCase().includes('ADMIN'));
+      isAgent = currentUser && currentUser.role === 'agent' && !isAdmin;
+
+      if (currentUser) {
+        const profileNameEl = document.getElementById('profileName');
+        const profileIconEl = document.getElementById('profileIcon');
+        const mobileProfileNameEl = document.getElementById('mobileProfileName');
+        const mobileProfileIconEl = document.getElementById('mobileProfileIcon');
+        const mobileProfileRoleEl = document.getElementById('mobileProfileRole');
+        const mobileHeaderIcon = document.getElementById('mobileHeaderIcon');
+
+        const userDisplayName = currentUser.name || currentUser.emailId || currentUser._id;
+        const userAvatar = formatAvatarUrl(currentUser.avatar) || 'view/images/avatar.avif';
+        const userRole = currentUser.role || 'Admin';
+
+        if (profileNameEl) profileNameEl.textContent = userDisplayName;
+        if (profileIconEl) profileIconEl.src = userAvatar;
+        if (mobileProfileNameEl) mobileProfileNameEl.textContent = userDisplayName;
+        if (mobileProfileIconEl) mobileProfileIconEl.src = userAvatar;
+        if (mobileProfileRoleEl) mobileProfileRoleEl.textContent = userRole;
+        if (mobileHeaderIcon) mobileHeaderIcon.src = userAvatar;
+
+        // Asynchronously sync latest profile from MySQL on startup
+        (async () => {
+          try {
+            const token = getToken();
+            if (!token) return;
+            const meRes = await fetch('/api/v1/auth/me', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (meRes.ok) {
+              const meData = await meRes.json();
+              if (meData && meData.user) {
+                currentUser.mob = meData.user.mob || currentUser.mob || '';
+                currentUser.avatar = meData.user.avatar || meData.user.img || currentUser.avatar || '';
+                currentUser.name = meData.user.name || currentUser.name;
+                const freshAvatarUrl = formatAvatarUrl(currentUser.avatar) || 'view/images/avatar.avif';
+                if (profileIconEl) profileIconEl.src = freshAvatarUrl;
+                if (mobileProfileIconEl) mobileProfileIconEl.src = freshAvatarUrl;
+                if (mobileHeaderIcon) mobileHeaderIcon.src = freshAvatarUrl;
+                if (profileNameEl) profileNameEl.textContent = currentUser.name;
+                if (mobileProfileNameEl) mobileProfileNameEl.textContent = currentUser.name;
+
+                // Cache fresh user in localStorage
+                try {
+                  const cachedRaw = localStorage.getItem('chat_identity');
+                  if (cachedRaw) {
+                    const parsedObj = JSON.parse(cachedRaw);
+                    parsedObj.user = { ...parsedObj.user, ...meData.user };
+                    localStorage.setItem('chat_identity', JSON.stringify(parsedObj));
+                  }
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+        })();
+      }
+
+      // Setup profile dropdown toggle click handlers
+      const profileTrigger = document.getElementById('profileTrigger');
+      if (profileTrigger) {
+        profileTrigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleAdminMobileDrawer(true);
+        });
+      }
+
+      // Check if we have a preserved admin session to restore
+      const hasAgentIdentity = !!localStorage.getItem('agent_identity');
+      if (hasAgentIdentity) {
+        const btnBackToAdmin = document.getElementById('btnBackToAdminDashboard');
+        const mobBtnBackToAdmin = document.getElementById('mobBtnBackToAdmin');
+        if (btnBackToAdmin) {
+          btnBackToAdmin.style.display = 'inline-block';
+          if (mobBtnBackToAdmin) mobBtnBackToAdmin.style.display = 'flex';
+          btnBackToAdmin.addEventListener('click', (e) => {
+            e.preventDefault();
+            const agentIdentity = localStorage.getItem('agent_identity');
+            if (agentIdentity) {
+              const parsed = JSON.parse(agentIdentity);
+              localStorage.setItem('chat_identity', agentIdentity);
+              document.cookie = `token=${parsed.token}; path=/; max-age=${7 * 24 * 60 * 60};`;
+              localStorage.removeItem('agent_identity');
+              window.location.reload();
+            }
+          });
+        }
+      }
+
+      // Hide Register New tab for everyone (both Admin & Agents)
+      const tabBtnRegister = document.getElementById('tabBtnRegister');
+      const mobTabBtnRegister = document.getElementById('mobTabBtnRegister');
+      if (tabBtnRegister) tabBtnRegister.style.display = 'none';
+      if (mobTabBtnRegister) mobTabBtnRegister.style.display = 'none';
+
+      if (isAgent) {
+        // Hide Manage Agents tab for Agents
+        const tabBtnAgents = document.getElementById('tabBtnAgents');
+        const mobTabBtnAgents = document.getElementById('mobTabBtnAgents');
+        if (tabBtnAgents) tabBtnAgents.style.display = 'none';
+        if (mobTabBtnAgents) mobTabBtnAgents.style.display = 'none';
+
+        // Hide bulk actions bar
+        const bulkBar = document.querySelector('.bulk-bar');
+        if (bulkBar) bulkBar.style.display = 'none';
+
+        // Hide checkbox header
+        const thCheckbox = document.getElementById('thCheckbox');
+        if (thCheckbox) thCheckbox.style.display = 'none';
+      }
+
+      refreshData();
+      // Position tab slider
+      const usersBtn = document.getElementById('tabBtnUsers');
+      const slider = document.querySelector('.tabs-slider');
+      if (usersBtn && usersBtn.offsetWidth > 0) {
+        slider.style.left = usersBtn.offsetLeft + 'px';
+        slider.style.width = usersBtn.offsetWidth + 'px';
+      }
+    });
+
+    async function refreshData() {
+      if (isAgent) {
+        await loadUsers();
+      } else {
+        await Promise.all([loadAgents(), loadUsers()]);
+      }
+    }
+
+    // Switch Tabs inside Admin Panel
+    function switchAdminTab(tabName) {
+      const usersBtn = document.getElementById('tabBtnUsers');
+      const agentsBtn = document.getElementById('tabBtnAgents');
+      const registerBtn = document.getElementById('tabBtnRegister');
+      const slider = document.querySelector('.tabs-slider');
+
+      const mobUsersBtn = document.getElementById('mobTabBtnUsers');
+      const mobAgentsBtn = document.getElementById('mobTabBtnAgents');
+      const mobRegisterBtn = document.getElementById('mobTabBtnRegister');
+      
+      const viewUsers = document.getElementById('viewUsers');
+      const viewAgents = document.getElementById('viewAgents');
+      const viewRegister = document.getElementById('viewRegister');
+
+      viewUsers.style.display = 'none';
+      viewAgents.style.display = 'none';
+      viewRegister.style.display = 'none';
+
+      usersBtn.classList.remove('active');
+      agentsBtn.classList.remove('active');
+      registerBtn.classList.remove('active');
+
+      if (mobUsersBtn) mobUsersBtn.classList.remove('active');
+      if (mobAgentsBtn) mobAgentsBtn.classList.remove('active');
+      if (mobRegisterBtn) mobRegisterBtn.classList.remove('active');
+
+      const activeBtn = tabName === 'users' ? usersBtn : (tabName === 'agents' ? agentsBtn : registerBtn);
+      activeBtn.classList.add('active');
+
+      const mobActiveBtn = tabName === 'users' ? mobUsersBtn : (tabName === 'agents' ? mobAgentsBtn : mobRegisterBtn);
+      if (mobActiveBtn) mobActiveBtn.classList.add('active');
+
+      // Close mobile drawer on tab switch
+      toggleAdminMobileDrawer(false);
+
+      // Align slider indicator
+      if (activeBtn && activeBtn.offsetWidth > 0) {
+        slider.style.left = activeBtn.offsetLeft + 'px';
+        slider.style.width = activeBtn.offsetWidth + 'px';
+      }
+
+      if (tabName === 'users') {
+        viewUsers.style.display = 'block';
+        loadUsers();
+      } else if (tabName === 'agents') {
+        viewAgents.style.display = 'block';
+        loadAgents();
+      } else if (tabName === 'register') {
+        viewRegister.style.display = 'grid';
+      }
+    }
+
+    async function loadAgents() {
+      try {
+        const res = await fetchWithAuth('/api/v1/admin/agents');
+        const data = await res.json();
+        
+        agentTableBody.innerHTML = '';
+        userAgentSelect.innerHTML = '<option value="">Select Agent...</option>';
+        bulkAgentSelect.innerHTML = '<option value="">Select Agent...</option>';
+
+        if (data.agents && data.agents.length > 0) {
+          agentCountText.textContent = `${data.agents.length} agent(s) registered`;
+          data.agents.forEach(agent => {
+            // Dropdown option
+            const opt = document.createElement('option');
+            opt.value = agent._id;
+            opt.textContent = `${agent.name} (${agent._id})`;
+            userAgentSelect.appendChild(opt);
+
+            // Bulk dropdown option
+            const bulkOpt = opt.cloneNode(true);
+            bulkAgentSelect.appendChild(bulkOpt);
+
+            // Table row
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td style="font-weight: 600; font-family: monospace;">${agent._id}</td>
+              <td style="font-weight: 500;">${agent.name}</td>
+              <td><span class="status-badge active">online</span></td>
+              <td>
+                <div class="action-group">
+                  <button class="btn-action" onclick="openChat('${agent._id}', 'agent', '${agent.name}', false)">Connect Here 👑</button>
+                </div>
+              </td>
+            `;
+            agentTableBody.appendChild(tr);
+          });
+        } else {
+          agentCountText.textContent = 'No agents registered';
+          agentTableBody.innerHTML = `
+            <tr>
+              <td colspan="4" style="padding: 2.5rem; text-align: center; color: var(--text-secondary);">
+                No agents registered in database.
+              </td>
+            </tr>
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading agents:', err);
+        agentTableBody.innerHTML = `
+          <tr>
+            <td colspan="4" style="padding: 2.5rem; text-align: center; color: var(--danger);">
+              Failed to load agents directory.
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    async function loadUsers() {
+      try {
+        const res = await fetchWithAuth('/api/v1/admin/users');
+        const data = await res.json();
+
+        userTableBody.innerHTML = '';
+        selectAllCheckbox.checked = false;
+
+        let usersToRender = data.users || [];
+        if (isAgent) {
+          usersToRender = usersToRender.filter(u => {
+            const aId = String(u.agentId?._id || u.agentId || '');
+            const agencyId = String(u.agency_id || '');
+            const curAgentId = String(currentUser.agentId || '');
+            const curUserId = String(currentUser._id || '');
+            const curNumId = currentUser.id ? String(currentUser.id) : (curAgentId.includes('-') ? curAgentId.split('-').pop() : curAgentId);
+
+            return aId === curAgentId ||
+                   aId === curUserId ||
+                   agencyId === curNumId ||
+                   agencyId === curAgentId ||
+                   curAgentId.includes(`AGENCY-${agencyId}`) ||
+                   true;
+          });
+        }
+
+        if (usersToRender.length > 0) {
+          userCountText.textContent = `${usersToRender.length} user(s) assigned`;
+          usersToRender.forEach(user => {
+            const agentName = user.agentId?.name || user.agentId || 'Unassigned';
+            const agentId = user.agentId?._id || user.agentId || '';
+            
+            const checkboxTd = '';
+            
+            const deleteBtn = '';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              ${checkboxTd}
+              <td style="font-family: monospace;">${user._id}</td>
+              <td style="font-weight: 500;">${user.name}</td>
+              <td>
+                <span style="font-weight: 600; color: var(--primary);">${agentName}</span>
+                ${agentId ? `<span style="font-size:0.75rem; color:var(--text-secondary); display:block;">ID: ${agentId}</span>` : ''}
+              </td>
+              <td><span class="status-badge active">active</span></td>
+            `;
+            userTableBody.appendChild(tr);
+          });
+        } else {
+          userCountText.textContent = 'No users assigned';
+          userTableBody.innerHTML = `
+            <tr>
+              <td colspan="${isAgent ? '4' : '5'}" style="padding: 2.5rem; text-align: center; color: var(--text-secondary);">
+                No users assigned to you.
+              </td>
+            </tr>
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading users:', err);
+        userTableBody.innerHTML = `
+          <tr>
+            <td colspan="${isAgent ? '4' : '5'}" style="padding: 2.5rem; text-align: center; color: var(--danger);">
+              Failed to load users directory.
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    // Toggle Select All checkboxes
+    function toggleSelectAll(selectAllCb) {
+      const checkboxes = document.querySelectorAll('.user-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = selectAllCb.checked;
+      });
+    }
+
+    // Bulk user assignment
+    async function bulkAssign() {
+      const selectedBoxes = document.querySelectorAll('.user-checkbox:checked');
+      if (selectedBoxes.length === 0) {
+        return alert('Please select at least one user to assign!');
+      }
+
+      const agentId = bulkAgentSelect.value;
+      if (!agentId) {
+        return alert('Please select an agent to assign the users to!');
+      }
+
+      const userIds = Array.from(selectedBoxes).map(cb => cb.value);
+
+      try {
+        const res = await fetchWithAuth('/api/v1/admin/users/assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emailIds: userIds, agentId })
+        });
+        const result = await res.json();
+
+        if (res.ok) {
+          alert(result.message);
+          refreshData();
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+      } catch (err) {
+        alert(`Request failed: ${err.message}`);
+      }
+    }
+
+    // Delete selected users (bulk)
+    async function deleteSelectedUsers() {
+      const selectedBoxes = document.querySelectorAll('.user-checkbox:checked');
+      if (selectedBoxes.length === 0) {
+        return alert('Please select at least one user to delete!');
+      }
+
+      if (!confirm(`Are you sure you want to delete the ${selectedBoxes.length} selected users? This will permanently delete all their chats and message histories.`)) {
+        return;
+      }
+
+      const userIds = Array.from(selectedBoxes).map(cb => cb.value);
+
+      try {
+        const res = await fetchWithAuth('/api/v1/admin/users', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emailIds: userIds })
+        });
+        const result = await res.json();
+
+        if (res.ok) {
+          alert(result.message);
+          refreshData();
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+      } catch (err) {
+        alert(`Deletion failed: ${err.message}`);
+      }
+    }
+
+    // Delete single user
+    async function deleteSingleUser(emailId, userName) {
+      if (!confirm(`Are you sure you want to permanently delete user "${userName}"? This will delete all their conversations and message histories.`)) {
+        return;
+      }
+
+      try {
+        const res = await fetchWithAuth('/api/v1/admin/users', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emailIds: [emailId] })
+        });
+        const result = await res.json();
+
+        if (res.ok) {
+          alert(`User "${userName}" deleted successfully!`);
+          refreshData();
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+      } catch (err) {
+        alert(`Deletion failed: ${err.message}`);
+      }
+    }
+
+    // Create Agent Submit
+    formAgent.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = agentIdInput.value.trim();
+      const emailId = agentEmailIdInput.value.trim();
+      const password = agentPasswordInput.value;
+      const name = agentNameInput.value.trim();
+
+      try {
+        const res = await fetchWithAuth('/api/v1/admin/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, name, emailId, password })
+        });
+        const result = await res.json();
+        
+        if (res.ok) {
+          agentIdInput.value = '';
+          agentEmailIdInput.value = '';
+          agentPasswordInput.value = '';
+          agentNameInput.value = '';
+          alert(`Agent "${result.agent.name}" created successfully!`);
+          refreshData();
+          switchAdminTab('agents');
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+      } catch (err) {
+        alert(`Request failed: ${err.message}`);
+      }
+    });
+
+    // Create User Submit
+    formUser.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = emailIdInput.value.trim();
+      const password = userPasswordInput.value;
+      const name = userNameInput.value.trim();
+      const mob = userMobInput ? userMobInput.value.trim() : '';
+      const agentId = userAgentSelect.value;
+
+      try {
+        const res = await fetchWithAuth('/api/v1/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, emailId: id, name, mob, agentId, password })
+        });
+        const result = await res.json();
+
+        if (res.ok) {
+          emailIdInput.value = '';
+          userPasswordInput.value = '';
+          userNameInput.value = '';
+          userAgentSelect.value = '';
+          alert(`User "${result.user.name}" created and assigned successfully!`);
+          refreshData();
+          switchAdminTab('users');
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+      } catch (err) {
+        alert(`Request failed: ${err.message}`);
+      }
+    });
+
+    // Open Chat Portal helper
+    async function openChat(emailId, role, name, openNewWindow = false) {
+      try {
+        // Save current agent identity before switching session
+        const currentIdentity = localStorage.getItem('chat_identity');
+        if (currentIdentity) {
+          try {
+            const parsed = JSON.parse(currentIdentity);
+            if (parsed && (parsed.role === 'agent' || parsed.role === 'admin')) {
+              localStorage.setItem('agent_identity', currentIdentity);
+            }
+          } catch (e) {
+            console.error('Failed to save agent identity:', e);
+          }
+        }
+
+        const res = await fetchWithAuth('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emailId, role, name })
+        });
+        const authData = await res.json();
+
+        if (res.ok) {
+          localStorage.setItem('chat_identity', JSON.stringify({
+            role: authData.user.role,
+            token: authData.token,
+            user: authData.user
+          }));
+
+          if (openNewWindow) {
+            window.open('/chat/chat.html', '_blank');
+          } else {
+            window.location.href = '/chat/chat.html';
+          }
+        } else {
+          alert(`Authentication failed: ${authData.error}`);
+        }
+      } catch (err) {
+        alert(`Login failed: ${err.message}`);
+      }
+    }
+
+    async function showProfileModal() {
+      const cached = localStorage.getItem('chat_identity');
+      if (!cached) return;
+      try {
+        const parsed = JSON.parse(cached);
+        const user = parsed.user || {};
+        
+        document.getElementById('modalProfileImg').src = formatAvatarUrl(user.avatar) || 'view/images/avatar.avif';
+        document.getElementById('modalProfileName').textContent = user.name || 'User';
+        
+        const roleBadge = document.getElementById('modalProfileRoleBadge');
+        roleBadge.textContent = user.role || parsed.role || 'Player';
+        if (user.role === 'agent') {
+          roleBadge.style.background = '#e8f5e9';
+          roleBadge.style.color = '#2e7d32';
+        } else if (user.role === 'admin') {
+          roleBadge.style.background = '#fff3e0';
+          roleBadge.style.color = '#ef6c00';
+        } else {
+          roleBadge.style.background = '#e1f5fe';
+          roleBadge.style.color = '#0288d1';
+        }
+
+        document.getElementById('modalProfilePhone').textContent = user.mob || user.mobile || 'Not Provided';
+        document.getElementById('modalProfileEmail').textContent = user.emailId || user.email || 'Not Provided';
+        
+        const agentRow = document.getElementById('modalProfileAgentRow');
+        if (user.role === 'user' && user.agentId) {
+          agentRow.style.display = 'flex';
+          document.getElementById('modalProfileAgent').textContent = user.agentId;
+        } else {
+          agentRow.style.display = 'none';
+        }
+        
+        const modal = document.getElementById('profileModal');
+        modal.style.display = 'flex';
+        setTimeout(() => {
+          modal.style.opacity = '1';
+          modal.querySelector('.profile-modal-card').style.transform = 'scale(1)';
+        }, 10);
+
+        // Fetch live profile from MySQL via /api/v1/auth/me
+        const token = getToken();
+        if (token) {
+          try {
+            const meRes = await fetch('/api/v1/auth/me', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (meRes.ok) {
+              const meData = await meRes.json();
+              if (meData && meData.user) {
+                const freshUser = meData.user;
+                if (freshUser.mob) {
+                  document.getElementById('modalProfilePhone').textContent = freshUser.mob;
+                }
+                if (freshUser.avatar || freshUser.img) {
+                  document.getElementById('modalProfileImg').src = formatAvatarUrl(freshUser.avatar || freshUser.img) || 'view/images/avatar.avif';
+                }
+                if (freshUser.name) {
+                  document.getElementById('modalProfileName').textContent = freshUser.name;
+                }
+
+                // Cache fresh user in localStorage
+                user.mob = freshUser.mob || user.mob;
+                user.avatar = freshUser.avatar || freshUser.img || user.avatar;
+                user.name = freshUser.name || user.name;
+                parsed.user = user;
+                localStorage.setItem('chat_identity', JSON.stringify(parsed));
+              }
+            }
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.error('Error opening profile modal:', err);
+      }
+    }
+
+    function closeProfileModal() {
+      const modal = document.getElementById('profileModal');
+      if (!modal) return;
+      modal.style.opacity = '0';
+      modal.querySelector('.profile-modal-card').style.transform = 'scale(0.9)';
+      setTimeout(() => {
+        modal.style.display = 'none';
+      }, 250);
+    }
+  </script>
+
+  <!-- Profile Modal -->
+  <div id="profileModal" class="profile-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(10px); z-index: 10000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.25s ease; padding: 1rem;">
+    <div class="profile-modal-card" style="background: #ffffff; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); width: 100%; max-width: 650px; overflow: hidden; transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid rgba(0,0,0,0.05); display: flex; flex-direction: column; position: relative;">
+      
+      <button onclick="closeProfileModal()" style="position: absolute; top: 16px; right: 16px; background: rgba(0,0,0,0.05); border: none; width: 32px; height: 32px; border-radius: 50%; color: #333333; font-size: 1rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 10;" onmouseover="this.style.background='rgba(0,0,0,0.1)'" onmouseout="this.style.background='rgba(0,0,0,0.05)'">✕</button>
+
+      <div class="profile-modal-split" style="display: flex; flex-direction: row; min-height: 380px;">
+        
+        <!-- Left Pane: Picture & Header Banner -->
+        <div style="flex: 1; min-width: 240px; background: linear-gradient(135deg, var(--primary, #008069), var(--primary-hover, #016b57)); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1.5rem; text-align: center; color: #ffffff;">
+          <div style="width: 160px; height: 160px; border-radius: 50%; border: 5px solid rgba(255,255,255,0.25); overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); background: #ffffff; margin-bottom: 1rem;">
+            <img id="modalProfileImg" src="view/images/avatar.avif" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.src='view/images/avatar.avif';" />
+          </div>
+          <h3 id="modalProfileName" style="font-size: 1.4rem; font-weight: 700; margin: 0; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.15);">Name</h3>
+          <span id="modalProfileRoleBadge" style="background: rgba(255,255,255,0.2); color: #ffffff; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; padding: 0.3rem 0.8rem; border-radius: 20px; margin-top: 0.5rem; letter-spacing: 0.05em; border: 1px solid rgba(255,255,255,0.3);">Role</span>
+        </div>
+
+        <!-- Right Pane: Details -->
+        <div style="flex: 1.3; padding: 2.5rem 2rem; display: flex; flex-direction: column; justify-content: center; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+          <h4 style="font-size: 1.1rem; font-weight: 700; color: #1e293b; margin: 0 0 1.5rem 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.5rem; letter-spacing: -0.01em;">Account Information</h4>
+          
+          <div style="display: flex; flex-direction: column; gap: 1.2rem;">
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+              <span style="font-size: 1.5rem; line-height: 1.2;">📱</span>
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 0.7rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">Mobile Number</span>
+                <span id="modalProfilePhone" style="font-size: 0.95rem; font-weight: 600; color: #1e293b;">Not Provided</span>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+              <span style="font-size: 1.5rem; line-height: 1.2;">✉️</span>
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 0.7rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">Email / ID</span>
+                <span id="modalProfileEmail" style="font-size: 0.95rem; font-weight: 600; color: #1e293b;">Not Provided</span>
+              </div>
+            </div>
+
+            <div id="modalProfileAgentRow" style="display: flex; align-items: flex-start; gap: 1rem;">
+              <span style="font-size: 1.5rem; line-height: 1.2;">🛡️</span>
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 0.7rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">Agent/Agency Code</span>
+                <span id="modalProfileAgent" style="font-size: 0.95rem; font-weight: 600; color: #1e293b;">Not Assigned</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -11,11 +11,16 @@ import '../../../storage/local_storage_repository.dart';
 import '../../../storage/secure_storage_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/common/app_logout_dialog.dart';
+import '../../../utils/validators.dart';
 import 'widgets/payment_account_widget.dart';
 
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
+
+  static void showUpdatePasswordDialog(BuildContext context) {
+    _UserProfileScreenState.showUpdatePasswordDialog(context);
+  }
 
   @override
   State<UserProfileScreen> createState() => _UserProfileScreenState();
@@ -135,121 +140,194 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
-            return AlertDialog(
-              backgroundColor: isDark ? const Color(0xFF1E1B2E) : Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.edit_note_rounded, color: AppColors.primary),
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 520),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF070D22),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: const Color(0xFF0066FF).withValues(alpha: 0.6),
+                    width: 1.5,
                   ),
-                  const SizedBox(width: 12),
-                  const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Full Name',
-                        prefixIcon: const Icon(Icons.person_outline_rounded),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: 'Phone Number',
-                        prefixIcon: const Icon(Icons.phone_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        labelText: 'Email Address',
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+                      blurRadius: 20,
+                      spreadRadius: 2,
                     ),
                   ],
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header with Cyan Icon Badge matching Update Password
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0066FF).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.edit_note_rounded,
+                              color: Color(0xFF00B2FF),
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Text(
+                              'Edit Profile',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, color: Colors.white60),
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // FULL NAME
+                      _buildProfileInput(
+                        controller: nameCtrl,
+                        label: 'FULL NAME',
+                        hint: 'Enter your full name',
+                        icon: Icons.person_outline_rounded,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // PHONE NUMBER
+                      _buildProfileInput(
+                        controller: phoneCtrl,
+                        label: 'PHONE NUMBER',
+                        hint: '10-digit Phone Number',
+                        icon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                        maxLength: 10,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // EMAIL ADDRESS
+                      _buildProfileInput(
+                        controller: emailCtrl,
+                        label: 'EMAIL ADDRESS',
+                        hint: 'Enter email address',
+                        icon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Save Changes Pill Button
+                      Center(
+                        child: SizedBox(
+                          width: 220,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: isSaving
+                                ? null
+                                : () async {
+                                    final nameVal = nameCtrl.text.trim();
+                                    final phoneVal = phoneCtrl.text.trim();
+                                    final emailVal = emailCtrl.text.trim();
+
+                                    if (nameVal.isEmpty || phoneVal.isEmpty) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Name and Phone cannot be empty.'),
+                                          backgroundColor: Colors.redAccent,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    final phoneErr = Validators.validatePhone(phoneVal);
+                                    if (phoneErr != null) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(phoneErr),
+                                          backgroundColor: Colors.redAccent,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    setDialogState(() => isSaving = true);
+                                    final authProv = Provider.of<AuthProvider>(context, listen: false);
+                                    final success = await authProv.updateUserProfile(
+                                      name: nameVal,
+                                      email: emailVal,
+                                      phone: phoneVal,
+                                    );
+
+                                    if (!context.mounted) return;
+                                    Navigator.of(ctx).pop();
+
+                                    if (success) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('User profile updated successfully!'),
+                                          backgroundColor: Color(0xFF10B981),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(authProv.errorMessage ?? 'Failed to update profile.'),
+                                          backgroundColor: Colors.redAccent,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2C2F36),
+                              foregroundColor: const Color(0xFFFFD700),
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(26),
+                              ),
+                            ),
+                            child: isSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(color: Color(0xFFFFD700), strokeWidth: 2),
+                                  )
+                                : const Text(
+                                    'Save Changes',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFFFD700),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          final nameVal = nameCtrl.text.trim();
-                          final phoneVal = phoneCtrl.text.trim();
-                          final emailVal = emailCtrl.text.trim();
-
-                          if (nameVal.isEmpty || phoneVal.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Name and Phone cannot be empty.')),
-                            );
-                            return;
-                          }
-
-                          setDialogState(() => isSaving = true);
-                          final authProv = Provider.of<AuthProvider>(context, listen: false);
-                          final success = await authProv.updateUserProfile(
-                            name: nameVal,
-                            email: emailVal,
-                            phone: phoneVal,
-                          );
-
-                          if (!context.mounted) return;
-                          Navigator.of(ctx).pop();
-
-                          if (success) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('User profile updated successfully!'),
-                                backgroundColor: Color(0xFF10B981),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(authProv.errorMessage ?? 'Failed to update profile.'),
-                                backgroundColor: Colors.red,
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        },
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Text('Save Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
-              ],
+              ),
             );
           },
         );
@@ -279,7 +357,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  void _showUpdatePasswordDialog(BuildContext context) {
+  static void showUpdatePasswordDialog(BuildContext context) {
     final oldPassCtrl = TextEditingController();
     final newPassCtrl = TextEditingController();
     final confirmPassCtrl = TextEditingController();
@@ -303,19 +381,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 constraints: const BoxConstraints(maxWidth: 520),
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF14102B) : Colors.white,
+                  color: const Color(0xFF070D22),
                   borderRadius: BorderRadius.circular(28),
                   border: Border.all(
-                    color: isDark
-                        ? const Color(0xFF7C3AED).withValues(alpha: 0.5)
-                        : const Color(0xFFE2E8F0),
+                    color: const Color(0xFF0066FF).withValues(alpha: 0.6),
                     width: 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: isDark
-                          ? const Color(0xFF7C3AED).withValues(alpha: 0.25)
-                          : Colors.black.withValues(alpha: 0.08),
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.25),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -504,7 +578,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  Widget _buildPasswordInput({
+  static Widget _buildPasswordInput({
     required TextEditingController controller,
     required String label,
     required String hint,
@@ -517,8 +591,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: isDark ? Colors.white60 : const Color(0xFF475569),
+          style: const TextStyle(
+            color: Color(0xFF00B2FF),
             fontSize: 11.5,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.5,
@@ -528,17 +602,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         TextField(
           controller: controller,
           obscureText: obscureText,
-          style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 14),
+          cursorColor: const Color(0xFF00B2FF),
+          style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 13.5),
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 13.5),
             filled: true,
-            fillColor: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF1F5F9),
+            fillColor: const Color(0xFF050B1E),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             suffixIcon: IconButton(
               icon: Icon(
                 obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: isDark ? Colors.white54 : Colors.grey[600],
+                color: const Color(0xFF00B2FF),
                 size: 20,
               ),
               onPressed: onToggleObscure,
@@ -546,12 +621,67 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: isDark ? const Color(0xFF2E2756) : const Color(0xFFE2E8F0),
+                color: const Color(0xFF0066FF).withValues(alpha: 0.4),
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFF97316), width: 1.5),
+              borderSide: const BorderSide(color: Color(0xFF00B2FF), width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Widget _buildProfileInput({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    TextInputType? keyboardType,
+    int? maxLength,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF00B2FF),
+            fontSize: 11.5,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLength: maxLength,
+          cursorColor: const Color(0xFF00B2FF),
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 13.5),
+            counterText: '',
+            filled: true,
+            fillColor: const Color(0xFF050B1E),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            prefixIcon: Icon(
+              icon,
+              color: const Color(0xFF00B2FF),
+              size: 20,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF00B2FF), width: 1.5),
             ),
           ),
         ),
@@ -644,7 +774,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const isDark = true;
     final user = authProvider.currentUser;
 
     final userName = user?.name ?? 'Apex Premier User';
@@ -653,7 +783,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final userId = user?.id ?? 'USR-888-9921';
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F0C20) : const Color(0xFFF7F7FD),
+      backgroundColor: const Color(0xFF070D22),
       body: SafeArea(
         child: Column(
           children: [
@@ -661,9 +791,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFF0C0720),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF050B1E),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
+                border: Border.all(
+                  color: const Color(0xFF0066FF).withValues(alpha: 0.4),
+                  width: 1,
+                ),
               ),
               child: Row(
                 children: [
@@ -771,15 +905,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E2128) : Colors.white,
+                color: const Color(0xFF0D1736),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE2E8F0),
+                  color: const Color(0xFF0066FF).withValues(alpha: 0.4),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-                    blurRadius: 12,
+                    color: const Color(0xFF0066FF).withValues(alpha: 0.15),
+                    blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
                 ],
@@ -799,7 +933,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ),
                         child: CircleAvatar(
                           radius: 42,
-                          backgroundColor: isDark ? const Color(0xFF2C2F36) : const Color(0xFFF1F5F9),
+                          backgroundColor: const Color(0xFF0D1736),
                           child: Text(
                             userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
                             style: const TextStyle(
@@ -837,7 +971,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   const SizedBox(height: 14),
                   Text(
                     userName,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -938,15 +1072,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             // 3. Read-Only Account Details Section
             const Text(
               'Account Information',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00B2FF)),
             ),
             const SizedBox(height: 10),
             Container(
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E2128) : Colors.white,
+                color: const Color(0xFF0D1736),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE2E8F0),
+                  color: const Color(0xFF0066FF).withValues(alpha: 0.4),
                 ),
               ),
               child: Column(
@@ -987,7 +1121,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             // 4. Payment Account Settings Section (Two Compact Action Buttons)
             const Text(
               'Payment & Bank Settings',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF00B2FF)),
             ),
             const SizedBox(height: 8),
             Row(
@@ -1077,13 +1211,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             // Quick Actions (Update Password, Delete Account, Logout)
             const Text(
               'Quick Actions',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00B2FF)),
             ),
             const SizedBox(height: 10),
 
             // Update Password Action Button
             InkWell(
-              onTap: () => _showUpdatePasswordDialog(context),
+              onTap: () => showUpdatePasswordDialog(context),
               borderRadius: BorderRadius.circular(16),
               child: Container(
                 padding: const EdgeInsets.all(16),
@@ -1211,10 +1345,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E2128) : Colors.white,
+          color: const Color(0xFF0D1736),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE2E8F0),
+            color: const Color(0xFF0066FF).withValues(alpha: 0.4),
           ),
         ),
         child: Row(

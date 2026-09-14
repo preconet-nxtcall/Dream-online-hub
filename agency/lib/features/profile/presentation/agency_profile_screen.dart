@@ -101,27 +101,28 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF1F1403),
+                        borderRadius: BorderRadius.circular(10),
+                        color: const Color(0xFF0E0921),
                         border: Border.all(
-                          color: const Color(0xFFF59E0B),
+                          color: const Color(0xFF00B2FF),
                           width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
+                            color: const Color(0xFF00B2FF).withValues(alpha: 0.45),
                             blurRadius: 10,
                             offset: const Offset(0, 2),
                           ),
                         ],
                       ),
                       alignment: Alignment.center,
-                      child: ClipOval(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
                         child: Image.asset(
                           'assets/icons/app_logo.png',
                           width: 44,
                           height: 44,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),

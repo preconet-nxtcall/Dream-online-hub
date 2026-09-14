@@ -42,14 +42,15 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> fetchGames() async {
-    _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
 
     try {
-      _games = await _gameRepository.fetchGames();
+      final fetchedGames = await _gameRepository.fetchGames();
+      _games = fetchedGames;
     } catch (e) {
-      _errorMessage = 'Failed to load games. Tap to refresh.';
+      if (_games.isEmpty) {
+        _errorMessage = 'Failed to load games. Tap to refresh.';
+      }
     } finally {
       _isLoading = false;
       notifyListeners();

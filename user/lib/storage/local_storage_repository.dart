@@ -38,6 +38,10 @@ abstract class LocalStorageRepository {
   // Recharge Persistence
   Future<void> saveSubmittedRecharge(dynamic record);
   List<dynamic> getSubmittedRecharges();
+
+  // Seen Notification Keys
+  Set<String> getSeenNotificationKeys();
+  Future<void> saveSeenNotificationKeys(Set<String> keys);
 }
 
 class LocalStorageRepositoryImpl implements LocalStorageRepository {
@@ -53,6 +57,7 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
   static const String _recentChatsKey = 'recent_chats_list';
   static const String _themeModeKey = 'app_theme_mode';
   static const String _offlineQueueKey = 'offline_pending_queue';
+  static const String _seenNotificationKeysKey = 'seen_notification_keys';
 
   @override
   Future<void> saveUser(UserModel user) async {
@@ -329,4 +334,27 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
     }
     return [];
   }
+
+  @override
+  Set<String> getSeenNotificationKeys() {
+    final box = _storageService.settingsBox;
+    if (box == null) return {};
+    final raw = box.get(_seenNotificationKeysKey);
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        final List list = jsonDecode(raw);
+        return list.map((e) => e.toString()).toSet();
+      } catch (_) {}
+    }
+    return {};
+  }
+
+  @override
+  Future<void> saveSeenNotificationKeys(Set<String> keys) async {
+    final box = _storageService.settingsBox;
+    if (box == null) return;
+    await box.put(_seenNotificationKeysKey, jsonEncode(keys.toList()));
+  }
 }
+
+

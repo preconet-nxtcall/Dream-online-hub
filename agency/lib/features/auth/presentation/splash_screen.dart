@@ -97,44 +97,44 @@ class _SplashScreenState extends State<SplashScreen>
                   child: Column(
                     children: [
                       Container(
-                        width: 90,
-                        height: 90,
+                        width: 105,
+                        height: 105,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(24),
                           color: const Color(0xFF0E0921),
                           border: Border.all(
-                            color: const Color(0xFFFFC700),
-                            width: 2.5,
+                            color: const Color(0xFF00B2FF),
+                            width: 2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFFC700).withValues(alpha: 0.4),
+                              color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
                               blurRadius: 28,
                               spreadRadius: 2,
                             ),
                             BoxShadow(
-                              color: const Color(0xFF7C3AED).withValues(alpha: 0.5),
+                              color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
                               blurRadius: 40,
-                              spreadRadius: 4,
+                              spreadRadius: 2,
                             ),
                           ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(45),
+                          borderRadius: BorderRadius.circular(22),
                           child: Image.asset(
                             'assets/images/app_logo.png',
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                           ),
                         ),
                       ),
                       const SizedBox(height: 24),
 
-                      // FairBiz Agency CRM Branding Title
+                      // DreamHub Agency CRM Branding Title
                       RichText(
                         text: TextSpan(
                           children: [
                             TextSpan(
-                              text: 'Fair',
+                              text: 'Dream',
                               style: GoogleFonts.plusJakartaSans(
                                 color: Colors.white,
                                 fontSize: 36,
@@ -143,15 +143,15 @@ class _SplashScreenState extends State<SplashScreen>
                               ),
                             ),
                             TextSpan(
-                              text: 'Biz',
+                              text: 'Hub',
                               style: GoogleFonts.plusJakartaSans(
-                                color: const Color(0xFFFF9900),
+                                color: const Color(0xFF00B2FF),
                                 fontSize: 36,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: -0.5,
                                 shadows: [
                                   Shadow(
-                                    color: const Color(0xFFFF9900).withValues(alpha: 0.5),
+                                    color: const Color(0xFF00B2FF).withValues(alpha: 0.5),
                                     blurRadius: 14,
                                   ),
                                 ],
@@ -170,23 +170,23 @@ class _SplashScreenState extends State<SplashScreen>
                           color: const Color(0xFF1E1035),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: const Color(0xFFFF9900).withValues(alpha: 0.6),
+                            color: const Color(0xFF00B2FF).withValues(alpha: 0.6),
                             width: 1,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFF9900).withValues(alpha: 0.25),
+                              color: const Color(0xFF00B2FF).withValues(alpha: 0.25),
                               blurRadius: 10,
                             ),
                           ],
                         ),
                         child: Text(
-                          'AGENCY CRM',
+                          'DREAM ONLINE HUB AGENCY',
                           style: GoogleFonts.plusJakartaSans(
-                            color: const Color(0xFFFFC700),
-                            fontSize: 12,
+                            color: const Color(0xFF00B2FF),
+                            fontSize: 11,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: 2.0,
+                            letterSpacing: 1.5,
                           ),
                         ),
                       ),

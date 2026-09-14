@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>FairBiz Agency CRM</string>
+	<string>Dream Online Hub Agency</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,15 +15,15 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>FairBiz Agency</string>
+	<string>Dream Online Hub Agency</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>FairBiz Agency CRM needs microphone access to record and send voice messages to your assigned clients.</string>
+	<string>Dream Online Hub Agency needs microphone access to record and send voice messages to your assigned clients.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>FairBiz Agency CRM needs access to your photo library to share images in client conversations.</string>
+	<string>Dream Online Hub Agency needs access to your photo library to share images in client conversations.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>FairBiz Agency CRM needs camera access to take and send photos directly in client chats.</string>
+	<string>Dream Online Hub Agency needs camera access to take and send photos directly in client chats.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>FairBiz Agency CRM needs permission to save media files to your photo library.</string>
+	<string>Dream Online Hub Agency needs permission to save media files to your photo library.</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

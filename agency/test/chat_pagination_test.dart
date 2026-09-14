@@ -72,6 +72,7 @@ class MockChatRepository implements ChatRepository {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('WhatsApp-Style Chat Pagination Tests', () {
     late MockChatRepository mockRepo;
     late ChatProvider chatProvider;

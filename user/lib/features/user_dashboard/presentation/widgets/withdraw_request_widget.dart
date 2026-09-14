@@ -91,7 +91,8 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         final bool hasBankInfo = account.hasBankInfo;
         final bool isApproved = account.isApproved;
         final bool isPending = account.isPendingApproval;
-        final bool isValidApproved = (isApproved || (hasBankInfo && !isPending)) && hasBankInfo;
+        final bool isRejected = account.isRejected;
+        final bool isValidApproved = isApproved && hasBankInfo && !isRejected;
         final rawStatus = account.status.trim().toUpperCase();
 
         setState(() {
@@ -99,7 +100,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
           _isApprovedAccountAvailable = isValidApproved;
           _accountStatusText = rawStatus.isNotEmpty
               ? rawStatus
-              : (isPending ? 'PENDING' : (isValidApproved ? 'APPROVED' : 'NOT APPROVED'));
+              : (isPending ? 'PENDING' : (isRejected ? 'REJECTED' : (isValidApproved ? 'APPROVED' : 'NOT APPROVED')));
           _isLoadingAccount = false;
         });
 
@@ -1019,7 +1020,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF131C2E) : const Color(0xFFF0FDF4),
+          color: const Color(0xFF061B2E),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: const Color(0xFF10B981).withValues(alpha: 0.5),
@@ -1152,8 +1153,8 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isPending
-            ? (isDark ? const Color(0xFF2C2213) : const Color(0xFFFFFBEB))
-            : (isDark ? const Color(0xFF2D181A) : const Color(0xFFFEF2F2)),
+            ? const Color(0xFF1F1607)
+            : const Color(0xFF1F0A0C),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isPending
@@ -1205,10 +1206,10 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                       isPending
                           ? 'Your saved bank details are awaiting agency verification. Withdrawals will be enabled once approved.'
                           : 'First save bank details in Profile section before requesting withdrawal.',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        color: Colors.white70,
                         height: 1.3,
                       ),
                     ),
@@ -1358,17 +1359,17 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         children: [
           TextSpan(
             text: text,
-            style: TextStyle(
-              fontSize: 12,
+            style: const TextStyle(
+              fontSize: 11,
               fontWeight: FontWeight.w800,
+              color: Color(0xFF00B2FF),
               letterSpacing: 0.5,
-              color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
             ),
           ),
           const TextSpan(
-            text: '*',
+            text: ' *',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.bold,
               color: Color(0xFFEF4444),
             ),
@@ -1381,23 +1382,23 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
   Widget _buildOptionalLabel(String text, bool isDark) {
     return Text(
       text,
-      style: TextStyle(
-        fontSize: 12,
+      style: const TextStyle(
+        fontSize: 11,
         fontWeight: FontWeight.w800,
+        color: Color(0xFF00B2FF),
         letterSpacing: 0.5,
-        color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1A192B) : Colors.white;
-    final inputBg = isDark ? const Color(0xFF25233B) : const Color(0xFFF3F4F6);
-    final borderColor = isDark ? const Color(0xFF373454) : const Color(0xFFE5E7EB);
-    final hintColor = isDark ? const Color(0xFF82819A) : const Color(0xFF9CA3AF);
-    final textColor = isDark ? Colors.white : const Color(0xFF1F2937);
+    const isDark = true;
+    const cardBg = Color(0xFF070D22);
+    const inputBg = Color(0xFF050B1E);
+    final borderColor = const Color(0xFF0066FF).withValues(alpha: 0.4);
+    final hintColor = Colors.white.withValues(alpha: 0.4);
+    const textColor = Colors.white;
     final maxHeight = MediaQuery.of(context).size.height * 0.88;
 
     return Container(
@@ -1405,6 +1406,17 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(
+          color: const Color(0xFF0066FF).withValues(alpha: 0.6),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
@@ -1415,212 +1427,237 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            // Top Drag handle pill
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF403C5C) : const Color(0xFFD1D5DB),
-                  borderRadius: BorderRadius.circular(2),
+              // Top Drag handle pill
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 18),
+              const SizedBox(height: 18),
 
-            // Top Row: SELECT BOOK & WITHDRAW AMOUNT
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. SELECT BOOK* (Left Field)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel('SELECT BOOK', isDark),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 46,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: inputBg,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: borderColor, width: 1),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedBook,
-                            hint: Text(
-                              _books.isEmpty
-                                  ? 'No Book Account Available (Get ID First)'
-                                  : 'Select Book',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                color: _books.isEmpty
-                                    ? const Color(0xFFEF4444)
-                                    : hintColor,
-                                fontWeight: FontWeight.w500,
+              // Top Row: SELECT BOOK & WITHDRAW AMOUNT
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. SELECT BOOK* (Left Field)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLabel('SELECT BOOK', isDark),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 48,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: inputBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor, width: 1.2),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedBook,
+                              hint: Text(
+                                _books.isEmpty
+                                    ? 'No Book Account Available'
+                                    : 'Select Book',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: _books.isEmpty
+                                      ? const Color(0xFFEF4444)
+                                      : hintColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
+                              isExpanded: true,
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: Color(0xFF00B2FF),
+                                size: 20,
+                              ),
+                              dropdownColor: const Color(0xFF050B1E),
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                              ),
+                              onChanged: (val) {
+                                setState(() => _selectedBook = val);
+                                if (val != null) {
+                                  _onClickBook(val);
+                                }
+                              },
+                              items: [
+                                for (final book in _books)
+                                  DropdownMenuItem<String>(
+                                    value: book,
+                                    child: Text(book),
+                                  ),
+                              ],
                             ),
-                            isExpanded: true,
-                            icon: Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                              size: 20,
-                            ),
-                            dropdownColor: isDark ? const Color(0xFF25233B) : Colors.white,
-                            style: TextStyle(
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // 2. WITHDRAW AMOUNT* (Right Field)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLabel('WITHDRAW AMOUNT', isDark),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: inputBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor, width: 1.2),
+                          ),
+                          child: TextField(
+                            controller: _amountController,
+                            keyboardType: TextInputType.number,
+                            cursorColor: const Color(0xFF00B2FF),
+                            style: const TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w600,
                               color: textColor,
                             ),
-                            onChanged: (val) {
-                              setState(() => _selectedBook = val);
-                              if (val != null) {
-                                _onClickBook(val);
-                              }
-                            },
-                            items: [
-                              for (final book in _books)
-                                DropdownMenuItem<String>(
-                                  value: book,
-                                  child: Text(book),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // 2. WITHDRAW AMOUNT* (Right Field)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel('WITHDRAW AMOUNT', isDark),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: inputBg,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: borderColor, width: 1),
-                        ),
-                        child: TextField(
-                          controller: _amountController,
-                          keyboardType: TextInputType.number,
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Enter Amount',
-                            hintStyle: TextStyle(
-                              fontSize: 13.5,
-                              color: hintColor,
-                              fontWeight: FontWeight.w400,
+                            decoration: InputDecoration(
+                              hintText: 'Enter Amount',
+                              hintStyle: TextStyle(
+                                fontSize: 13.5,
+                                color: hintColor,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              filled: false,
+                              fillColor: Colors.transparent,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // 3. SAVED BANK DETAILS & QR CODE / APPROVAL NOTICE
-            _buildLabel('SAVED PAYOUT BANK ACCOUNT', isDark),
-            const SizedBox(height: 6),
-            _buildBankDetailsSection(isDark, inputBg, borderColor, hintColor, textColor),
-            const SizedBox(height: 16),
-
-            // 4. REMARKS / ADDITIONAL NOTES (Optional Multiline Field)
-            _buildOptionalLabel('REMARKS / ADDITIONAL NOTES (OPTIONAL)', isDark),
-            const SizedBox(height: 6),
-            Container(
-              decoration: BoxDecoration(
-                color: inputBg,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: borderColor, width: 1),
-              ),
-              child: TextField(
-                controller: _descriptionController,
-                maxLines: 2,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: textColor,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Add optional remarks or notes for withdrawal (optional)...',
-                  hintStyle: TextStyle(
-                    fontSize: 12.5,
-                    color: hintColor,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // 5. Centered Dark Button with Yellow Text: "Withdraw Request"
-            Center(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: _isSubmitting ? null : _submitForm,
-                  borderRadius: BorderRadius.circular(25),
-                  child: Container(
-                    width: double.infinity,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF2D2C44) : const Color(0xFF282738),
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.18),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    alignment: Alignment.center,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 3. SAVED BANK DETAILS & QR CODE / APPROVAL NOTICE
+              _buildLabel('SAVED PAYOUT BANK ACCOUNT', isDark),
+              const SizedBox(height: 6),
+              _buildBankDetailsSection(isDark, inputBg, borderColor, hintColor, textColor),
+              const SizedBox(height: 16),
+
+              // 4. REMARKS / ADDITIONAL NOTES (Optional Multiline Field)
+              _buildOptionalLabel('REMARKS / ADDITIONAL NOTES (OPTIONAL)', isDark),
+              const SizedBox(height: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: inputBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor, width: 1.2),
+                ),
+                child: TextField(
+                  controller: _descriptionController,
+                  maxLines: 2,
+                  cursorColor: const Color(0xFF00B2FF),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: textColor,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Add optional remarks or notes for withdrawal...',
+                    hintStyle: TextStyle(
+                      fontSize: 12.5,
+                      color: hintColor,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    filled: false,
+                    fillColor: Colors.transparent,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // 5. Electric Blue Gradient Submit Button: "Withdraw Request ->"
+              Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0077FF), Color(0xFF0044CE)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _isSubmitting ? null : _submitForm,
+                    borderRadius: BorderRadius.circular(26),
                     child: _isSubmitting
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              color: Color(0xFFFBBF24),
-                              strokeWidth: 2.5,
+                        ? const Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                             ),
                           )
-                        : const Text(
-                            'Withdraw Request',
-                            style: TextStyle(
-                              color: Color(0xFFFBBF24),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.3,
-                            ),
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Withdraw Request',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ],
                           ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }

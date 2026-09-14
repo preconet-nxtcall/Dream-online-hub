@@ -19,4 +19,16 @@ class Validators {
     }
     return null;
   }
+
+  static String? validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Phone number is required';
+    }
+    final cleanPhone = value.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    final phoneRegex = RegExp(r'^(?:\+91)?[0-9]{10}$');
+    if (!phoneRegex.hasMatch(cleanPhone)) {
+      return 'Please enter a valid 10-digit phone number';
+    }
+    return null;
+  }
 }

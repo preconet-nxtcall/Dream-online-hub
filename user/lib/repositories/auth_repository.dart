@@ -12,6 +12,8 @@ import '../utils/logger.dart';
 abstract class AuthRepository {
   Future<UserModel> login(String email, String password, {String portalType = 'agency'});
   Future<UserModel> register(String fullName, String email, String phone, String password);
+  Future<Map<String, dynamic>> sendOtp(String phone);
+  Future<bool> verifyOtp(String phone, String otp);
   Future<UserModel> updateUser({
     required String id,
     required String name,
@@ -201,6 +203,89 @@ class AuthRepositoryImpl implements AuthRepository {
       if (e is ServerException) rethrow;
       AppLogger.error('Register error: $e');
       throw ServerException(message: 'Registration failed. Please try again.');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> sendOtp(String phone) async {
+    final cleanPhone = phone.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    try {
+      final response = await _apiClient.post(
+        ApiEndpoints.register,
+        data: {
+          'action': 'send_otp',
+          'phone': cleanPhone,
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final successVal = data['success'];
+        final statusVal = data['status']?.toString().toLowerCase();
+        if (successVal == false || successVal == 'false' || successVal == 0 || statusVal == 'error' || statusVal == 'failed') {
+          throw ServerException(
+            message: data['message']?.toString() ?? 'Failed to send OTP.',
+            statusCode: 400,
+          );
+        }
+        return data;
+      }
+      throw ServerException(message: 'Invalid response format from server.');
+    } on NetworkException catch (e) {
+      AppLogger.error('sendOtp NetworkException: ${e.message} (status: ${e.statusCode})');
+      if (e.statusCode != null) {
+        throw ServerException(message: e.message, statusCode: e.statusCode);
+      }
+      throw ServerException(
+        message: 'Network error. Please check your internet connection and try again.',
+        statusCode: 503,
+      );
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      AppLogger.error('sendOtp error: $e');
+      throw ServerException(message: 'Failed to send OTP. Please try again.');
+    }
+  }
+
+  @override
+  Future<bool> verifyOtp(String phone, String otp) async {
+    final cleanPhone = phone.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    final cleanOtp = otp.trim();
+    try {
+      final response = await _apiClient.post(
+        ApiEndpoints.register,
+        data: {
+          'action': 'verify_otp',
+          'phone': cleanPhone,
+          'otp': cleanOtp,
+          'code': cleanOtp,
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final successVal = data['success'];
+        final statusVal = data['status']?.toString().toLowerCase();
+        if (successVal == false || successVal == 'false' || successVal == 0 || statusVal == 'error' || statusVal == 'failed') {
+          throw ServerException(
+            message: data['message']?.toString() ?? 'Invalid OTP code. Please try again.',
+            statusCode: 400,
+          );
+        }
+        return true;
+      }
+      throw ServerException(message: 'Invalid response format from server.');
+    } on NetworkException catch (e) {
+      AppLogger.error('verifyOtp NetworkException: ${e.message} (status: ${e.statusCode})');
+      if (e.statusCode != null) {
+        throw ServerException(message: e.message, statusCode: e.statusCode);
+      }
+      throw ServerException(
+        message: 'Network error. Please check your internet connection and try again.',
+        statusCode: 503,
+      );
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      AppLogger.error('verifyOtp error: $e');
+      throw ServerException(message: 'OTP verification failed. Please try again.');
     }
   }
 
