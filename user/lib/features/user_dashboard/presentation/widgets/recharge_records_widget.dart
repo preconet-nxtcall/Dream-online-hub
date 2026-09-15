@@ -706,14 +706,15 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
             const Divider(height: 1, thickness: 0.8),
             const SizedBox(height: 16),
 
-            // 3. Search & Showing Dropdown Controls
+            // 3. Search & Showing Dropdown Controls (Adaptive Layout)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  // Search Input Field
-                  Expanded(
-                    child: Container(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final bool isNarrow = constraints.maxWidth < 360;
+
+                  Widget buildSearchInput() {
+                    return Container(
                       height: 42,
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF050B1E) : const Color(0xFFF8FAFC),
@@ -750,65 +751,86 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                           contentPadding: const EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
+                    );
+                  }
 
-                  // Showing Dropdown
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Showing',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        height: 38,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF050B1E) : const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF0066FF).withValues(alpha: 0.4) : const Color(0xFFCBD5E1),
-                            width: 1,
+                  Widget buildShowingDropdown() {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Showing',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int>(
-                            value: _pageSize,
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF00B2FF)),
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
+                        const SizedBox(width: 8),
+                        Container(
+                          height: 38,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF050B1E) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF0066FF).withValues(alpha: 0.4) : const Color(0xFFCBD5E1),
+                              width: 1,
                             ),
-                            dropdownColor: isDark ? const Color(0xFF070D22) : Colors.white,
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() {
-                                  _pageSize = val;
-                                  _currentPage = 1;
-                                });
-                              }
-                            },
-                            items: [
-                              for (final size in [5, 10, 15, 25, 50])
-                                DropdownMenuItem<int>(
-                                  value: size,
-                                  child: Text('$size'),
-                                ),
-                            ],
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<int>(
+                              value: _pageSize,
+                              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF00B2FF)),
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                              dropdownColor: isDark ? const Color(0xFF070D22) : Colors.white,
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _pageSize = val;
+                                    _currentPage = 1;
+                                  });
+                                }
+                              },
+                              items: [
+                                for (final size in [5, 10, 15, 25, 50])
+                                  DropdownMenuItem<int>(
+                                    value: size,
+                                    child: Text('$size'),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
+                    );
+                  }
+
+                  if (isNarrow) {
+                    return Column(
+                      children: [
+                        buildSearchInput(),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: buildShowingDropdown(),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: buildSearchInput()),
+                      const SizedBox(width: 16),
+                      buildShowingDropdown(),
                     ],
-                  ),
-                ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: 16),
@@ -832,11 +854,13 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                     flex: 3,
                     child: Text(
                       '# / BOOK NAME',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                         color: isDark ? const Color(0xFF00B2FF) : const Color(0xFF475569),
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                       ),
                     ),
                   ),
@@ -844,11 +868,13 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                     flex: 4,
                     child: Text(
                       'TRANSACTION DETAILS',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                         color: isDark ? const Color(0xFF00B2FF) : const Color(0xFF475569),
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                       ),
                     ),
                   ),
@@ -857,11 +883,13 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                     child: Text(
                       'STATUS & DATE',
                       textAlign: TextAlign.end,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                         color: isDark ? const Color(0xFF00B2FF) : const Color(0xFF475569),
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                       ),
                     ),
                   ),
@@ -1092,17 +1120,20 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                                 }
 
                                 return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                                   decoration: BoxDecoration(
                                     color: badgeBg,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Text(
-                                    displayLabel,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: badgeFg,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      displayLabel,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: badgeFg,
+                                      ),
                                     ),
                                   ),
                                 );
@@ -1189,91 +1220,112 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           ),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Record counter (e.g. "Showing 1-5 of 24")
-          Text(
-            'Showing $startRecord-$endRecord of $totalRecords',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final bool isNarrow = constraints.maxWidth < 360;
 
-          // Pagination Page Controls: [<] [1] [2] [3] [>]
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Previous Page Button
-              IconButton(
-                icon: const Icon(Icons.chevron_left_rounded, size: 20),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                color: _currentPage > 1
-                    ? const Color(0xFFF97316)
-                    : (isDark ? Colors.white24 : Colors.black26),
-                onPressed: _currentPage > 1
-                    ? () => setState(() => _currentPage--)
-                    : null,
+          Widget buildCounterText() {
+            return Text(
+              'Showing $startRecord-$endRecord of $totalRecords',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
-              const SizedBox(width: 2),
+            );
+          }
 
-              // Page Number Buttons
-              for (int p = 1; p <= totalPages; p++)
-                if (p == 1 ||
-                    p == totalPages ||
-                    (p >= _currentPage - 1 && p <= _currentPage + 1))
-                  GestureDetector(
-                    onTap: () => setState(() => _currentPage = p),
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: _currentPage == p
-                            ? const Color(0xFF0066FF)
-                            : (isDark ? const Color(0xFF050B1E) : const Color(0xFFE2E8F0)),
-                        borderRadius: BorderRadius.circular(8),
-                        border: _currentPage == p
-                            ? null
-                            : Border.all(
-                                color: isDark
-                                    ? const Color(0xFF0066FF).withValues(alpha: 0.3)
-                                    : Colors.transparent,
-                              ),
-                      ),
-                      child: Text(
-                        '$p',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
+          Widget buildPageControls() {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Previous Page Button
+                IconButton(
+                  icon: const Icon(Icons.chevron_left_rounded, size: 20),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  color: _currentPage > 1
+                      ? const Color(0xFFF97316)
+                      : (isDark ? Colors.white24 : Colors.black26),
+                  onPressed: _currentPage > 1
+                      ? () => setState(() => _currentPage--)
+                      : null,
+                ),
+                const SizedBox(width: 2),
+
+                // Page Number Buttons
+                for (int p = 1; p <= totalPages; p++)
+                  if (p == 1 ||
+                      p == totalPages ||
+                      (p >= _currentPage - 1 && p <= _currentPage + 1))
+                    GestureDetector(
+                      onTap: () => setState(() => _currentPage = p),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
                           color: _currentPage == p
-                              ? Colors.white
-                              : (isDark ? Colors.white70 : const Color(0xFF475569)),
+                              ? const Color(0xFF0066FF)
+                              : (isDark ? const Color(0xFF050B1E) : const Color(0xFFE2E8F0)),
+                          borderRadius: BorderRadius.circular(8),
+                          border: _currentPage == p
+                              ? null
+                              : Border.all(
+                                  color: isDark
+                                      ? const Color(0xFF0066FF).withValues(alpha: 0.3)
+                                      : Colors.transparent,
+                                ),
+                        ),
+                        child: Text(
+                          '$p',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: _currentPage == p
+                                ? Colors.white
+                                : (isDark ? Colors.white70 : const Color(0xFF475569)),
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
-              const SizedBox(width: 2),
-              // Next Page Button
-              IconButton(
-                icon: const Icon(Icons.chevron_right_rounded, size: 20),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                color: _currentPage < totalPages
-                    ? const Color(0xFFF97316)
-                    : (isDark ? Colors.white24 : Colors.black26),
-                onPressed: _currentPage < totalPages
-                    ? () => setState(() => _currentPage++)
-                    : null,
-              ),
+                const SizedBox(width: 2),
+                // Next Page Button
+                IconButton(
+                  icon: const Icon(Icons.chevron_right_rounded, size: 20),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  color: _currentPage < totalPages
+                      ? const Color(0xFFF97316)
+                      : (isDark ? Colors.white24 : Colors.black26),
+                  onPressed: _currentPage < totalPages
+                      ? () => setState(() => _currentPage++)
+                      : null,
+                ),
+              ],
+            );
+          }
+
+          if (isNarrow) {
+            return Column(
+              children: [
+                buildCounterText(),
+                const SizedBox(height: 8),
+                buildPageControls(),
+              ],
+            );
+          }
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              buildCounterText(),
+              buildPageControls(),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1302,7 +1354,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
             gradient: isSelected ? activeGradient : null,
             color: isSelected
@@ -1333,20 +1385,24 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
             children: [
               Icon(
                 icon,
-                size: 18,
+                size: 17,
                 color: isSelected
                     ? Colors.white
                     : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
               ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  color: isSelected
-                      ? Colors.white
-                      : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected
+                        ? Colors.white
+                        : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
+                  ),
                 ),
               ),
             ],

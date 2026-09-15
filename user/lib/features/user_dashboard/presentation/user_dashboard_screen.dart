@@ -17,7 +17,6 @@ import '../../../storage/secure_storage_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../widgets/common/app_logout_dialog.dart';
-import '../../../widgets/common/draggable_chat_button.dart';
 import '../../profile/presentation/user_profile_screen.dart';
 import 'widgets/banner_carousel_widget.dart';
 import 'widgets/game_card_widget.dart';
@@ -82,7 +81,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       final prefix = isWithdraw ? 'W' : 'R';
 
       if (id.isNotEmpty) {
-        final key = '${prefix}_${id}_$status';
+        final cleanId = id.replaceAll(RegExp(r'^[RW]_?'), '');
+        final key = '${prefix}_${cleanId}_$status';
         allKeys.add(key);
         if (!_seenNotificationKeys.contains(key)) {
           unseenCount++;
@@ -349,42 +349,48 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Notifications',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  if (_rechargeNotificationCount > 0) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF0066FF).withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: const Color(0xFF00B2FF).withValues(alpha: 0.5)),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      'Notifications',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
                                       ),
-                                      child: Text(
-                                        _rechargeNotificationCount > 99
-                                            ? '99+ New'
-                                            : '$_rechargeNotificationCount New',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF00B2FF),
+                                    ),
+                                    if (_rechargeNotificationCount > 0) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF0066FF).withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: const Color(0xFF00B2FF).withValues(alpha: 0.5)),
+                                        ),
+                                        child: Text(
+                                          _rechargeNotificationCount > 99
+                                              ? '99+ New'
+                                              : '$_rechargeNotificationCount New',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF00B2FF),
+                                          ),
                                         ),
                                       ),
-                                    ),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
                               const SizedBox(height: 1),
                               Text(
                                 'Recharge & Withdrawal status updates',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.white.withValues(alpha: 0.6),
@@ -578,81 +584,84 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
               // Center: DreamHub App Logo & Title
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        color: const Color(0xFF031A5E),
-                        border: Border.all(
-                          color: const Color(0xFF00B2FF),
-                          width: 1.2,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: const Color(0xFF031A5E),
+                          border: Border.all(
+                            color: const Color(0xFF00B2FF),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
+                              blurRadius: 10,
+                            ),
+                          ],
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
-                            blurRadius: 10,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.asset(
+                            'assets/images/app_logo.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Dream',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'Hub',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFF00B2FF),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.5,
+                                    shadows: [
+                                      Shadow(
+                                        color: const Color(0xFF00B2FF).withValues(alpha: 0.6),
+                                        blurRadius: 10,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '— Dream Online Hub —',
+                            style: GoogleFonts.outfit(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.0,
+                            ),
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          'assets/images/app_logo.png',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        RichText(
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: 'Dream',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                              TextSpan(
-                                text: 'Hub',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: const Color(0xFF00B2FF),
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.5,
-                                  shadows: [
-                                    Shadow(
-                                      color: const Color(0xFF00B2FF).withValues(alpha: 0.6),
-                                      blurRadius: 10,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '— Dream Online Hub —',
-                          style: GoogleFonts.outfit(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
@@ -760,16 +769,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             ],
           ),
         ),
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            SafeArea(
-              child: _buildSelectedTabBody(gameProvider, isDark),
-            ),
-            DraggableFloatingChatButton(
-              onTap: () => _onOpenChat(),
-            ),
-          ],
+        body: SafeArea(
+          child: _buildSelectedTabBody(gameProvider, isDark),
         ),
         bottomNavigationBar: _buildReferenceBottomNavigationBar(),
       ),
@@ -814,7 +815,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   Widget _buildReferenceBottomNavigationBar() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+      margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
       decoration: BoxDecoration(
         color: const Color(0xFF070D22),
         borderRadius: BorderRadius.circular(30),
@@ -830,35 +831,100 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            Expanded(
+              child: _buildNavItem(
                 index: 0,
                 icon: Icons.home_rounded,
                 label: 'Dashboard',
               ),
-              _buildNavItem(
+            ),
+            Expanded(
+              child: _buildNavItem(
                 index: 1,
                 icon: Icons.flash_on_rounded,
                 label: 'Recharge',
               ),
-              _buildNavItem(
+            ),
+            Expanded(
+              child: _buildMiddleSupportNavItem(),
+            ),
+            Expanded(
+              child: _buildNavItem(
                 index: 2,
                 icon: Icons.card_giftcard_rounded,
                 label: 'Withdraw',
               ),
-              _buildNavItem(
+            ),
+            Expanded(
+              child: _buildNavItem(
                 index: 3,
                 icon: Icons.receipt_long_rounded,
                 label: 'Records',
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiddleSupportNavItem() {
+    return GestureDetector(
+      onTap: () => _onOpenChat(),
+      behavior: HitTestBehavior.opaque,
+      child: Transform.translate(
+        offset: const Offset(0, -6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF00E5FF), Color(0xFF0052FF)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(
+                  color: Colors.white,
+                  width: 2.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00B2FF).withValues(alpha: 0.65),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.support_agent_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                'Chat',
+                style: GoogleFonts.outfit(
+                  color: const Color(0xFF00B2FF),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11.5,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -886,7 +952,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isSelected ? const Color(0xFF0066FF) : Colors.transparent,
@@ -903,17 +969,20 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             child: Icon(
               icon,
               color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.45),
-              size: 22,
+              size: 20,
             ),
           ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-              color: isSelected ? const Color(0xFF00B2FF) : Colors.white.withValues(alpha: 0.45),
-              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
-              fontSize: 11,
-              letterSpacing: 0.2,
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: GoogleFonts.outfit(
+                color: isSelected ? const Color(0xFF00B2FF) : Colors.white.withValues(alpha: 0.45),
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
+                fontSize: 10.5,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
         ],
@@ -1103,12 +1172,16 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              'Safe  •  Secure  •  Trusted',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                                color: Colors.white,
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Safe  •  Secure  •  Trusted',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -1118,6 +1191,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                                 fontSize: 9.5,
                                 color: Colors.white.withValues(alpha: 0.5),
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -1165,23 +1240,27 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    '24/7',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 12.5,
-                                      color: Colors.white,
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      '24/7',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 12.5,
+                                        color: Colors.white,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Color(0xFF00B2FF),
-                                    size: 16,
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: Color(0xFF00B2FF),
+                                      size: 16,
+                                    ),
+                                  ],
+                                ),
                               ),
                               Text(
                                 'Customer Support',
@@ -1189,6 +1268,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                                   fontSize: 9.5,
                                   color: Colors.white.withValues(alpha: 0.5),
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -2251,12 +2332,15 @@ class _UserRechargeSingleLineNotificationsWidgetState extends State<_UserRecharg
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: statusFg.withValues(alpha: 0.5), width: 1),
                 ),
-                child: Text(
-                  statusText,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: statusFg,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: statusFg,
+                    ),
                   ),
                 ),
               ),

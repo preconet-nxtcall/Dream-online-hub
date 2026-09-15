@@ -903,7 +903,7 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
         return Dialog(
           backgroundColor: const Color(0xFF121026),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(20),
             side: BorderSide(
               color: hasFullCredentials
                   ? const Color(0xFFFFD700).withValues(alpha: 0.4)
@@ -912,346 +912,313 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
             ),
           ),
           elevation: 20,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Top Glowing Icon Badge
-                if (hasFullCredentials)
-                  Container(
-                    width: 68,
-                    height: 68,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF10B981), Color(0xFF059669)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                          blurRadius: 18,
-                          spreadRadius: 3,
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.78,
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Top Glowing Icon Badge (Compact 48x48)
+                  if (hasFullCredentials)
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF10B981), Color(0xFF059669)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 36),
-                  )
-                else
-                  Container(
-                    width: 68,
-                    height: 68,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFFB703), Color(0xFFD97706)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFFB703).withValues(alpha: 0.45),
-                          blurRadius: 20,
-                          spreadRadius: 3,
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: const SandClockLoaderWidget(size: 34, color: Colors.white),
-                  ),
-                const SizedBox(height: 18),
-
-                // Game Name Title & Badge
-                Text(
-                  widget.game.name,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFFFFD700),
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: hasFullCredentials
-                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                        : const Color(0xFFFFB703).withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: hasFullCredentials
-                          ? const Color(0xFF10B981).withValues(alpha: 0.5)
-                          : const Color(0xFFFFB703).withValues(alpha: 0.6),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (!hasFullCredentials) ...[
-                        const Icon(Icons.hourglass_top_rounded, color: Color(0xFFFFB703), size: 13),
-                        const SizedBox(width: 4),
-                      ],
-                      Text(
-                        hasFullCredentials ? 'Active ID Record' : 'Getting Username & Password...',
-                        style: TextStyle(
-                          color: hasFullCredentials ? const Color(0xFF10B981) : const Color(0xFFFFB703),
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 22),
-
-                // Credential Rows
-                if (link.isNotEmpty) ...[
-                  _buildCredentialRow('Website Link', link, icon: Icons.language_rounded, isLink: true),
-                  const SizedBox(height: 10),
-                ],
-                if (username.isNotEmpty) ...[
-                  _buildCredentialRow('Username', username, icon: Icons.person_outline_rounded),
-                  const SizedBox(height: 10),
-                ],
-                if (password.isNotEmpty) ...[
-                  _buildCredentialRow('Password', password, icon: Icons.lock_outline_rounded),
-                  const SizedBox(height: 10),
-                ],
-
-                // Enhanced Cyber Gold Sand Clock Loading Box when username & password missing
-                if (!hasFullCredentials) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF231C3D),
-                          Color(0xFF16102B),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                            blurRadius: 14,
+                          ),
                         ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFFFFB703).withValues(alpha: 0.5),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFFB703).withValues(alpha: 0.18),
-                          blurRadius: 20,
-                          spreadRadius: 1,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 24),
+                    )
+                  else
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFB703), Color(0xFFD97706)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFFB703).withValues(alpha: 0.45),
+                            blurRadius: 14,
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: const SandClockLoaderWidget(size: 24, color: Colors.white),
+                    ),
+                  const SizedBox(height: 10),
+
+                  // Game Name Title & Badge
+                  Text(
+                    widget.game.name,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFFFFD700),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: hasFullCredentials
+                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                          : const Color(0xFFFFB703).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: hasFullCredentials
+                            ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                            : const Color(0xFFFFB703).withValues(alpha: 0.6),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!hasFullCredentials) ...[
+                          const Icon(Icons.hourglass_top_rounded, color: Color(0xFFFFB703), size: 12),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          hasFullCredentials ? 'Active ID Record' : 'Getting Username & Password...',
+                          style: TextStyle(
+                            color: hasFullCredentials ? const Color(0xFF10B981) : const Color(0xFFFFB703),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ],
                     ),
-                    child: Column(
-                      children: [
-                        // Animated Sand Clock Center Badge
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFFFFB703).withValues(alpha: 0.12),
-                            border: Border.all(
-                              color: const Color(0xFFFFB703).withValues(alpha: 0.35),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: const SandClockLoaderWidget(size: 32, color: Color(0xFFFFB703)),
-                        ),
-                        const SizedBox(height: 12),
+                  ),
+                  const SizedBox(height: 14),
 
-                        Text(
-                          'Please wait a few minutes...',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.outfit(
-                            color: const Color(0xFFFFD700),
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.4,
-                            shadows: [
-                              Shadow(
-                                color: const Color(0xFFFFB703).withValues(alpha: 0.4),
-                                blurRadius: 10,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Your username and password are being generated. Please wait a few minutes to get your login credentials.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.plusJakartaSans(
-                            color: const Color(0xFFCBD5E1),
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
+                  // Credential Rows
+                  if (link.isNotEmpty) ...[
+                    _buildCredentialRow('Website Link', link, icon: Icons.language_rounded, isLink: true),
+                    const SizedBox(height: 8),
+                  ],
+                  if (username.isNotEmpty) ...[
+                    _buildCredentialRow('Username', username, icon: Icons.person_outline_rounded),
+                    const SizedBox(height: 8),
+                  ],
+                  if (password.isNotEmpty) ...[
+                    _buildCredentialRow('Password', password, icon: Icons.lock_outline_rounded),
+                    const SizedBox(height: 8),
+                  ],
 
-                        // Progress Timeline Steps
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0F0B1E),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
-                            ),
-                          ),
-                          child: Column(
+                  // Compact Cyber Gold Loading Box when username & password missing
+                  if (!hasFullCredentials) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF231C3D),
+                            Color(0xFF16102B),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFFFB703).withValues(alpha: 0.5),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 15),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Get ID Request Submitted',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: const Color(0xFF10B981),
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  const SandClockLoaderWidget(size: 15, color: Color(0xFFFFB703), showParticles: false),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Agency Support assigning ID & Pass...',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        color: const Color(0xFFFFB703),
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Time Estimate Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFB703).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: const Color(0xFFFFB703).withValues(alpha: 0.35),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.timer_outlined, color: Color(0xFFFFB703), size: 14),
-                              const SizedBox(width: 5),
+                              const SandClockLoaderWidget(size: 20, color: Color(0xFFFFB703)),
+                              const SizedBox(width: 8),
                               Text(
-                                'Estimated Time: 5 - 10 Minutes',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: const Color(0xFFFFB703),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.2,
+                                'Please wait a few minutes...',
+                                style: GoogleFonts.outfit(
+                                  color: const Color(0xFFFFD700),
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
                             ],
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Your username & password are being generated. Please wait to get login credentials.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: const Color(0xFFCBD5E1),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Compact Progress Timeline Steps
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F0B1E),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 14),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Get ID Request Submitted',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: const Color(0xFF10B981),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const SandClockLoaderWidget(size: 13, color: Color(0xFFFFB703), showParticles: false),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        'Agency Support assigning ID & Pass...',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          color: const Color(0xFFFFB703),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Time Estimate Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFB703).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFFFB703).withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.timer_outlined, color: Color(0xFFFFB703), size: 13),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Estimated Time: 5 - 10 Minutes',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFFFFB703),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+
+                  const SizedBox(height: 10),
+
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: TextButton.styleFrom(
+                            backgroundColor: const Color(0xFF221F3A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text(
+                            'Close',
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                          ),
+                        ),
+                      ),
+                      if (link.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: TextButton.icon(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                if (link.isNotEmpty) {
+                                  _openWebsiteLink(link);
+                                } else {
+                                  widget.onPlay();
+                                }
+                              },
+                              icon: const Icon(Icons.open_in_new_rounded, color: Colors.white, size: 15),
+                              label: Text(
+                                'Visit Now',
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
-                const SizedBox(height: 16),
-
-                // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFF221F3A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: const Text(
-                          'Close',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
-                        ),
-                      ),
-                    ),
-                    if (link.isNotEmpty) ...[
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF6366F1).withValues(alpha: 0.4),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: TextButton.icon(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              if (link.isNotEmpty) {
-                                _openWebsiteLink(link);
-                              } else {
-                                widget.onPlay();
-                              }
-                            },
-                            icon: const Icon(Icons.open_in_new_rounded, color: Colors.white, size: 17),
-                            label: Text(
-                              'Visit Now',
-                              style: GoogleFonts.outfit(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14.5,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1261,21 +1228,21 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
 
   Widget _buildCredentialRow(String label, String value, {required IconData icon, bool isLink = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: const Color(0xFF1B1834),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFF2D294B)),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: const Color(0xFF272346),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: const Color(0xFFFFD700), size: 18),
+            child: Icon(icon, color: const Color(0xFFFFD700), size: 16),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1329,157 +1296,166 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
       context: context,
       builder: (ctx) {
         return Dialog(
-          backgroundColor: const Color(0xFF100C24),
+          backgroundColor: const Color(0xFF121026),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.5),
+              width: 1.5,
+            ),
           ),
           elevation: 16,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Info Blue Circle Icon
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF131D38),
-                    border: Border.all(
-                      color: const Color(0xFF3B82F6),
-                      width: 2.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
-                        blurRadius: 16,
-                        spreadRadius: 2,
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.78,
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Info Blue Circle Icon (Compact 48x48)
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF131D38),
+                      border: Border.all(
+                        color: const Color(0xFF3B82F6),
+                        width: 2,
                       ),
-                    ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
+                          blurRadius: 14,
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.info_outline_rounded,
+                      color: Color(0xFF3B82F6),
+                      size: 26,
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.info_outline_rounded,
-                    color: Color(0xFF3B82F6),
-                    size: 36,
-                  ),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 14),
 
-                // Title: Get ID for [Game Name]?
-                Text(
-                  'Get ID for ${widget.game.name}?',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.3,
+                  // Title: Get ID for [Game Name]?
+                  Text(
+                    'Get ID for ${widget.game.name}?',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.3,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
+                  const SizedBox(height: 6),
 
-                // Game Badge Pill
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFD700).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5)),
+                  // Game Badge Pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5)),
+                    ),
+                    child: Text(
+                      'MARKET: ${widget.game.name.toUpperCase()}',
+                      style: const TextStyle(
+                        color: Color(0xFFFFD700),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    'MARKET: ${widget.game.name.toUpperCase()}',
+                  const SizedBox(height: 10),
+
+                  // Subtitle
+                  Text(
+                    "Press OK to get ID for ${widget.game.name} and unlock active game credentials!",
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Color(0xFFFFD700),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFCBD5E1),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 20),
 
-                // Subtitle
-                Text(
-                  "Press OK to get ID for ${widget.game.name} and unlock active game credentials!",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFFCBD5E1),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 26),
-
-                // Actions: Cancel & OK Buttons
-                Row(
-                  children: [
-                    // Cancel Button
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFF25213B),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                            color: Color(0xFFE2E8F0),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-
-                    // OK Button (Vibrant Indigo / Purple Button)
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF7C3AED).withValues(alpha: 0.45),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
+                  // Actions: Cancel & OK Buttons
+                  Row(
+                    children: [
+                      // Cancel Button
+                      Expanded(
                         child: TextButton(
-                          onPressed: () => _handleSubscribeAction(ctx),
+                          onPressed: () => Navigator.pop(ctx),
                           style: TextButton.styleFrom(
-                            backgroundColor: Colors.transparent,
+                            backgroundColor: const Color(0xFF25213B),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           child: const Text(
-                            'OK',
+                            'Cancel',
                             style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                              letterSpacing: 0.5,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: Color(0xFFE2E8F0),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 10),
+
+                      // OK Button
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF7C3AED).withValues(alpha: 0.45),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: TextButton(
+                            onPressed: () => _handleSubscribeAction(ctx),
+                            style: TextButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'OK',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );

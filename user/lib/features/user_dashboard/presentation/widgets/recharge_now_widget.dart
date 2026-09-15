@@ -675,158 +675,160 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: const Color(0xFF10B981).withValues(alpha: 0.5),
-                width: 1.5,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                    blurRadius: 30,
+                    spreadRadius: 2,
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
-                  blurRadius: 30,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Glowing Animated Checkmark Badge
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                    border: Border.all(
-                      color: const Color(0xFF10B981),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                        blurRadius: 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Glowing Animated Checkmark Badge
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: const Color(0xFF10B981),
+                        width: 2,
                       ),
-                    ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                          blurRadius: 20,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF10B981),
+                      size: 40,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF10B981),
-                    size: 42,
-                  ),
-                ),
-                const SizedBox(height: 18),
+                  const SizedBox(height: 16),
 
-                Text(
-                  'Recharge Successful!',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  Text(
+                    'Recharge Successful!',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  const SizedBox(height: 6),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
-                // Transaction Summary Card
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  // Transaction Summary Card
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildSummaryRow('Book Market', record.bookName, isDark),
+                        const SizedBox(height: 8),
+                        _buildSummaryRow('Amount', '₹${record.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
+                        const SizedBox(height: 8),
+                        _buildSummaryRow('Transaction UTR', record.transactionDetails.replaceAll(RegExp(r'Txn:\s*|\s*•.*'), ''), isDark),
+                        const SizedBox(height: 8),
+                        _buildSummaryRow('Status', 'Pending Agency Approval', isDark, statusColor: const Color(0xFFF59E0B)),
+                      ],
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      _buildSummaryRow('Book Market', record.bookName, isDark),
-                      const SizedBox(height: 8),
-                      _buildSummaryRow('Amount', '₹${record.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
-                      const SizedBox(height: 8),
-                      _buildSummaryRow('Transaction UTR', record.transactionDetails.replaceAll(RegExp(r'Txn:\s*|\s*•.*'), ''), isDark),
-                      const SizedBox(height: 8),
-                      _buildSummaryRow('Status', 'Pending Agency Approval', isDark, statusColor: const Color(0xFFF59E0B)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
-                // Primary Action Button: VIEW IN CHATING SCREEN
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(dialogContext); // Close dialog
-                      Navigator.pop(context); // Close bottom sheet
-                      context.push('/chat/$agentId'); // Navigate to chat screen
-                    },
-                    icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
-                    label: const Text(
-                      'VIEW IN CHAT SCREEN',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
+                  // Primary Action Button: VIEW IN CHATING SCREEN
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(dialogContext); // Close dialog
+                        Navigator.pop(context); // Close bottom sheet
+                        context.push('/chat/$agentId'); // Navigate to chat screen
+                      },
+                      icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 18),
+                      label: const Text(
+                        'VIEW IN CHAT SCREEN',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF7C3AED),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 4,
+                        shadowColor: const Color(0xFF7C3AED).withValues(alpha: 0.4),
                       ),
-                      elevation: 4,
-                      shadowColor: const Color(0xFF7C3AED).withValues(alpha: 0.4),
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                // Secondary Action Button: DONE
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(dialogContext); // Close dialog
-                      Navigator.pop(context); // Close recharge bottom sheet
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark ? Colors.white70 : const Color(0xFF64748B),
-                      side: BorderSide(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                  // Secondary Action Button: DONE
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(dialogContext); // Close dialog
+                        Navigator.pop(context); // Close recharge bottom sheet
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: isDark ? Colors.white70 : const Color(0xFF64748B),
+                        side: BorderSide(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'DONE',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                      child: const Text(
+                        'DONE',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -842,113 +844,115 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.5),
-                width: 1.5,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                    blurRadius: 30,
+                    spreadRadius: 2,
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.25),
-                  blurRadius: 30,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Glowing Warning / Issue Badge
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
-                    border: Border.all(
-                      color: const Color(0xFFEF4444),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.4),
-                        blurRadius: 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Glowing Warning / Issue Badge
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444),
+                        width: 2,
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.error_outline_rounded,
-                    color: Color(0xFFEF4444),
-                    size: 42,
-                  ),
-                ),
-                const SizedBox(height: 18),
-
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Error Message Box
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                          blurRadius: 20,
+                        ),
+                      ],
                     ),
-                  ),
-                  child: Text(
-                    errorMessage,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                    child: const Icon(
+                      Icons.error_outline_rounded,
                       color: Color(0xFFEF4444),
-                      height: 1.4,
+                      size: 40,
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
-                // Try Again Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEF4444),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 4,
-                      shadowColor: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
-                    child: const Text(
-                      'TRY AGAIN',
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Error Message Box
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Text(
+                      errorMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFEF4444),
+                        height: 1.4,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 20),
+
+                  // Try Again Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 4,
+                        shadowColor: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                      ),
+                      child: const Text(
+                        'TRY AGAIN',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -963,17 +967,22 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12.5,
+            fontSize: 12,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
             fontWeight: FontWeight.w500,
           ),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: isHighlight ? 15 : 13,
-            fontWeight: isHighlight || statusColor != null ? FontWeight.w900 : FontWeight.w700,
-            color: statusColor ?? (isHighlight ? const Color(0xFF10B981) : (isDark ? Colors.white : const Color(0xFF0F172A))),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: isHighlight ? 14.5 : 12.5,
+              fontWeight: isHighlight || statusColor != null ? FontWeight.w900 : FontWeight.w700,
+              color: statusColor ?? (isHighlight ? const Color(0xFF10B981) : (isDark ? Colors.white : const Color(0xFF0F172A))),
+            ),
           ),
         ),
       ],
@@ -983,12 +992,14 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: const Color(0xFF070D22),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
           colors: [
             Color(0xFF0D1736),
@@ -1009,25 +1020,25 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isSmallScreen ? 14 : 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. Header Row (Recharge Now Title & Secure Payments Badge)
+          // 1. Adaptive Header Section
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: const Color(0xFF0066FF),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF0066FF).withValues(alpha: 0.5),
-                      blurRadius: 12,
+                      blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
                   ],
@@ -1035,7 +1046,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 child: const Icon(
                   Icons.flash_on_rounded,
                   color: Colors.white,
-                  size: 24,
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 12),
@@ -1046,32 +1057,32 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                     Text(
                       'Recharge Now',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 20,
+                        fontSize: isSmallScreen ? 18 : 20,
                         fontWeight: FontWeight.w900,
                         color: Colors.white,
                         letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
-                      'Add balance to your account and enjoy uninterrupted gaming.',
+                      'Add balance to your account for gaming',
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.white.withValues(alpha: 0.6),
-                        height: 1.25,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-
-              // Secure Payments Chip
+              const SizedBox(width: 6),
+              // Secure Chip
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0A1B44),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: const Color(0xFF0066FF).withValues(alpha: 0.4),
                     width: 1,
@@ -1083,43 +1094,29 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                     Icon(
                       Icons.shield_outlined,
                       color: Color(0xFF00B2FF),
-                      size: 14,
+                      size: 13,
                     ),
                     SizedBox(width: 4),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Secure',
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            height: 1.0,
-                          ),
-                        ),
-                        Text(
-                          'Payments',
-                          style: TextStyle(
-                            fontSize: 8.5,
-                            color: Color(0xFF00B2FF),
-                            height: 1.1,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'Secure',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF00B2FF),
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
           // 2. Select Book Dropdown
           _buildRefLabel('SELECT BOOK *'),
           const SizedBox(height: 8),
           Container(
-            height: 50,
+            height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
               color: const Color(0xFF050B1E),
@@ -1136,15 +1133,19 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                   children: [
                     const Icon(Icons.menu_book_rounded, size: 18, color: Color(0xFF00B2FF)),
                     const SizedBox(width: 10),
-                    Text(
-                      _books.isEmpty
-                          ? 'No Book Account Available (Get ID First)'
-                          : 'Select Book',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        color: _books.isEmpty
-                            ? const Color(0xFFEF4444)
-                            : Colors.white.withValues(alpha: 0.5),
+                    Expanded(
+                      child: Text(
+                        _books.isEmpty
+                            ? 'No Book Account Available (Get ID First)'
+                            : 'Select Book Market',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _books.isEmpty
+                              ? const Color(0xFFEF4444)
+                              : Colors.white.withValues(alpha: 0.5),
+                        ),
                       ),
                     ),
                   ],
@@ -1153,7 +1154,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF00B2FF)),
                 dropdownColor: const Color(0xFF070D22),
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
@@ -1172,7 +1173,13 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                         children: [
                           const Icon(Icons.star_rounded, size: 16, color: Color(0xFF00B2FF)),
                           const SizedBox(width: 8),
-                          Text(book),
+                          Expanded(
+                            child: Text(
+                              book,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1180,13 +1187,13 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
           // 3. Recharge Amount Input & Quick Chips
           _buildRefLabel('RECHARGE AMOUNT *'),
           const SizedBox(height: 8),
           Container(
-            height: 52,
+            height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
               color: const Color(0xFF050B1E),
@@ -1203,21 +1210,21 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                   size: 20,
                   color: Color(0xFF00B2FF),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: _amountController,
                     keyboardType: TextInputType.number,
                     cursorColor: const Color(0xFF00B2FF),
                     style: const TextStyle(
-                      fontSize: 14.5,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Enter Amount',
+                      hintText: 'Enter Amount (e.g. 500)',
                       hintStyle: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 13,
                         color: Colors.white.withValues(alpha: 0.4),
                       ),
                       filled: false,
@@ -1231,44 +1238,55 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
 
-                // Embedded Quick Amount Chips
-                Row(
-                  children: [
-                    for (final amt in [100, 500, 1000, 5000])
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: InkWell(
-                          onTap: () {
-                            setState(() {
-                              _amountController.text = amt.toString();
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0A183C),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFF0066FF).withValues(alpha: 0.5),
-                                width: 0.8,
-                              ),
+          // Quick Amount Presets (Scrollable Row for 100% Mobile Responsiveness)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                for (final amt in [100, 500, 1000, 2000, 5000, 10000])
+                  Builder(builder: (ctx) {
+                    final currentVal = double.tryParse(_amountController.text.trim()) ?? 0;
+                    final isSelected = currentVal == amt.toDouble();
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            _amountController.text = amt.toString();
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: isSelected ? const Color(0xFF0066FF) : const Color(0xFF050B1E),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF00B2FF)
+                                  : const Color(0xFF0066FF).withValues(alpha: 0.4),
+                              width: 1,
                             ),
-                            child: Text(
-                              '+${amt >= 1000 ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k' : amt}',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF00B2FF),
-                              ),
+                          ),
+                          child: Text(
+                            '₹$amt',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: isSelected ? Colors.white : const Color(0xFF00B2FF),
                             ),
                           ),
                         ),
                       ),
-                  ],
-                ),
+                    );
+                  }),
               ],
             ),
           ),
@@ -1276,13 +1294,13 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
 
           // QR Code Card dynamically fetched from Backend
           _buildQrCodeCard(isDark),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
           // 4. Transaction ID / UTR Input
-          _buildRefLabel('TRANSACTION ID *'),
+          _buildRefLabel('TRANSACTION ID / UTR *'),
           const SizedBox(height: 8),
           Container(
-            height: 50,
+            height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
               color: const Color(0xFF050B1E),
@@ -1305,14 +1323,14 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                     controller: _txnIdController,
                     cursorColor: const Color(0xFF00B2FF),
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Enter Transaction ID',
+                      hintText: 'Enter 12-digit UTR or Txn ID',
                       hintStyle: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 13,
                         color: Colors.white.withValues(alpha: 0.4),
                       ),
                       filled: false,
@@ -1329,26 +1347,26 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
-          // 5. Upload Screenshot Area (Matching Reference dotted/dashed style)
-          _buildRefLabel('UPLOAD SCREENSHOT *'),
+          // 5. Upload Screenshot Area
+          _buildRefLabel('UPLOAD PAYMENT PROOF SCREENSHOT *'),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF050B1E),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                color: const Color(0xFF0066FF).withValues(alpha: 0.4),
                 width: 1.2,
               ),
             ),
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: const Color(0xFF0A183C),
                     shape: BoxShape.circle,
@@ -1360,10 +1378,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                   child: const Icon(
                     Icons.cloud_upload_outlined,
                     color: Color(0xFF00B2FF),
-                    size: 22,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1375,14 +1393,14 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w800,
                           color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'JPG, PNG or PDF (Max 5MB)',
+                        'JPG or PNG image proof',
                         style: TextStyle(
                           fontSize: 10,
                           color: Colors.white.withValues(alpha: 0.5),
@@ -1396,7 +1414,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 // Choose File Button
                 Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     gradient: const LinearGradient(
                       colors: [Color(0xFF0066FF), Color(0xFF0044CE)],
                       begin: Alignment.topLeft,
@@ -1405,7 +1423,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF0066FF).withValues(alpha: 0.4),
-                        blurRadius: 8,
+                        blurRadius: 6,
                       ),
                     ],
                   ),
@@ -1413,16 +1431,16 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: _pickImage,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
                               Icons.file_upload_outlined,
                               color: Colors.white,
-                              size: 16,
+                              size: 15,
                             ),
                             SizedBox(width: 4),
                             Text(
@@ -1430,7 +1448,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 11.5,
+                                fontSize: 11,
                               ),
                             ),
                           ],
@@ -1442,14 +1460,14 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
-          // 6. Info Notice Banner (Matching Reference)
+          // 6. Info Notice Banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: const Color(0xFF0066FF).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: const Color(0xFF0066FF).withValues(alpha: 0.3),
                 width: 1,
@@ -1460,30 +1478,30 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 const Icon(
                   Icons.info_outline_rounded,
                   color: Color(0xFF00B2FF),
-                  size: 18,
+                  size: 17,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Please make sure the details are correct before submitting. Your recharge will be verified shortly.',
+                    'Please verify payment transaction UTR before submitting.',
                     style: TextStyle(
                       fontSize: 10.5,
                       color: Colors.white.withValues(alpha: 0.7),
-                      height: 1.3,
+                      height: 1.2,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
-          // 7. Submit Button (Recharge Now ->)
+          // 7. Submit Button (Recharge Now)
           Container(
             width: double.infinity,
-            height: 52,
+            height: 50,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
+              borderRadius: BorderRadius.circular(25),
               gradient: const LinearGradient(
                 colors: [Color(0xFF0077FF), Color(0xFF0044CE)],
                 begin: Alignment.topLeft,
@@ -1491,7 +1509,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                  color: const Color(0xFF0066FF).withValues(alpha: 0.45),
                   blurRadius: 14,
                   offset: const Offset(0, 4),
                 ),
@@ -1501,7 +1519,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
               color: Colors.transparent,
               child: InkWell(
                 onTap: _isSubmitting ? null : _submitForm,
-                borderRadius: BorderRadius.circular(26),
+                borderRadius: BorderRadius.circular(25),
                 child: _isSubmitting
                     ? const Center(
                         child: SizedBox(
@@ -1516,7 +1534,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                           Text(
                             'Recharge Now',
                             style: GoogleFonts.outfit(
-                              fontSize: 16,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w900,
                               color: Colors.white,
                               letterSpacing: 0.4,
@@ -1635,7 +1653,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
     if (_qrAvailable == true && _qrImageUrl != null && _qrImageUrl!.isNotEmpty) {
       return Container(
         margin: const EdgeInsets.only(top: 14),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF0A183C), Color(0xFF050B1E)],
@@ -1664,7 +1682,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
+                      padding: const EdgeInsets.all(5),
                       decoration: const BoxDecoration(
                         color: Color(0xFF10B981),
                         shape: BoxShape.circle,
@@ -1672,14 +1690,14 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                       child: const Icon(
                         Icons.qr_code_2_rounded,
                         color: Colors.white,
-                        size: 16,
+                        size: 15,
                       ),
                     ),
                     const SizedBox(width: 8),
                     const Text(
                       'SCAN & PAY VIA UPI',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w900,
                         color: Color(0xFF10B981),
                         letterSpacing: 0.5,
@@ -1707,7 +1725,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // QR Code Image Container
             GestureDetector(
@@ -1716,33 +1734,35 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                   context: context,
                   builder: (dialogCtx) => Dialog(
                     backgroundColor: Colors.transparent,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Image.network(
-                            _qrImageUrl!,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.white,
-                              padding: const EdgeInsets.all(20),
-                              child: const Icon(Icons.broken_image, size: 60, color: Colors.grey),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.network(
+                              _qrImageUrl!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: Colors.white,
+                                padding: const EdgeInsets.all(20),
+                                child: const Icon(Icons.broken_image, size: 60, color: Colors.grey),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
-                          onPressed: () => Navigator.pop(dialogCtx),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                            onPressed: () => Navigator.pop(dialogCtx),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
               },
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -1758,14 +1778,14 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                   borderRadius: BorderRadius.circular(12),
                   child: Image.network(
                     _qrImageUrl!,
-                    width: 170,
-                    height: 170,
+                    width: 165,
+                    height: 165,
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return SizedBox(
-                        width: 170,
-                        height: 170,
+                        width: 165,
+                        height: 165,
                         child: Center(
                           child: CircularProgressIndicator(
                             value: loadingProgress.expectedTotalBytes != null
@@ -1779,8 +1799,8 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                     },
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        width: 170,
-                        height: 170,
+                        width: 165,
+                        height: 165,
                         color: Colors.grey[100],
                         alignment: Alignment.center,
                         child: const Column(
@@ -1797,11 +1817,11 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             const Text(
               'Tap QR code to zoom in',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10.5,
                 color: Colors.white54,
                 fontWeight: FontWeight.w500,
               ),

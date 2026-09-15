@@ -95,47 +95,36 @@ class _SplashScreenState extends State<SplashScreen>
                   opacity: _fadeAnim,
                   child: Column(
                     children: [
-                      // Upper Glowing App Logo Badge
+                      // Glowing App Logo Badge
                       Container(
-                        width: 95,
-                        height: 95,
+                        width: 120,
+                        height: 120,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(22),
+                          borderRadius: BorderRadius.circular(28),
                           color: const Color(0xFF0E0921),
                           border: Border.all(
                             color: const Color(0xFF00B2FF),
-                            width: 2,
+                            width: 2.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
-                              blurRadius: 24,
-                              spreadRadius: 2,
+                              color: const Color(0xFF00B2FF).withValues(alpha: 0.45),
+                              blurRadius: 30,
+                              spreadRadius: 3,
                             ),
                             BoxShadow(
-                              color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
-                              blurRadius: 36,
-                              spreadRadius: 2,
+                              color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
+                              blurRadius: 40,
+                              spreadRadius: 3,
                             ),
                           ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(25),
                           child: Image.asset(
                             'assets/images/app_logo.png',
                             fit: BoxFit.contain,
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // DreamHub Official Brand Banner Logo Below
-                      Container(
-                        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 100),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Image.asset(
-                          'assets/images/dreamhub_banner_logo.png',
-                          fit: BoxFit.contain,
                         ),
                       ),
                     ],
@@ -146,9 +135,9 @@ class _SplashScreenState extends State<SplashScreen>
               const Spacer(),
 
               // Loading & Progress Indicator
-              const Column(
+              Column(
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
@@ -156,8 +145,8 @@ class _SplashScreenState extends State<SplashScreen>
                       strokeWidth: 2.5,
                     ),
                   ),
-                  SizedBox(height: 14),
-                  Text(
+                  const SizedBox(height: 14),
+                  const Text(
                     'Initializing secure connection...',
                     style: TextStyle(
                       fontSize: 12.5,
@@ -166,7 +155,27 @@ class _SplashScreenState extends State<SplashScreen>
                       letterSpacing: 0.5,
                     ),
                   ),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF94A3B8).withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: const Text(
+                      'v1.0.0',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ],

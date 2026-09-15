@@ -195,31 +195,32 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
           const SizedBox(width: 12),
 
           // Animated Waveform Bars
-          SizedBox(
-            width: 90,
-            height: 24,
-            child: AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(8, (index) {
-                    final val = math
-                        .sin(_pulseController.value * math.pi + index * 0.5)
-                        .abs();
-                    final height = 6.0 + (val * 18.0);
-                    return Container(
-                      width: 3,
-                      height: height,
-                      decoration: BoxDecoration(
-                        color: AppColors.error
-                            .withValues(alpha: 0.6 + (val * 0.4)),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    );
-                  }),
-                );
-              },
+          Expanded(
+            child: SizedBox(
+              height: 24,
+              child: AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: List.generate(8, (index) {
+                      final val = math
+                          .sin(_pulseController.value * math.pi + index * 0.5)
+                          .abs();
+                      final height = 6.0 + (val * 18.0);
+                      return Container(
+                        width: 3,
+                        height: height,
+                        decoration: BoxDecoration(
+                          color: AppColors.error
+                              .withValues(alpha: 0.6 + (val * 0.4)),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      );
+                    }),
+                  );
+                },
+              ),
             ),
           ),
           const SizedBox(width: 10),

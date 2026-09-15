@@ -376,14 +376,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              statusSubtitle,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isOnline
-                                    ? const Color(0xFF10B981)
-                                    : (isClientUser ? const Color(0xFFC4B5FD) : const Color(0xFF94A3B8)),
-                                fontWeight: FontWeight.w600,
+                            Flexible(
+                              child: Text(
+                                statusSubtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isOnline
+                                      ? const Color(0xFF10B981)
+                                      : (isClientUser ? const Color(0xFFC4B5FD) : const Color(0xFF94A3B8)),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -1010,23 +1014,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               onTap: () => _openRechargeModal(context),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
 
-          // 2. Wallet Card
-          Expanded(
-            child: _buildActionCard(
-              title: 'Wallet',
-              subtitle: '₹0.00 Bal',
-              icon: Icons.account_balance_wallet_rounded,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-              ),
-              onTap: () => _openWalletModal(context),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // 3. Withdraw Card
+          // 2. Withdraw Card
           Expanded(
             child: _buildActionCard(
               title: 'Withdraw',
@@ -1610,89 +1600,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ── 3. Wallet Modal ─────────────────────────────────────────────────────
-  void _openWalletModal(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1A1830) : Colors.white,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Icon(Icons.account_balance_wallet_rounded,
-                  size: 48, color: Color(0xFF8B5CF6)),
-              const SizedBox(height: 8),
-              const Text('Available Wallet Balance',
-                  style: TextStyle(color: Colors.grey, fontSize: 13)),
-              const SizedBox(height: 4),
-              const Text('₹0.00',
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _openRechargeModal(context);
-                      },
-                      icon: const Icon(Icons.add_circle_rounded),
-                      label: const Text('Recharge'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _openWithdrawModal(context);
-                      },
-                      icon: const Icon(Icons.arrow_circle_up_rounded),
-                      label: const Text('Withdraw'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF97316),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   void _sendDirectRequestMessage(String text) async {
     final chatProvider = context.read<ChatProvider>();

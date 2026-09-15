@@ -196,7 +196,6 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
     final bankName = _bankNameCtrl.text.trim();
     final ifscCode = _ifscCodeCtrl.text.trim();
     final upiId = _upiIdCtrl.text.trim();
-    final hasImage = _selectedImageFile != null || (_existingImageUrl != null && _existingImageUrl!.isNotEmpty);
 
     String? missingFieldMessage;
     if (accountName.isEmpty) {
@@ -209,8 +208,6 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
       missingFieldMessage = 'Please enter IFSC Code.';
     } else if (upiId.isEmpty) {
       missingFieldMessage = 'Please enter UPI ID.';
-    } else if (!hasImage) {
-      missingFieldMessage = 'Please choose a QR Code or Passbook Image.';
     }
 
     if (missingFieldMessage != null) {
@@ -926,12 +923,12 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                 letterSpacing: 0.5,
               ),
             ),
-            SizedBox(width: 3),
+            SizedBox(width: 4),
             Text(
-              '*',
+              '(OPTIONAL)',
               style: TextStyle(
-                color: Colors.redAccent,
-                fontSize: 12,
+                color: Colors.white54,
+                fontSize: 9.5,
                 fontWeight: FontWeight.bold,
               ),
             ),

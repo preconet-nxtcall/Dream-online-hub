@@ -674,9 +674,12 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           child: Container(
-            padding: const EdgeInsets.all(24),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(dialogContext).size.height * 0.85,
+            ),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF0F172A) : Colors.white,
               borderRadius: BorderRadius.circular(24),
@@ -692,139 +695,142 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Glowing Animated Checkmark Badge
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                    border: Border.all(
-                      color: const Color(0xFF10B981),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                        blurRadius: 20,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Glowing Animated Checkmark Badge
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: const Color(0xFF10B981),
+                        width: 2,
                       ),
-                    ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                          blurRadius: 20,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF10B981),
+                      size: 40,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF10B981),
-                    size: 42,
-                  ),
-                ),
-                const SizedBox(height: 18),
+                  const SizedBox(height: 16),
 
-                Text(
-                  'Withdrawal Request Submitted!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  Text(
+                    'Withdrawal Request Submitted!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  const SizedBox(height: 6),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
-                // Summary Card
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  // Summary Card
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildSummaryRow('Book Market', model.bookName, isDark),
+                        const SizedBox(height: 8),
+                        _buildSummaryRow('Withdraw Amount', '₹${model.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
+                        const SizedBox(height: 8),
+                        _buildSummaryRow('Status', 'Pending Agency Approval', isDark, statusColor: const Color(0xFFF59E0B)),
+                      ],
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      _buildSummaryRow('Book Market', model.bookName, isDark),
-                      const SizedBox(height: 8),
-                      _buildSummaryRow('Withdraw Amount', '₹${model.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
-                      const SizedBox(height: 8),
-                      _buildSummaryRow('Status', 'Pending Agency Approval', isDark, statusColor: const Color(0xFFF59E0B)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
-                // Primary Action Button: VIEW IN CHAT SCREEN
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(dialogContext); // Close dialog
-                      Navigator.pop(context); // Close bottom sheet
-                      context.push('/chat/$agentId'); // Navigate to chat screen
-                    },
-                    icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
-                    label: const Text(
-                      'VIEW IN CHAT SCREEN',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
+                  // Primary Action Button: VIEW IN CHAT SCREEN
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(dialogContext); // Close dialog
+                        Navigator.pop(context); // Close bottom sheet
+                        context.push('/chat/$agentId'); // Navigate to chat screen
+                      },
+                      icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 18),
+                      label: const Text(
+                        'VIEW IN CHAT SCREEN',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF7C3AED),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 4,
+                        shadowColor: const Color(0xFF7C3AED).withValues(alpha: 0.4),
                       ),
-                      elevation: 4,
-                      shadowColor: const Color(0xFF7C3AED).withValues(alpha: 0.4),
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                // Secondary Action Button: DONE
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(dialogContext); // Close dialog
-                      Navigator.pop(context); // Close bottom sheet
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark ? Colors.white70 : const Color(0xFF64748B),
-                      side: BorderSide(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                  // Secondary Action Button: DONE
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(dialogContext); // Close dialog
+                        Navigator.pop(context); // Close bottom sheet
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: isDark ? Colors.white70 : const Color(0xFF64748B),
+                        side: BorderSide(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'DONE',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                      child: const Text(
+                        'DONE',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -840,9 +846,12 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           child: Container(
-            padding: const EdgeInsets.all(24),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(dialogContext).size.height * 0.85,
+            ),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF0F172A) : Colors.white,
               borderRadius: BorderRadius.circular(24),
@@ -858,95 +867,99 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Glowing Warning / Issue Badge
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
-                    border: Border.all(
-                      color: const Color(0xFFEF4444),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.4),
-                        blurRadius: 20,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Glowing Warning / Issue Badge
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444),
+                        width: 2,
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.error_outline_rounded,
-                    color: Color(0xFFEF4444),
-                    size: 42,
-                  ),
-                ),
-                const SizedBox(height: 18),
-
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Error Message Box
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                          blurRadius: 20,
+                        ),
+                      ],
                     ),
-                  ),
-                  child: Text(
-                    errorMessage,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                    child: const Icon(
+                      Icons.error_outline_rounded,
                       color: Color(0xFFEF4444),
-                      height: 1.4,
+                      size: 40,
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
-                // Try Again Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEF4444),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 4,
-                      shadowColor: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
-                    child: const Text(
-                      'TRY AGAIN',
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Error Message Box
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Text(
+                      errorMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFEF4444),
+                        height: 1.4,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 20),
+
+                  // Try Again Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 4,
+                        shadowColor: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                      ),
+                      child: const Text(
+                        'TRY AGAIN',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1039,32 +1052,38 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
           children: [
             // Header Row: Approved Badge + Bank Icon
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF10B981), width: 1),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 14),
-                      SizedBox(width: 4),
-                      Text(
-                        'APPROVED PAYOUT ACCOUNT',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF10B981),
-                          letterSpacing: 0.5,
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF10B981), width: 1),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 14),
+                        SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            'APPROVED PAYOUT ACCOUNT',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF10B981),
+                              letterSpacing: 0.4,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 const Icon(Icons.account_balance_rounded, color: Color(0xFF10B981), size: 20),
               ],
             ),
@@ -1245,6 +1264,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1255,20 +1275,25 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                     Icon(
                       isPending ? Icons.edit_rounded : Icons.account_balance_wallet_rounded,
                       color: Colors.white,
-                      size: 17,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      isPending ? 'CHECK BANK STATUS IN PROFILE' : 'FIRST SAVE BANK DETAILS IN PROFILE',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 0.4,
-                      ),
+                      size: 16,
                     ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
+                    Flexible(
+                      child: Text(
+                        isPending ? 'CHECK BANK STATUS IN PROFILE' : 'SAVE BANK DETAILS IN PROFILE',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 15),
                   ],
                 ),
               ),
@@ -1440,13 +1465,13 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
               ),
               const SizedBox(height: 18),
 
-              // Top Row: SELECT BOOK & WITHDRAW AMOUNT
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 1. SELECT BOOK* (Left Field)
-                  Expanded(
-                    child: Column(
+              // Top Row / Column: SELECT BOOK & WITHDRAW AMOUNT (Adaptive for all mobile sizes)
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final bool isNarrow = constraints.maxWidth < 360;
+
+                  Widget buildBookField() {
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildLabel('SELECT BOOK', isDark),
@@ -1466,6 +1491,8 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                                 _books.isEmpty
                                     ? 'No Book Account Available'
                                     : 'Select Book',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: _books.isEmpty
@@ -1496,20 +1523,22 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                                 for (final book in _books)
                                   DropdownMenuItem<String>(
                                     value: book,
-                                    child: Text(book),
+                                    child: Text(
+                                      book,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                               ],
                             ),
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
+                    );
+                  }
 
-                  // 2. WITHDRAW AMOUNT* (Right Field)
-                  Expanded(
-                    child: Column(
+                  Widget buildAmountField() {
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildLabel('WITHDRAW AMOUNT', isDark),
@@ -1549,9 +1578,29 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                ],
+                    );
+                  }
+
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        buildBookField(),
+                        const SizedBox(height: 12),
+                        buildAmountField(),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: buildBookField()),
+                      const SizedBox(width: 12),
+                      Expanded(child: buildAmountField()),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 16),
 
