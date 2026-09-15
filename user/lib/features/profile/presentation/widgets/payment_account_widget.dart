@@ -95,11 +95,57 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
     return null;
   }
 
+  Future<dynamic> _resolveEmpId() async {
+    try {
+      final authProv = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProv.currentUser;
+      if (user?.agencyId != null &&
+          user!.agencyId!.isNotEmpty &&
+          user.agencyId != 'null' &&
+          user.agencyId != '0') {
+        final digitsOnly = user.agencyId!.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          return int.tryParse(digitsOnly) ?? user.agencyId!;
+        }
+        return user.agencyId!;
+      }
+    } catch (_) {}
+    try {
+      final currentUser = LocalStorageRepositoryImpl().getUser();
+      final userAgency = currentUser?.agencyId;
+      if (userAgency != null &&
+          userAgency.isNotEmpty &&
+          userAgency != 'null' &&
+          userAgency != '0') {
+        final digitsOnly = userAgency.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          return int.tryParse(digitsOnly) ?? userAgency;
+        }
+        return userAgency;
+      }
+    } catch (_) {}
+    try {
+      final storedAgentId = await SecureStorageService().read(StorageKeys.chatAgentId);
+      if (storedAgentId != null &&
+          storedAgentId.isNotEmpty &&
+          storedAgentId != 'null' &&
+          storedAgentId != '0') {
+        final digitsOnly = storedAgentId.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.isNotEmpty) {
+          return int.tryParse(digitsOnly) ?? storedAgentId;
+        }
+        return storedAgentId;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _loadPaymentAccount() async {
     setState(() => _isLoading = true);
     try {
       final userId = await _resolveUserId();
-      final account = await _repository.getPaymentAccount(userId);
+      final empId = await _resolveEmpId();
+      final account = await _repository.getPaymentAccount(userId, empId: empId);
 
       if (mounted && account != null) {
         setState(() {
@@ -225,6 +271,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
 
     try {
       final userId = await _resolveUserId();
+      final empId = await _resolveEmpId();
       String? imageBase64;
 
       if (_selectedImageFile != null && await _selectedImageFile!.exists()) {
@@ -238,6 +285,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
 
       final success = await _repository.updatePaymentAccount(
         userId: userId,
+        empId: empId,
         accountName: accountName,
         accountNo: accountNo,
         ifscCode: ifscCode,

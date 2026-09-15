@@ -5,9 +5,10 @@ import '../network/api_client.dart';
 import '../utils/logger.dart';
 
 abstract class PaymentAccountRepository {
-  Future<PaymentAccountModel?> getPaymentAccount(dynamic userId);
+  Future<PaymentAccountModel?> getPaymentAccount(dynamic userId, {dynamic empId});
   Future<bool> updatePaymentAccount({
     required dynamic userId,
+    dynamic empId,
     required String accountName,
     required String accountNo,
     required String ifscCode,
@@ -24,7 +25,7 @@ class PaymentAccountRepositoryImpl implements PaymentAccountRepository {
       : _apiClient = apiClient ?? ApiClient();
 
   @override
-  Future<PaymentAccountModel?> getPaymentAccount(dynamic userId) async {
+  Future<PaymentAccountModel?> getPaymentAccount(dynamic userId, {dynamic empId}) async {
     if (userId == null || userId.toString().trim().isEmpty) {
       AppLogger.warning('getPaymentAccount: No user_id provided.');
       return null;
@@ -33,14 +34,19 @@ class PaymentAccountRepositoryImpl implements PaymentAccountRepository {
     try {
       final options = Options(validateStatus: (status) => status != null && status < 500);
       final rawUserId = userId.toString().trim();
+      final rawEmpId = (empId != null && empId.toString().trim().isNotEmpty) ? empId.toString().trim() : '';
+
+      final requestData = {
+        'action': 'get_payment_account',
+        'user_id': rawUserId,
+        if (rawEmpId.isNotEmpty) 'emp_id': rawEmpId,
+        if (rawEmpId.isNotEmpty) 'agency_id': rawEmpId,
+      };
 
       var response = await _apiClient.post(
         ApiEndpoints.getQrCode, // api.php
         options: options,
-        data: {
-          'action': 'get_payment_account',
-          'user_id': rawUserId,
-        },
+        data: requestData,
       );
 
       var data = response.data;
@@ -53,10 +59,7 @@ class PaymentAccountRepositoryImpl implements PaymentAccountRepository {
               contentType: Headers.formUrlEncodedContentType,
               validateStatus: (status) => status != null && status < 500,
             ),
-            data: {
-              'action': 'get_payment_account',
-              'user_id': rawUserId,
-            },
+            data: requestData,
           );
           if (formResp.data is Map<String, dynamic> && formResp.data['success'] == true) {
             data = formResp.data;
@@ -96,6 +99,7 @@ class PaymentAccountRepositoryImpl implements PaymentAccountRepository {
   @override
   Future<bool> updatePaymentAccount({
     required dynamic userId,
+    dynamic empId,
     required String accountName,
     required String accountNo,
     required String ifscCode,
@@ -110,10 +114,13 @@ class PaymentAccountRepositoryImpl implements PaymentAccountRepository {
 
     try {
       final rawUserId = userId.toString().trim();
+      final rawEmpId = (empId != null && empId.toString().trim().isNotEmpty) ? empId.toString().trim() : '';
       final options = Options(validateStatus: (status) => status != null && status < 500);
       final payload = {
         'action': 'update_payment_account',
         'user_id': rawUserId,
+        if (rawEmpId.isNotEmpty) 'emp_id': rawEmpId,
+        if (rawEmpId.isNotEmpty) 'agency_id': rawEmpId,
         'account_name': accountName,
         'account_no': accountNo,
         'ifsc_code': ifscCode,
@@ -132,23 +139,13 @@ class PaymentAccountRepositoryImpl implements PaymentAccountRepository {
       if (response.statusCode == 400 || data is! Map<String, dynamic> || data['success'] != true) {
         // Fallback retry with formUrlEncoded Content-Type for standard PHP $_POST
         try {
-          final formMap = {
-            'action': 'update_payment_account',
-            'user_id': rawUserId,
-            'account_name': accountName,
-            'account_no': accountNo,
-            'ifsc_code': ifscCode,
-            'bank_name': bankName,
-            'upi_id': upiId,
-            if (imageBase64 != null && imageBase64.isNotEmpty) 'image': imageBase64,
-          };
           final formResp = await _apiClient.post(
             ApiEndpoints.getQrCode,
             options: Options(
               contentType: Headers.formUrlEncodedContentType,
               validateStatus: (status) => status != null && status < 500,
             ),
-            data: formMap,
+            data: payload,
           );
           if (formResp.data is Map<String, dynamic> && formResp.data['success'] == true) {
             data = formResp.data;

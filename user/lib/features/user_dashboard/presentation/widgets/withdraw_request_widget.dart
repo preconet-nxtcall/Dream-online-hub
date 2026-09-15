@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/api_endpoints.dart';
 import '../../../../core/constants/storage_keys.dart';
@@ -71,11 +72,14 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
   Map<String, int> _dynamicBookIds = {};
   List<String> _books = [];
 
+  bool _hasPendingWithdrawal = false;
+
   @override
   void initState() {
     super.initState();
     _fetchBooks();
     _fetchPaymentAccount();
+    _checkPendingWithdrawalStatus();
   }
 
   Future<void> _fetchPaymentAccount() async {
@@ -404,7 +408,135 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     }
   }
 
+  Future<bool> _checkPendingWithdrawalStatus({bool silent = false}) async {
+    try {
+      final userId = await _resolveUserId();
+      if (userId == null) {
+        return _hasPendingWithdrawal;
+      }
+
+      final apiClient = ApiClient();
+      final response = await apiClient.post(
+        ApiEndpoints.getQrCode,
+        options: Options(validateStatus: (status) => status != null && status < 500),
+        data: {
+          'action': 'withdraw_records',
+          'user_id': userId,
+          'status_type': 'all',
+        },
+      );
+
+      if (!mounted) return _hasPendingWithdrawal;
+
+      bool foundPending = false;
+      bool backendChecked = false;
+      final data = response.data;
+      List rawList = [];
+
+      if (data is Map<String, dynamic>) {
+        final isSuccess = data['success'] == true ||
+            data['success'] == 1 ||
+            data['success'] == '1' ||
+            data['success'] == 'true';
+
+        if (isSuccess || data['data'] != null || data['withdrawals'] != null || data['categorized'] != null) {
+          backendChecked = true;
+          if (data['data'] is List && (data['data'] as List).isNotEmpty) {
+            rawList.addAll(data['data'] as List);
+          } else if (data['withdrawals'] is List && (data['withdrawals'] as List).isNotEmpty) {
+            rawList.addAll(data['withdrawals'] as List);
+          } else if (data['records'] is List && (data['records'] as List).isNotEmpty) {
+            rawList.addAll(data['records'] as List);
+          } else if (data['list'] is List && (data['list'] as List).isNotEmpty) {
+            rawList.addAll(data['list'] as List);
+          } else if (data['categorized'] is Map) {
+            final cat = data['categorized'] as Map;
+            if (cat['pending'] is List) rawList.addAll(cat['pending'] as List);
+          }
+        }
+      } else if (data is List) {
+        backendChecked = true;
+        rawList.addAll(data);
+      }
+
+      for (final item in rawList) {
+        if (item is Map) {
+          final rawStatus = (item['stage_status']?.toString().isNotEmpty == true)
+              ? item['stage_status'].toString()
+              : ((item['status_category']?.toString().isNotEmpty == true)
+                  ? item['status_category'].toString()
+                  : (item['status']?.toString() ?? ''));
+
+          final statusUpper = rawStatus.trim().toUpperCase();
+          final bool isPending = statusUpper.contains('PENDING') ||
+              statusUpper.contains('WAITING') ||
+              statusUpper.contains('PROCESS') ||
+              statusUpper == 'REQUESTED' ||
+              statusUpper == 'NEW';
+
+          if (isPending) {
+            foundPending = true;
+            break;
+          }
+        }
+      }
+
+      // If backend was reachable, backend response is ground truth.
+      // Only fallback to checking local storage if backend request failed / offline.
+      if (!foundPending && !backendChecked) {
+        final localList = LocalStorageRepositoryImpl().getSubmittedRecharges();
+        final targetUserIdStr = userId.toString().replaceAll(RegExp(r'\D'), '');
+
+        for (final item in localList) {
+          if (item is Map) {
+            final itemType = item['type']?.toString().toUpperCase() ?? '';
+            final isWithdraw = itemType == 'WITHDRAW' ||
+                item['isWithdraw'] == true ||
+                (item['id']?.toString().contains('W') ?? false);
+            if (!isWithdraw) continue;
+
+            final itemUserIdStr = item['user_id']?.toString().replaceAll(RegExp(r'\D'), '') ??
+                item['userId']?.toString().replaceAll(RegExp(r'\D'), '');
+
+            if (targetUserIdStr.isNotEmpty &&
+                itemUserIdStr != null &&
+                itemUserIdStr.isNotEmpty &&
+                itemUserIdStr != targetUserIdStr) {
+              continue;
+            }
+
+            final statusUpper = (item['status']?.toString() ?? 'PENDING').toUpperCase();
+            if (statusUpper.contains('PENDING') ||
+                statusUpper.contains('WAITING') ||
+                statusUpper.contains('PROCESS')) {
+              foundPending = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _hasPendingWithdrawal = foundPending;
+        });
+      }
+      return foundPending;
+    } catch (_) {
+      return _hasPendingWithdrawal;
+    }
+  }
+
   Future<void> _submitForm() async {
+    // 1. Re-verify pending withdrawal status first
+    final bool isAlreadyPending = await _checkPendingWithdrawalStatus(silent: true);
+    if (isAlreadyPending || _hasPendingWithdrawal) {
+      if (mounted) {
+        setState(() => _hasPendingWithdrawal = true);
+      }
+      return;
+    }
+
     if (_selectedBook == null || _selectedBook!.isEmpty) {
       _showIssueDialog('Validation Issue', 'Please select a target book market for withdrawal.');
       return;
@@ -518,10 +650,41 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         }
       }
 
+      // Check if backend rejected due to existing pending request
+      final String backendMsg = (data is Map<String, dynamic> && data['message'] != null)
+          ? data['message'].toString()
+          : '';
+      final bool backendBlocked = backendMsg.toLowerCase().contains('already') ||
+          backendMsg.toLowerCase().contains('pending') ||
+          backendMsg.toLowerCase().contains('exist');
+
+      if (backendBlocked) {
+        if (mounted) {
+          setState(() {
+            _hasPendingWithdrawal = true;
+            _isSubmitting = false;
+          });
+        }
+        return;
+      }
+
+      if (data is Map<String, dynamic> && data['success'] == false) {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          _showIssueDialog(
+            'Withdrawal Failed',
+            backendMsg.isNotEmpty
+                ? backendMsg
+                : 'Failed to submit withdrawal request. Please check your inputs and try again.',
+          );
+        }
+        return;
+      }
+
       if (!mounted) return;
 
-      final successMsg = (data is Map<String, dynamic> && data['message'] != null)
-          ? data['message'].toString()
+      final successMsg = backendMsg.isNotEmpty
+          ? backendMsg
           : 'Withdrawal Request Submitted Successfully!';
 
       final rawWId = (data is Map<String, dynamic> && data['withdrawal_id'] != null)
@@ -540,6 +703,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       final agentId = await _saveWithdrawToChatHistory(withdrawModel, description);
 
       setState(() {
+        _hasPendingWithdrawal = true;
         _isSubmitting = false;
         _amountController.clear();
         _descriptionController.clear();
@@ -563,6 +727,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       final agentId = await _saveWithdrawToChatHistory(withdrawModel, description);
 
       setState(() {
+        _hasPendingWithdrawal = true;
         _isSubmitting = false;
         _amountController.clear();
         _descriptionController.clear();
@@ -610,6 +775,20 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
 
     final repo = LocalStorageRepositoryImpl();
     widget.onWithdrawSubmitted?.call(model);
+
+    try {
+      await repo.saveSubmittedRecharge({
+        'id': model.id,
+        'bookName': model.bookName,
+        'transactionDetails': 'Withdrawal • ${description.isNotEmpty ? description : model.description}',
+        'amount': model.amount,
+        'status': 'PENDING',
+        'date': model.date,
+        'user_id': userEmail,
+        'type': 'WITHDRAW',
+        'isWithdraw': true,
+      });
+    } catch (_) {}
 
     final newChatMsg = ChatMessageModel(
       id: 'withdraw_${DateTime.now().millisecondsSinceEpoch}',
@@ -666,32 +845,44 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     return agentId;
   }
 
+  void _dismissSheetIfModal(BuildContext ctx) {
+    if (!mounted) return;
+    final route = ModalRoute.of(ctx);
+    if (route is PopupRoute && Navigator.canPop(ctx)) {
+      Navigator.of(ctx).pop();
+    }
+  }
+
   void _showSuccessDialog(String message, WithdrawRequestModel model, String agentId) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           child: Container(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(dialogContext).size.height * 0.85,
+              maxHeight: MediaQuery.of(dialogContext).size.height * 0.88,
             ),
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F172A), Color(0xFF090D1A)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                color: const Color(0xFF10B981).withValues(alpha: 0.6),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
-                  blurRadius: 30,
+                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                  blurRadius: 28,
                   spreadRadius: 2,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -700,93 +891,180 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Glowing Animated Checkmark Badge
+                  // Compact Glowing Checkmark Icon
                   Container(
-                    width: 68,
-                    height: 68,
+                    width: 58,
+                    height: 58,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF10B981).withValues(alpha: 0.2),
+                          const Color(0xFF059669).withValues(alpha: 0.05),
+                        ],
+                      ),
                       border: Border.all(
                         color: const Color(0xFF10B981),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                          blurRadius: 20,
+                          color: const Color(0xFF10B981).withValues(alpha: 0.45),
+                          blurRadius: 18,
                         ),
                       ],
                     ),
                     child: const Icon(
                       Icons.check_circle_rounded,
                       color: Color(0xFF10B981),
-                      size: 40,
+                      size: 34,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
+
+                  // Pill Badge: REQUEST RECEIVED
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF10B981),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'WITHDRAWAL REQUESTED ${model.id}',
+                              style: GoogleFonts.outfit(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF10B981),
+                                letterSpacing: 0.7,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
 
                   Text(
                     'Withdrawal Request Submitted!',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12.5,
+                    style: const TextStyle(
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: Color(0xFF94A3B8),
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 12),
 
-                  // Summary Card
+                  // Compact Summary Card
                   Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                      color: const Color(0xFF131C33),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                        color: const Color(0xFF1E293B),
+                        width: 1,
                       ),
                     ),
                     child: Column(
                       children: [
-                        _buildSummaryRow('Book Market', model.bookName, isDark),
+                        // Highlighted Amount Banner
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Withdraw Amount',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFCBD5E1),
+                                ),
+                              ),
+                              Text(
+                                '₹${model.amount.toStringAsFixed(2)}',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: const Color(0xFF10B981),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 8),
-                        _buildSummaryRow('Withdraw Amount', '₹${model.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
-                        const SizedBox(height: 8),
-                        _buildSummaryRow('Status', 'Pending Agency Approval', isDark, statusColor: const Color(0xFFF59E0B)),
+                        _buildSummaryRow('Book Market', model.bookName, true),
+                        const SizedBox(height: 6),
+                        _buildSummaryRow('Status', 'Pending Agency Approval', true, statusColor: const Color(0xFFF59E0B)),
+                        const SizedBox(height: 6),
+                        _buildSummaryRow('Est. Processing', '5 - 15 Minutes', true, statusColor: const Color(0xFF00B2FF)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
 
                   // Primary Action Button: VIEW IN CHAT SCREEN
                   SizedBox(
                     width: double.infinity,
-                    height: 48,
+                    height: 44,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.pop(dialogContext); // Close dialog
-                        Navigator.pop(context); // Close bottom sheet
-                        context.push('/chat/$agentId'); // Navigate to chat screen
+                        if (Navigator.canPop(dialogContext)) {
+                          Navigator.of(dialogContext).pop(); // Close dialog safely
+                        }
+                        _dismissSheetIfModal(context); // Close parent bottom sheet ONLY if it's a modal sheet!
+                        if (mounted) {
+                          context.push('/chat/$agentId'); // Navigate to chat screen
+                        }
                       },
-                      icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 18),
-                      label: const Text(
-                        'VIEW IN CHAT SCREEN',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
+                      icon: const Icon(Icons.chat_rounded, color: Colors.white, size: 17),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'VIEW IN CHAT SCREEN',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
@@ -799,21 +1077,23 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
 
                   // Secondary Action Button: DONE
                   SizedBox(
                     width: double.infinity,
-                    height: 44,
+                    height: 40,
                     child: OutlinedButton(
                       onPressed: () {
-                        Navigator.pop(dialogContext); // Close dialog
-                        Navigator.pop(context); // Close bottom sheet
+                        if (Navigator.canPop(dialogContext)) {
+                          Navigator.of(dialogContext).pop(); // Close dialog safely
+                        }
+                        _dismissSheetIfModal(context); // Close parent bottom sheet ONLY if it's a modal sheet!
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: isDark ? Colors.white70 : const Color(0xFF64748B),
-                        side: BorderSide(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        foregroundColor: Colors.white70,
+                        side: const BorderSide(
+                          color: Color(0xFF334155),
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -822,7 +1102,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                       child: const Text(
                         'DONE',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.5,
                         ),
@@ -843,7 +1123,6 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -853,7 +1132,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
             ),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+              color: const Color(0xFF0F172A),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: const Color(0xFFEF4444).withValues(alpha: 0.5),
@@ -901,10 +1180,10 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                   Text(
                     title,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -1106,56 +1385,60 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
               _buildAccountDetailRow('UPI ID', acc.upiId, isDark, statusColor: const Color(0xFF38BDF8)),
             ],
 
-            // QR Code / Passbook Image Thumbnail Preview
+            // QR Code / Passbook Image (Opened via compact VIEW QR CODE button)
             if (hasQrImage) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               const Divider(height: 1, thickness: 0.8),
               const SizedBox(height: 10),
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Saved QR Code / Passbook:',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  const Row(
+                    children: [
+                      Icon(Icons.qr_code_rounded, size: 16, color: Color(0xFF10B981)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Saved QR Code:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  GestureDetector(
+                  InkWell(
                     onTap: () => _showImageDialog(acc.image!),
+                    borderRadius: BorderRadius.circular(20),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.6),
+                          width: 1,
+                        ),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.zoom_in_rounded, size: 14, color: Color(0xFF10B981)),
-                          SizedBox(width: 4),
+                          Icon(Icons.visibility_rounded, size: 14, color: Color(0xFF10B981)),
+                          SizedBox(width: 5),
                           Text(
-                            'Enlarge QR',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF10B981)),
+                            'VIEW QR CODE',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF10B981),
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () => _showImageDialog(acc.image!),
-                child: Container(
-                  height: 90,
-                  width: 90,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(9),
-                    child: _buildAccountImageWidget(acc.image!),
-                  ),
-                ),
               ),
             ],
           ],
@@ -1353,26 +1636,69 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              constraints: const BoxConstraints(maxHeight: 350, maxWidth: 350),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: Colors.white,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: _buildAccountImageWidget(imgStr),
-              ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 300),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFF10B981).withValues(alpha: 0.6),
+              width: 1.5,
             ),
-            const SizedBox(height: 12),
-            IconButton(
-              icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
-              onPressed: () => Navigator.pop(ctx),
-            ),
-          ],
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                blurRadius: 20,
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF10B981), size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'SAVED PAYOUT QR CODE',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF10B981),
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white,
+                  border: Border.all(color: const Color(0xFF10B981), width: 1.5),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(13),
+                  child: _buildAccountImageWidget(imgStr),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1648,20 +1974,29 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
               ),
               const SizedBox(height: 20),
 
-              // 5. Electric Blue Gradient Submit Button: "Withdraw Request ->"
+              // 5. Electric Blue Gradient Submit Button: "Withdraw Request ->" (Disabled when pending request exists)
               Container(
                 width: double.infinity,
                 height: 52,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(26),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0077FF), Color(0xFF0044CE)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  gradient: _hasPendingWithdrawal
+                      ? const LinearGradient(
+                          colors: [Color(0xFF334155), Color(0xFF1E293B)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : const LinearGradient(
+                          colors: [Color(0xFF0077FF), Color(0xFF0044CE)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF0066FF).withValues(alpha: 0.5),
+                      color: (_hasPendingWithdrawal
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFF0066FF))
+                          .withValues(alpha: 0.5),
                       blurRadius: 14,
                       offset: const Offset(0, 4),
                     ),
@@ -1670,7 +2005,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: _isSubmitting ? null : _submitForm,
+                    onTap: (_isSubmitting || _hasPendingWithdrawal) ? null : _submitForm,
                     borderRadius: BorderRadius.circular(26),
                     child: _isSubmitting
                         ? const Center(
@@ -1680,22 +2015,25 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                             ),
                           )
-                        : const Row(
+                        : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(
-                                'Withdraw Request',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15.5,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.4,
+                              Flexible(
+                                child: Text(
+                                  _hasPendingWithdrawal ? 'Withdrawal Blocked' : 'Withdraw Request',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: _hasPendingWithdrawal ? const Color(0xFF94A3B8) : Colors.white,
+                                    fontSize: 15.5,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.4,
+                                  ),
                                 ),
                               ),
-                              SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               Icon(
-                                Icons.arrow_forward_rounded,
-                                color: Colors.white,
+                                _hasPendingWithdrawal ? Icons.lock_rounded : Icons.arrow_forward_rounded,
+                                color: _hasPendingWithdrawal ? const Color(0xFF94A3B8) : Colors.white,
                                 size: 18,
                               ),
                             ],
@@ -1703,6 +2041,53 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                   ),
                 ),
               ),
+
+              // 6. Red Warning Pill Banner matching the design screenshot (below submit button)
+              if (_hasPendingWithdrawal) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF280E14),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.8),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFEF4444),
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'You cannot request a withdrawal because a withdrawal request already exists!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFEF4444),
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

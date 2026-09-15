@@ -138,15 +138,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) {
+        final screenWidth = MediaQuery.of(ctx).size.width;
+        final screenHeight = MediaQuery.of(ctx).size.height;
+        final horizontalInset = screenWidth < 380 ? 10.0 : 16.0;
+        final containerPadding = screenWidth < 380 ? 16.0 : 22.0;
+
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return Dialog(
               backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              insetPadding: EdgeInsets.symmetric(horizontal: horizontalInset, vertical: 16),
               child: Container(
                 width: double.infinity,
-                constraints: const BoxConstraints(maxWidth: 520),
-                padding: const EdgeInsets.all(24),
+                constraints: BoxConstraints(
+                  maxWidth: 520,
+                  maxHeight: screenHeight * 0.88,
+                ),
+                padding: EdgeInsets.all(containerPadding),
                 decoration: BoxDecoration(
                   color: const Color(0xFF070D22),
                   borderRadius: BorderRadius.circular(28),
@@ -163,6 +171,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ],
                 ),
                 child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,12 +348,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) {
+        final screenWidth = MediaQuery.of(ctx).size.width;
+        final screenHeight = MediaQuery.of(ctx).size.height;
+        final horizontalInset = screenWidth < 380 ? 10.0 : 16.0;
+
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          insetPadding: EdgeInsets.symmetric(horizontal: horizontalInset, vertical: 16),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 620),
+            constraints: BoxConstraints(
+              maxWidth: 580,
+              maxHeight: screenHeight * 0.88,
+            ),
             child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
               child: PaymentAccountWidget(
                 isReadOnly: isReadOnly,
                 isPendingApproval: isPendingApproval,
@@ -369,17 +386,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) {
+        final screenWidth = MediaQuery.of(ctx).size.width;
+        final screenHeight = MediaQuery.of(ctx).size.height;
+        final horizontalInset = screenWidth < 380 ? 10.0 : 16.0;
+        final containerPadding = screenWidth < 380 ? 16.0 : 22.0;
+
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final isDark = Theme.of(context).brightness == Brightness.dark;
 
             return Dialog(
               backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              insetPadding: EdgeInsets.symmetric(horizontal: horizontalInset, vertical: 16),
               child: Container(
                 width: double.infinity,
-                constraints: const BoxConstraints(maxWidth: 520),
-                padding: const EdgeInsets.all(24),
+                constraints: BoxConstraints(
+                  maxWidth: 520,
+                  maxHeight: screenHeight * 0.88,
+                ),
+                padding: EdgeInsets.all(containerPadding),
                 decoration: BoxDecoration(
                   color: const Color(0xFF070D22),
                   borderRadius: BorderRadius.circular(28),
@@ -396,6 +421,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ],
                 ),
                 child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,

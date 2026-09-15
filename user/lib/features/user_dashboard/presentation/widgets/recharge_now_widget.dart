@@ -390,7 +390,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1785149229_QR.png';
         _qrId = 5;
         _rangeId = 2;
-        _empId = widget.agencyId ?? 29;
+        _empId = widget.agencyId;
         _qrMessage = null;
       });
     } else if (amount >= 1001 && amount <= 10000) {
@@ -400,7 +400,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1785149209_QR.png';
         _qrId = 4;
         _rangeId = 3;
-        _empId = widget.agencyId ?? 29;
+        _empId = widget.agencyId;
         _qrMessage = null;
       });
     } else if (amount >= 1 && amount <= 100) {
@@ -410,7 +410,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1784640233_QR.png';
         _qrId = 1;
         _rangeId = 1;
-        _empId = widget.agencyId ?? 29;
+        _empId = widget.agencyId;
         _qrMessage = null;
       });
     } else {
@@ -487,6 +487,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
     final txnId = _txnIdController.text.trim();
     if (txnId.isEmpty) {
       _showIssueDialog('Validation Issue', 'Please enter the 12-digit UTR or Transaction ID.');
+      return;
+    }
+    if (_selectedScreenshot == null) {
+      _showIssueDialog('Validation Issue', 'Please upload a payment proof screenshot before submitting.');
       return;
     }
 
@@ -667,12 +671,19 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
     return agentId;
   }
 
+  void _dismissSheetIfModal(BuildContext ctx) {
+    if (!mounted) return;
+    final route = ModalRoute.of(ctx);
+    if (route is PopupRoute && Navigator.canPop(ctx)) {
+      Navigator.of(ctx).pop();
+    }
+  }
+
   void _showSuccessDialog(String message, RechargeRecordModel record, String agentId) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -680,7 +691,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
             child: Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                color: const Color(0xFF0F172A),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: const Color(0xFF10B981).withValues(alpha: 0.5),
@@ -723,22 +734,22 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                   ),
                   const SizedBox(height: 16),
 
-                  Text(
+                  const Text(
                     'Recharge Successful!',
                     style: TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w500,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: Color(0xFF94A3B8),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -747,71 +758,76 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                      color: const Color(0xFF1E293B),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                        color: const Color(0xFF334155),
                       ),
                     ),
                     child: Column(
                       children: [
-                        _buildSummaryRow('Book Market', record.bookName, isDark),
-                        const SizedBox(height: 8),
-                        _buildSummaryRow('Amount', '₹${record.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
-                        const SizedBox(height: 8),
-                        _buildSummaryRow('Transaction UTR', record.transactionDetails.replaceAll(RegExp(r'Txn:\s*|\s*•.*'), ''), isDark),
-                        const SizedBox(height: 8),
-                        _buildSummaryRow('Status', 'Pending Agency Approval', isDark, statusColor: const Color(0xFFF59E0B)),
+                        _buildSummaryRow('Book Market', record.bookName, true),
+                        const Divider(color: Color(0xFF334155), height: 16),
+                        _buildSummaryRow('Amount Paid', '₹${record.amount.toStringAsFixed(0)}', true),
+                        const Divider(color: Color(0xFF334155), height: 16),
+                        _buildSummaryRow('Transaction ID', record.transactionDetails, true),
                       ],
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  // Primary Action Button: VIEW IN CHATING SCREEN
+                  // Action Buttons
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.pop(dialogContext); // Close dialog
-                        Navigator.pop(context); // Close bottom sheet
-                        context.push('/chat/$agentId'); // Navigate to chat screen
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                        _dismissSheetIfModal(context);
+                        context.push('/chat', extra: {
+                          'agentId': agentId,
+                          'autoSendTxnId': record.transactionDetails,
+                          'depositAmount': record.amount,
+                          'bookName': record.bookName,
+                        });
                       },
-                      icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 18),
+                      icon: const Icon(Icons.support_agent_rounded, size: 20),
                       label: const Text(
-                        'VIEW IN CHAT SCREEN',
+                        'NOTIFY AGENT IN CHAT',
                         style: TextStyle(
-                          fontSize: 13.5,
+                          fontSize: 13,
                           fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
+                          letterSpacing: 0.3,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF7C3AED),
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        elevation: 4,
-                        shadowColor: const Color(0xFF7C3AED).withValues(alpha: 0.4),
                       ),
                     ),
                   ),
                   const SizedBox(height: 10),
-
-                  // Secondary Action Button: DONE
                   SizedBox(
                     width: double.infinity,
                     height: 44,
                     child: OutlinedButton(
                       onPressed: () {
-                        Navigator.pop(dialogContext); // Close dialog
-                        Navigator.pop(context); // Close recharge bottom sheet
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                        _dismissSheetIfModal(context);
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: isDark ? Colors.white70 : const Color(0xFF64748B),
-                        side: BorderSide(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        foregroundColor: Colors.white70,
+                        side: const BorderSide(
+                          color: Color(0xFF334155),
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -841,7 +857,6 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -849,7 +864,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
             child: Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                color: const Color(0xFF0F172A),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: const Color(0xFFEF4444).withValues(alpha: 0.5),
@@ -894,10 +909,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
 
                   Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 10),
