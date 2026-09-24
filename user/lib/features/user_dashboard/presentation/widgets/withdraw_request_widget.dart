@@ -459,8 +459,24 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         rawList.addAll(data);
       }
 
+      final targetUserIdStr = userId?.toString().replaceAll(RegExp(r'\D'), '') ?? '';
+      final currentUserObj = LocalStorageRepositoryImpl().getUser();
+      final currentUserIdDigits = currentUserObj?.id.replaceAll(RegExp(r'\D'), '') ?? targetUserIdStr;
+      final currentEmailStr = currentUserObj?.email.trim().toLowerCase() ?? '';
+
       for (final item in rawList) {
         if (item is Map) {
+          final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+          final itemEmail = (item['email'] ?? item['user_email'])?.toString().trim().toLowerCase() ?? '';
+
+          if (itemUserId.isNotEmpty || itemEmail.isNotEmpty) {
+            final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+            final isUserMatch = (currentUserIdDigits.isNotEmpty && cleanItemUserDigits == currentUserIdDigits) ||
+                (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr) ||
+                (currentEmailStr.isNotEmpty && itemEmail == currentEmailStr);
+            if (!isUserMatch) continue; // Skip item belonging to another user
+          }
+
           final rawStatus = (item['stage_status']?.toString().isNotEmpty == true)
               ? item['stage_status'].toString()
               : ((item['status_category']?.toString().isNotEmpty == true)

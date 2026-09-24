@@ -18,7 +18,7 @@ class MockPaymentAccountRepository implements PaymentAccountRepository {
   String? lastUpdatedImageBase64;
 
   @override
-  Future<PaymentAccountModel?> getPaymentAccount(dynamic userId) async {
+  Future<PaymentAccountModel?> getPaymentAccount(dynamic userId, {dynamic empId}) async {
     lastFetchedUserId = userId;
     return accountToReturn;
   }
@@ -26,6 +26,7 @@ class MockPaymentAccountRepository implements PaymentAccountRepository {
   @override
   Future<bool> updatePaymentAccount({
     required dynamic userId,
+    dynamic empId,
     required String accountName,
     required String accountNo,
     required String ifscCode,
@@ -165,8 +166,7 @@ void main() {
         ),
       );
 
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
       // Verify Title & Labels are rendered
       expect(find.text('Payment Account Details'), findsOneWidget);
@@ -180,11 +180,11 @@ void main() {
       expect(find.text('Close Details'), findsOneWidget);
 
       // Verify prefilled field values
-      expect(find.text('DreamHub User'), findsOneWidget);
-      expect(find.text('1234567890'), findsOneWidget);
-      expect(find.text('SBI Bank'), findsOneWidget);
-      expect(find.text('IFSC0001'), findsOneWidget);
-      expect(find.text('dreamhub@upi'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'DreamHub User'), findsOneWidget);
+      expect(find.widgetWithText(TextField, '1234567890'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'SBI Bank'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'IFSC0001'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'dreamhub@upi'), findsOneWidget);
     });
 
     testWidgets('Triggers updatePaymentAccount repository call on Save Payment Account click', (WidgetTester tester) async {
@@ -208,15 +208,13 @@ void main() {
         ),
       );
 
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
       // Tap the Save Payment Account button
       final saveBtn = find.text('Save Payment Account');
       expect(saveBtn, findsOneWidget);
       await tester.tap(saveBtn);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
       // Verify mock repo received updated field values
       expect(mockRepo.lastUpdatedAccountName, equals('Initial Name'));
@@ -248,8 +246,7 @@ void main() {
         ),
       );
 
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
       // Verify warning message banner and badge are displayed
       expect(find.text('You cannot update your payment account detail while approval is pending.'), findsOneWidget);
@@ -259,8 +256,7 @@ void main() {
       final saveBtn = find.text('Save Payment Account');
       expect(saveBtn, findsOneWidget);
       await tester.tap(saveBtn);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
       // Verify mockRepo update was NOT called
       expect(mockRepo.lastUpdatedAccountName, isNull);
@@ -292,8 +288,7 @@ void main() {
         ),
       );
 
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
       // 1. Verify warning banner text
       expect(find.text('You cannot update your payment account detail while approval is pending.'), findsOneWidget);
@@ -305,8 +300,7 @@ void main() {
       final saveButton = find.text('Save Payment Account');
       expect(saveButton, findsOneWidget);
       await tester.tap(saveButton);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
       // 4. Verify no backend update was dispatched for user@gmail.com
       expect(mockRepo.lastUpdatedAccountName, isNull);

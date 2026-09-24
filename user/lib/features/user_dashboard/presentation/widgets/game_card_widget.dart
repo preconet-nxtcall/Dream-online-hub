@@ -660,7 +660,10 @@ class _GameCardWidgetState extends State<GameCardWidget> with SingleTickerProvid
       if (!mounted) return;
       final data = response.data;
       if (data is Map<String, dynamic> && data['success'] == true) {
-        final isSubscribed = data['is_subscribed'] == true || data['already_subscribed'] == true;
+        final isSubscribed = data['success'] == true ||
+            data['is_subscribed'] == true ||
+            data['already_subscribed'] == true ||
+            data['subscribed'] == true;
         String rawMsg = data['message']?.toString() ?? 'Get ID record set successfully!';
         final cleanedMsg = rawMsg
             .replaceAll(RegExp(r'subscription', caseSensitive: false), 'Get ID')

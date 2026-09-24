@@ -87,10 +87,14 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
     }
 
     // 3. Fetch dynamically from secure storage
-    final storedUserId = await SecureStorageService().read(StorageKeys.userId);
-    if (storedUserId != null && storedUserId.trim().isNotEmpty) {
-      return storedUserId.trim();
-    }
+    try {
+      final storedUserId = await SecureStorageService()
+          .read(StorageKeys.userId)
+          .timeout(const Duration(milliseconds: 50), onTimeout: () => null);
+      if (storedUserId != null && storedUserId.trim().isNotEmpty) {
+        return storedUserId.trim();
+      }
+    } catch (_) {}
 
     return null;
   }
@@ -125,7 +129,9 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
       }
     } catch (_) {}
     try {
-      final storedAgentId = await SecureStorageService().read(StorageKeys.chatAgentId);
+      final storedAgentId = await SecureStorageService()
+          .read(StorageKeys.chatAgentId)
+          .timeout(const Duration(milliseconds: 50), onTimeout: () => null);
       if (storedAgentId != null &&
           storedAgentId.isNotEmpty &&
           storedAgentId != 'null' &&
@@ -155,7 +161,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
           _ifscCodeCtrl.text = account.ifscCode;
           _upiIdCtrl.text = account.upiId;
           _existingImageUrl = account.image;
-          _isPendingApproval = account.isPendingApproval;
+          _isPendingApproval = widget.isPendingApproval || account.isPendingApproval;
           _isLoading = false;
         });
       } else if (mounted) {
@@ -804,7 +810,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
           controller: controller,
           keyboardType: keyboardType,
           readOnly: !isFieldEnabled,
-          enabled: isFieldEnabled,
+          enabled: true,
           cursorColor: const Color(0xFF00B2FF),
           style: const TextStyle(
             color: Colors.white,

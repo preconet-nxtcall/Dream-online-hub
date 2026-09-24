@@ -115,11 +115,25 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
   @override
   Future<void> clearAuthData() async {
     final box = _storageService.authBox;
-    if (box == null) return;
-    await box.delete(_userKey);
-    await box.delete(_accessTokenKey);
-    await box.delete(_refreshTokenKey);
+    if (box != null) {
+      await box.delete(_userKey);
+      await box.delete(_accessTokenKey);
+      await box.delete(_refreshTokenKey);
+    }
+    final chatsBox = _storageService.chatsBox;
+    if (chatsBox != null) {
+      await chatsBox.clear();
+    }
+    final unreadBox = _storageService.unreadBox;
+    if (unreadBox != null) {
+      await unreadBox.clear();
+    }
+    final offlineQueueBox = _storageService.offlineQueueBox;
+    if (offlineQueueBox != null) {
+      await offlineQueueBox.clear();
+    }
   }
+
 
   @override
   Future<void> saveMessages(String userId, List<ChatMessageModel> messages) async {
@@ -128,16 +142,13 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
 
     final List<ChatMessageModel> deduplicated = [];
     for (final m in messages) {
-      final text = m.message.trim();
-      final isRequestMsg = text.contains('RECHARGE') ||
-          text.contains('WITHDRAW') ||
-          text.contains('REQUEST');
+      final text = m.message.trim().toLowerCase();
       final exists = deduplicated.any((item) =>
-          (m.id.isNotEmpty && item.id == m.id) ||
-          (isRequestMsg &&
-              item.message.trim() == text &&
+          (m.id.isNotEmpty && item.id.isNotEmpty && item.id == m.id) ||
+          (text.isNotEmpty &&
+              item.message.trim().toLowerCase() == text &&
               item.isMe == m.isMe &&
-              item.timestamp.difference(m.timestamp).abs().inSeconds <= 60));
+              item.timestamp.difference(m.timestamp).abs().inSeconds <= 180));
       if (!exists) {
         deduplicated.add(m);
       }
@@ -297,6 +308,7 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
     final box = _storageService.chatsBox;
     if (box == null) return;
     final existing = getSubmittedRecharges();
+    final currentUser = getUser();
     final recId = (record is Map) ? record['id'] : record.id;
     final recBook = (record is Map) ? record['bookName'] : record.bookName;
     final recDetails = (record is Map) ? record['transactionDetails'] : record.transactionDetails;
@@ -305,6 +317,9 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
     final recDate = (record is Map) ? record['date'] : record.date;
     final recImageUrl = (record is Map) ? (record['imageUrl'] ?? record['image_url']) : (record is RechargeRecordModel ? record.imageUrl : null);
     final recInvoiceUrl = (record is Map) ? (record['invoiceUrl'] ?? record['invoice_url']) : (record is RechargeRecordModel ? record.invoiceUrl : null);
+    final recUserId = (record is Map)
+        ? (record['user_id'] ?? record['userId'] ?? currentUser?.email ?? currentUser?.id)
+        : (currentUser?.email ?? currentUser?.id);
 
     existing.removeWhere((r) => (r is Map ? r['id'] : r.id) == recId);
     existing.insert(0, {
@@ -316,6 +331,7 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
       'date': recDate,
       'imageUrl': recImageUrl,
       'invoiceUrl': recInvoiceUrl,
+      'user_id': recUserId,
     });
 
     await box.put('submitted_recharges_list', jsonEncode(existing));

@@ -136,6 +136,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       double pendingSum = 0.0;
       double successSum = 0.0;
 
+      final currentUserIdStr = userId > 0 ? userId.toString() : '';
+      final currentUserObj = LocalStorageRepositoryImpl().getUser();
+      final currentEmailStr = currentUserObj?.email.trim().toLowerCase() ?? '';
+
       // 1. Process Recharge Records
       final rData = responses[0].data;
       if (rData is Map<String, dynamic> && rData['success'] == true) {
@@ -153,6 +157,17 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
         for (final item in rawList) {
           if (item is Map) {
+            final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+            final itemEmail = (item['email'] ?? item['user_email'])?.toString().trim().toLowerCase() ?? '';
+
+            if (itemUserId.isNotEmpty || itemEmail.isNotEmpty) {
+              final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+              final isUserMatch = (currentUserIdStr.isNotEmpty && cleanItemUserDigits == currentUserIdStr) ||
+                  (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr) ||
+                  (currentEmailStr.isNotEmpty && itemEmail == currentEmailStr);
+              if (!isUserMatch) continue;
+            }
+
             final m = Map<String, dynamic>.from(item);
             m['type'] = 'recharge';
             allItems.add(m);
@@ -184,6 +199,17 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
         for (final item in rawWList) {
           if (item is Map) {
+            final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+            final itemEmail = (item['email'] ?? item['user_email'])?.toString().trim().toLowerCase() ?? '';
+
+            if (itemUserId.isNotEmpty || itemEmail.isNotEmpty) {
+              final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+              final isUserMatch = (currentUserIdStr.isNotEmpty && cleanItemUserDigits == currentUserIdStr) ||
+                  (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr) ||
+                  (currentEmailStr.isNotEmpty && itemEmail == currentEmailStr);
+              if (!isUserMatch) continue;
+            }
+
             final m = Map<String, dynamic>.from(item);
             m['type'] = 'withdraw';
             allItems.add(m);
@@ -193,8 +219,17 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
       // 3. Merge local submitted recharges
       final localList = LocalStorageRepositoryImpl().getSubmittedRecharges();
+
       for (final item in localList) {
         if (item is Map) {
+          final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+          if (itemUserId.isNotEmpty) {
+            final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+            final isUserMatch = (currentUserIdStr.isNotEmpty && cleanItemUserDigits == currentUserIdStr) ||
+                (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr);
+            if (!isUserMatch) continue;
+          }
+
           final m = Map<String, dynamic>.from(item);
           final idStr = (m['id'] ?? '').toString();
           if (idStr.isNotEmpty && !allItems.any((r) => (r['id'] ?? r['recharge_id'])?.toString() == idStr)) {
@@ -220,12 +255,24 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   void _calculateFromLocalStorage() {
     final localRecharges = LocalStorageRepositoryImpl().getSubmittedRecharges();
+    final currentUserObj = LocalStorageRepositoryImpl().getUser();
+    final currentUserIdDigits = currentUserObj?.id.replaceAll(RegExp(r'\D'), '') ?? '';
+    final currentEmailStr = currentUserObj?.email.trim().toLowerCase() ?? '';
+
     double pendingSum = 0.0;
     double successSum = 0.0;
     final List<Map<String, dynamic>> allItems = [];
 
     for (final item in localRecharges) {
       if (item is Map) {
+        final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+        if (itemUserId.isNotEmpty) {
+          final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+          final isUserMatch = (currentUserIdDigits.isNotEmpty && cleanItemUserDigits == currentUserIdDigits) ||
+              (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr);
+          if (!isUserMatch) continue;
+        }
+
         final m = Map<String, dynamic>.from(item);
         m['type'] = 'recharge';
         allItems.add(m);
@@ -2152,8 +2199,20 @@ class _UserRechargeSingleLineNotificationsWidgetState extends State<_UserRecharg
 
       // 3. Merge local submitted recharges
       final local = LocalStorageRepositoryImpl().getSubmittedRecharges();
+      final currentUserObj = LocalStorageRepositoryImpl().getUser();
+      final currentUserIdDigits = currentUserObj?.id.replaceAll(RegExp(r'\D'), '') ?? '';
+      final currentEmailStr = currentUserObj?.email.trim().toLowerCase() ?? '';
+
       for (final item in local) {
         if (item is Map) {
+          final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+          if (itemUserId.isNotEmpty) {
+            final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+            final isUserMatch = (currentUserIdDigits.isNotEmpty && cleanItemUserDigits == currentUserIdDigits) ||
+                (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr);
+            if (!isUserMatch) continue;
+          }
+
           final idStr = (item['id'] ?? '').toString();
           if (idStr.isNotEmpty && !fetched.any((r) => r.id == idStr)) {
             fetched.insert(

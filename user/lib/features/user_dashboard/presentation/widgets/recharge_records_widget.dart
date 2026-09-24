@@ -111,6 +111,9 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
       final apiClient = ApiClient();
       final userId = await _resolveUserId();
+      final currentUserObj = LocalStorageRepositoryImpl().getUser();
+      final currentUserIdStr = userId?.toString().replaceAll(RegExp(r'\D'), '') ?? currentUserObj?.id.replaceAll(RegExp(r'\D'), '') ?? '';
+      final currentEmailStr = currentUserObj?.email.trim().toLowerCase() ?? '';
 
       final List<RechargeRecordModel> fetched = [];
 
@@ -157,6 +160,19 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         }
 
         for (final item in rawList) {
+          if (item is Map) {
+            final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+            final itemEmail = (item['email'] ?? item['user_email'])?.toString().trim().toLowerCase() ?? '';
+
+            if (itemUserId.isNotEmpty || itemEmail.isNotEmpty) {
+              final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+              final isUserMatch = (currentUserIdStr.isNotEmpty && cleanItemUserDigits == currentUserIdStr) ||
+                  (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr) ||
+                  (currentEmailStr.isNotEmpty && itemEmail == currentEmailStr);
+              if (!isUserMatch) continue; // Skip records belonging to another user
+            }
+          }
+
           final idVal = item['recharge_id'] ?? item['id'] ?? '';
           final idStr = idVal.toString();
           final bookIdVal = item['book_id']?.toString();
@@ -208,8 +224,21 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
         // Also merge local submitted recharges so newly created recharges show instantly
         final localList = LocalStorageRepositoryImpl().getSubmittedRecharges();
+        final targetUserIdStr = userId?.toString().replaceAll(RegExp(r'\D'), '');
+
         for (final item in localList) {
           if (item is Map) {
+            final itemUserIdStr = item['user_id']?.toString().replaceAll(RegExp(r'\D'), '') ??
+                item['userId']?.toString().replaceAll(RegExp(r'\D'), '');
+
+            if (targetUserIdStr != null &&
+                targetUserIdStr.isNotEmpty &&
+                itemUserIdStr != null &&
+                itemUserIdStr.isNotEmpty &&
+                itemUserIdStr != targetUserIdStr) {
+              continue; // Skip records belonging to another user
+            }
+
             final idStr = item['id']?.toString() ?? '';
             final formattedId = idStr.startsWith('#') ? idStr : '#$idStr';
             if (idStr.isNotEmpty && !fetched.any((r) => r.id == formattedId)) {
@@ -273,6 +302,19 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         }
 
         for (final item in rawWithdrawList) {
+          if (item is Map) {
+            final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+            final itemEmail = (item['email'] ?? item['user_email'])?.toString().trim().toLowerCase() ?? '';
+
+            if (itemUserId.isNotEmpty || itemEmail.isNotEmpty) {
+              final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+              final isUserMatch = (currentUserIdStr.isNotEmpty && cleanItemUserDigits == currentUserIdStr) ||
+                  (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr) ||
+                  (currentEmailStr.isNotEmpty && itemEmail == currentEmailStr);
+              if (!isUserMatch) continue; // Skip records belonging to another user
+            }
+          }
+
           final wId = item['withdrawal_id'] ?? item['id'] ?? '';
           final wIdStr = wId.toString();
           final rawAmount = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;

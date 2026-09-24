@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/chat_provider.dart';
 import '../../theme/app_colors.dart';
 
 class AppLogoutDialog {
@@ -99,6 +100,9 @@ class AppLogoutDialog {
                       child: ElevatedButton(
                         onPressed: () async {
                           Navigator.of(dialogContext).pop();
+                          try {
+                            context.read<ChatProvider>().clearAllChatState();
+                          } catch (_) {}
                           final authProvider = context.read<AuthProvider>();
                           await authProvider.logout();
                           if (context.mounted) {

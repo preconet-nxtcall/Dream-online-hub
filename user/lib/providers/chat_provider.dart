@@ -39,6 +39,7 @@ class ChatProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _conversations = [];
   ChatMessageModel? _replyingToMessage;
   bool _isHigherAuthorityActive = false;
+  final Set<String> _deletedMessageIds = {};
 
   // Voice — no local state needed; recording is handled in the widget layer.
   // Image Staging state
@@ -292,6 +293,22 @@ class ChatProvider extends ChangeNotifier {
     _prevRecipientId = null;
     _replyingToMessage = null;
     _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Completely clear and reset in-memory chat state (e.g. on user logout)
+  void clearAllChatState() {
+    clearActiveConversation();
+    _conversations = [];
+    _deletedMessageIds.clear();
+    _stagedImagePath = null;
+    _stagedImageCaption = null;
+    _typingTimeoutTimer?.cancel();
+    _typingTimeoutTimer = null;
+    for (final timer in _uploadTimers.values) {
+      timer.cancel();
+    }
+    _uploadTimers.clear();
     notifyListeners();
   }
 
@@ -973,19 +990,32 @@ class ChatProvider extends ChangeNotifier {
   }
 
   void deleteMessage(String messageId) {
-    _messages.removeWhere((m) => m.id == messageId);
+    if (messageId.isNotEmpty) {
+      _deletedMessageIds.add(messageId);
+    }
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx != -1) {
+      final removed = _messages.removeAt(idx);
+      if (removed.id.isNotEmpty) {
+        _deletedMessageIds.add(removed.id);
+      }
+    }
+    _messages.removeWhere((m) => m.id == messageId || (m.id.isNotEmpty && _deletedMessageIds.contains(m.id)));
+    if (_activeConversationId != null && _activeConversationId!.isNotEmpty) {
+      _chatRepository.saveLocalMessages(_activeConversationId!, _messages);
+    }
     notifyListeners();
   }
 
   bool _isDuplicateMessage(ChatMessageModel m1, ChatMessageModel m2) {
-    if (m1.id.isNotEmpty && m1.id == m2.id) return true;
+    if (m1.id.isNotEmpty && m2.id.isNotEmpty && m1.id == m2.id) return true;
 
     // Voice / Audio deduplication
     if ((m1.type == 'voice' || m1.type == 'audio') && (m2.type == 'voice' || m2.type == 'audio')) {
       if (m1.audioUrl != null && m1.audioUrl!.isNotEmpty && m1.audioUrl == m2.audioUrl) return true;
       if (m1.localFilePath != null && m1.localFilePath!.isNotEmpty && m1.localFilePath == m2.localFilePath) return true;
       final timeDiff = m1.timestamp.difference(m2.timestamp).abs().inSeconds;
-      if (timeDiff <= 10 && m1.isMe == m2.isMe && m1.voiceDuration == m2.voiceDuration) {
+      if (timeDiff <= 30 && m1.isMe == m2.isMe && m1.voiceDuration == m2.voiceDuration) {
         return true;
       }
     }
@@ -994,22 +1024,18 @@ class ChatProvider extends ChangeNotifier {
     if (m1.type == 'image' && m2.type == 'image') {
       if (m1.imageUrl != null && m1.imageUrl!.isNotEmpty && m1.imageUrl == m2.imageUrl) return true;
       final timeDiff = m1.timestamp.difference(m2.timestamp).abs().inSeconds;
-      if (timeDiff <= 10 && m1.isMe == m2.isMe) {
+      if (timeDiff <= 30 && m1.isMe == m2.isMe) {
         return true;
       }
     }
 
-    final text1 = m1.message.trim();
-    final text2 = m2.message.trim();
-    if (text1.isNotEmpty && text1 == text2) {
-      final isRequestMessage = text1.contains('RECHARGE') ||
-          text1.contains('WITHDRAW') ||
-          text1.contains('REQUEST');
-      if (isRequestMessage) {
-        final timeDiff = m1.timestamp.difference(m2.timestamp).abs().inSeconds;
-        if (timeDiff <= 60 && m1.isMe == m2.isMe) {
-          return true;
-        }
+    // General text deduplication (same sender, identical text within 3 minutes)
+    final text1 = m1.message.trim().toLowerCase();
+    final text2 = m2.message.trim().toLowerCase();
+    if (text1.isNotEmpty && text1 == text2 && m1.isMe == m2.isMe) {
+      final timeDiff = m1.timestamp.difference(m2.timestamp).abs().inSeconds;
+      if (timeDiff <= 180) {
+        return true;
       }
     }
     return false;
@@ -1018,15 +1044,29 @@ class ChatProvider extends ChangeNotifier {
   List<ChatMessageModel> _deduplicateMessages(List<ChatMessageModel> list) {
     final List<ChatMessageModel> result = [];
     for (final item in list) {
-      final exists = result.any((existing) => _isDuplicateMessage(existing, item));
-      if (!exists) {
+      if (item.id.isNotEmpty && _deletedMessageIds.contains(item.id)) {
+        continue;
+      }
+      final existingIdx = result.indexWhere((existing) => _isDuplicateMessage(existing, item));
+      if (existingIdx == -1) {
         result.add(item);
+      } else {
+        // Prefer server-confirmed message over temporary local bubble
+        final existing = result[existingIdx];
+        final isExistingTemp = existing.id.length < 20 && RegExp(r'^\d+$').hasMatch(existing.id);
+        final isNewServer = item.id.length >= 20 || (item.status != 'sending' && item.status != 'queued');
+        if (isExistingTemp && isNewServer) {
+          result[existingIdx] = item;
+        }
       }
     }
     return result;
   }
 
   void addRealtimeMessage(ChatMessageModel message) {
+    if (message.id.isNotEmpty && _deletedMessageIds.contains(message.id)) {
+      return;
+    }
     final exists = _messages.any((m) => _isDuplicateMessage(m, message));
     if (!exists) {
       _messages.add(message);

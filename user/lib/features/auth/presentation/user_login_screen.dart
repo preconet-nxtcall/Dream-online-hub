@@ -40,7 +40,6 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
   int _registrationStep = 1; // 1: Info input, 2: OTP verification
   int _resendCountdown = 30;
   Timer? _resendTimer;
-  String? _serverOtpHint;
   String? _otpSuccessMessage;
 
   @override
@@ -97,7 +96,6 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
       _isRegisterMode = registerMode;
       _registrationStep = 1;
       _otpController.clear();
-      _serverOtpHint = null;
       _otpSuccessMessage = null;
     });
   }
@@ -109,7 +107,6 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
     setState(() {
       _registrationStep = 1;
       _otpController.clear();
-      _serverOtpHint = null;
       _otpSuccessMessage = null;
     });
   }
@@ -146,13 +143,9 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
 
     if (res != null) {
       final msg = res['message']?.toString() ?? 'OTP sent to your phone!';
-      final hint = (res['otp'] != null && res['otp'].toString().isNotEmpty)
-          ? res['otp'].toString()
-          : null;
 
       setState(() {
         _otpSuccessMessage = msg;
-        _serverOtpHint = hint;
         _registrationStep = 2;
       });
       _startResendTimer();
@@ -171,13 +164,9 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
 
     if (res != null) {
       final msg = res['message']?.toString() ?? 'OTP Resent successfully!';
-      final hint = (res['otp'] != null && res['otp'].toString().isNotEmpty)
-          ? res['otp'].toString()
-          : null;
 
       setState(() {
         _otpSuccessMessage = msg;
-        _serverOtpHint = hint;
       });
       _startResendTimer();
     }
@@ -228,7 +217,6 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
         _emailController.text = email;
         _passwordController.text = password;
         _otpController.clear();
-        _serverOtpHint = null;
         _otpSuccessMessage = null;
       });
 
@@ -1240,34 +1228,7 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
           const SizedBox(height: 12),
         ],
 
-        // Server OTP Hint Badge (if backend returns OTP in response)
-        if (_serverOtpHint != null) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: accentColor.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline_rounded, color: accentColor, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Verification Code: ${_serverOtpHint!}',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: accentColor,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
+
 
         // OTP Input Field
         TextFormField(

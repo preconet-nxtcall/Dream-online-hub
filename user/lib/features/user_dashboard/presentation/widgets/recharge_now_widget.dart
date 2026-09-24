@@ -613,7 +613,16 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         '• Payment Proof: ${_selectedScreenshot != null ? "[Screenshot Attached]" : "Not Attached"}';
 
     final repo = LocalStorageRepositoryImpl();
-    await repo.saveSubmittedRecharge(record);
+    await repo.saveSubmittedRecharge({
+      'id': record.id,
+      'bookName': record.bookName,
+      'transactionDetails': record.transactionDetails,
+      'amount': record.amount,
+      'status': record.status,
+      'date': record.date,
+      'user_id': userEmail,
+      'type': 'RECHARGE',
+    });
     widget.onRechargeSubmitted?.call(record);
 
     final newChatMsg = ChatMessageModel(
@@ -785,9 +794,9 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                         if (dialogContext.mounted) {
                           Navigator.of(dialogContext).pop();
                         }
-                        _dismissSheetIfModal(context);
-                        context.push('/chat', extra: {
-                          'agentId': agentId,
+                        final targetAgentId = agentId.isNotEmpty ? agentId : 'agency_support';
+                        context.push('/chat/$targetAgentId', extra: {
+                          'agentId': targetAgentId,
                           'autoSendTxnId': record.transactionDetails,
                           'depositAmount': record.amount,
                           'bookName': record.bookName,

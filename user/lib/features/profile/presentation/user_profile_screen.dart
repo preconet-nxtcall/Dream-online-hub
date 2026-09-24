@@ -83,7 +83,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           if (cat['successful'] is List) rawList.addAll(cat['successful'] as List);
         }
 
+        final currentUserIdDigits = currentUser?.id.replaceAll(RegExp(r'\D'), '') ?? '';
+        final currentEmailStr = currentUser?.email.trim().toLowerCase() ?? '';
+
         for (final item in rawList) {
+          if (item is Map) {
+            final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+            final itemEmail = (item['email'] ?? item['user_email'])?.toString().trim().toLowerCase() ?? '';
+
+            if (itemUserId.isNotEmpty || itemEmail.isNotEmpty) {
+              final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+              final isUserMatch = (currentUserIdDigits.isNotEmpty && cleanItemUserDigits == currentUserIdDigits) ||
+                  (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr) ||
+                  (currentEmailStr.isNotEmpty && itemEmail == currentEmailStr);
+              if (!isUserMatch) continue;
+            }
+          }
+
           final rawAmount = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
           final rawStatus = (item['stage_status']?.toString() ?? item['status']?.toString() ?? '').toLowerCase();
 
@@ -96,7 +112,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
       if (sumApproved == 0.0 && approvedCount == 0) {
         final local = LocalStorageRepositoryImpl().getSubmittedRecharges();
+        final currentUserIdDigits = currentUser?.id.replaceAll(RegExp(r'\D'), '') ?? '';
+        final currentEmailStr = currentUser?.email.trim().toLowerCase() ?? '';
+
         for (final item in local) {
+          if (item is Map) {
+            final itemUserId = (item['user_id'] ?? item['userId'])?.toString().trim().toLowerCase() ?? '';
+            if (itemUserId.isNotEmpty) {
+              final cleanItemUserDigits = itemUserId.replaceAll(RegExp(r'\D'), '');
+              final isUserMatch = (currentUserIdDigits.isNotEmpty && cleanItemUserDigits == currentUserIdDigits) ||
+                  (currentEmailStr.isNotEmpty && itemUserId == currentEmailStr);
+              if (!isUserMatch) continue;
+            }
+          }
+
           double amt = 0.0;
           String st = '';
           if (item is RechargeRecordModel) {
