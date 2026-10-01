@@ -101,9 +101,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           }
 
           final rawAmount = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
-          final rawStatus = (item['stage_status']?.toString() ?? item['status']?.toString() ?? '').toLowerCase();
+          final rawStatus = (item['stage_status']?.toString() ?? item['status']?.toString() ?? '');
 
-          if (rawStatus.contains('done') || rawStatus.contains('successful') || rawStatus.contains('approved')) {
+          if (RechargeRecordModel.isRechargeFullyApproved(rawStatus)) {
             sumApproved += rawAmount;
             approvedCount++;
           }
@@ -130,12 +130,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           String st = '';
           if (item is RechargeRecordModel) {
             amt = item.amount;
-            st = item.status.toLowerCase();
+            st = item.status;
           } else if (item is Map) {
             amt = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
-            st = (item['status'] ?? '').toString().toLowerCase();
+            st = (item['status'] ?? '').toString();
           }
-          if (st.contains('done') || st.contains('successful') || st.contains('approved')) {
+          if (RechargeRecordModel.isRechargeFullyApproved(st)) {
             sumApproved += amt;
             approvedCount++;
           }

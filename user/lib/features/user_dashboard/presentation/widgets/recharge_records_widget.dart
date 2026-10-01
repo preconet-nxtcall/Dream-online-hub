@@ -228,6 +228,13 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
         for (final item in localList) {
           if (item is Map) {
+            final itemType = item['type']?.toString().toUpperCase() ?? '';
+            final isWithdraw = itemType == 'WITHDRAW' ||
+                item['isWithdraw'] == true ||
+                (item['id']?.toString().contains('W') ?? false) ||
+                (item['transactionDetails']?.toString().toLowerCase().contains('withdraw') ?? false);
+            if (isWithdraw) continue; // Skip withdrawal records when viewing RECHARGE tab
+
             final itemUserIdStr = item['user_id']?.toString().replaceAll(RegExp(r'\D'), '') ??
                 item['userId']?.toString().replaceAll(RegExp(r'\D'), '');
 
@@ -241,7 +248,17 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
             final idStr = item['id']?.toString() ?? '';
             final formattedId = idStr.startsWith('#') ? idStr : '#$idStr';
-            if (idStr.isNotEmpty && !fetched.any((r) => r.id == formattedId)) {
+            final localTxn = (item['transactionDetails'] ?? item['transection_id'] ?? item['utr'] ?? '').toString().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+            final isAlreadyInFetched = fetched.any((r) {
+              if (r.id == formattedId) return true;
+              if (localTxn.isNotEmpty && localTxn.length >= 4) {
+                final cleanDetail = r.transactionDetails.replaceAll(RegExp(r'[^A-Z0-9]'), '');
+                if (cleanDetail.contains(localTxn)) return true;
+              }
+              return false;
+            });
+
+            if (idStr.isNotEmpty && !isAlreadyInFetched) {
               fetched.insert(
                 0,
                 RechargeRecordModel(
@@ -367,6 +384,52 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         }
       }
 
+      // Also merge local submitted withdrawal records so newly created withdrawals show instantly in WITHDRAW tab
+      final localList = LocalStorageRepositoryImpl().getSubmittedRecharges();
+      final targetUserIdStr = userId?.toString().replaceAll(RegExp(r'\D'), '');
+
+      for (final item in localList) {
+        if (item is Map) {
+          final itemType = item['type']?.toString().toUpperCase() ?? '';
+          final isWithdraw = itemType == 'WITHDRAW' ||
+              item['isWithdraw'] == true ||
+              (item['id']?.toString().contains('W') ?? false) ||
+              (item['transactionDetails']?.toString().toLowerCase().contains('withdraw') ?? false);
+          if (!isWithdraw) continue; // Skip recharge records when viewing WITHDRAW tab
+
+          final itemUserIdStr = item['user_id']?.toString().replaceAll(RegExp(r'\D'), '') ??
+              item['userId']?.toString().replaceAll(RegExp(r'\D'), '');
+
+          if (targetUserIdStr != null &&
+              targetUserIdStr.isNotEmpty &&
+              itemUserIdStr != null &&
+              itemUserIdStr.isNotEmpty &&
+              itemUserIdStr != targetUserIdStr) {
+            continue; // Skip records belonging to another user
+          }
+
+          final idStr = item['id']?.toString() ?? '';
+          final formattedId = idStr.startsWith('#') ? idStr : '#W$idStr';
+          final localDetail = (item['transactionDetails'] ?? item['deatil'] ?? item['detail'] ?? '').toString();
+          final isAlreadyInFetched = fetched.any((r) => r.id == formattedId);
+
+          if (idStr.isNotEmpty && !isAlreadyInFetched) {
+            fetched.insert(
+              0,
+              RechargeRecordModel(
+                id: formattedId,
+                bookName: item['bookName']?.toString() ?? item['book_name']?.toString() ?? 'Lucky Vault',
+                transactionDetails: localDetail.toLowerCase().contains('withdraw') ? localDetail : 'Withdrawal • $localDetail',
+                amount: double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0,
+                status: item['status']?.toString() ?? 'PENDING',
+                date: item['date']?.toString() ?? 'Just now',
+                imageUrl: item['imageUrl']?.toString() ?? item['image_url']?.toString(),
+              ),
+            );
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
           _records = fetched;
@@ -438,9 +501,20 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
     final List<RechargeRecordModel> localRecords = [];
 
     final targetUserIdStr = widget.userId?.toString().replaceAll(RegExp(r'\D'), '');
+    final isWithdrawMode = _selectedRecordType == 'WITHDRAW';
 
     for (final item in localList) {
       if (item is Map) {
+        final itemType = item['type']?.toString().toUpperCase() ?? '';
+        final isWithdraw = itemType == 'WITHDRAW' ||
+            item['isWithdraw'] == true ||
+            (item['id']?.toString().contains('W') ?? false) ||
+            (item['transactionDetails']?.toString().toLowerCase().contains('withdraw') ?? false);
+
+        if (isWithdrawMode != isWithdraw) {
+          continue; // Skip record if it does not match current tab filter
+        }
+
         final itemUserIdStr = item['user_id']?.toString().replaceAll(RegExp(r'\D'), '') ??
             item['userId']?.toString().replaceAll(RegExp(r'\D'), '');
 
@@ -455,17 +529,20 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         final idStr = item['id']?.toString() ?? '#01';
         localRecords.add(
           RechargeRecordModel(
-            id: idStr.startsWith('#') ? idStr : '#$idStr',
+            id: idStr.startsWith('#') ? idStr : (isWithdrawMode ? '#W$idStr' : '#$idStr'),
             bookName: item['bookName']?.toString() ?? 'Lucky Vault',
             transactionDetails: item['transactionDetails']?.toString() ?? '',
             amount: double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0,
-            status: item['status']?.toString() ?? 'EMPLOYEE-PENDING',
+            status: item['status']?.toString() ?? 'PENDING',
             date: item['date']?.toString() ?? 'Just now',
             imageUrl: item['imageUrl']?.toString() ?? item['image_url']?.toString(),
             invoiceUrl: item['invoiceUrl']?.toString() ?? item['invoice_url']?.toString(),
           ),
         );
       } else if (item is RechargeRecordModel) {
+        if (isWithdrawMode != item.isWithdrawal) {
+          continue;
+        }
         localRecords.add(item);
       }
     }
@@ -500,20 +577,20 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
     final query = _searchQuery.trim().toLowerCase();
     final filter = _selectedStatusFilter.trim().toLowerCase();
 
+    final isWithdrawMode = _selectedRecordType == 'WITHDRAW';
+
     return _records.where((rec) {
+      if (rec.isWithdrawal != isWithdrawMode) {
+        return false; // Guarantee withdrawal records never leak into Recharge tab and vice versa
+      }
+
       final status = (rec.status).toLowerCase();
-      final isPending = status.contains('pending') || status.contains('process') || status.contains('wait');
-      final isSuccessful = status.contains('done') ||
-          status.contains('successful') ||
-          status.contains('success') ||
-          status.contains('approved') ||
-          status.contains('complete') ||
-          status.contains('accept') ||
-          status.contains('finish');
+      final isSuccessful = rec.isFullyApproved;
       final isRejected = status.contains('reject') ||
           status.contains('failed') ||
           status.contains('declined') ||
           status.contains('cancel');
+      final isPending = !isSuccessful && !isRejected;
 
       bool matchesStatus = false;
       if (filter == 'pending') {
@@ -972,12 +1049,11 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
                 if (widget.isCompactSingleLine) {
                   final statusLower = item.status.toLowerCase();
-                  final isDone = statusLower.contains('done') ||
-                      statusLower.contains('successful') ||
-                      statusLower.contains('approved');
+                  final isDone = item.isFullyApproved;
                   final isReject = statusLower.contains('reject') ||
                       statusLower.contains('failed') ||
-                      statusLower.contains('declined');
+                      statusLower.contains('declined') ||
+                      statusLower.contains('cancel');
 
                   String displayLabel = 'Pending';
                   Color badgeFg = const Color(0xFFF59E0B);
@@ -1136,16 +1212,15 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                             Builder(
                               builder: (context) {
                                 final statusLower = item.status.toLowerCase();
-                                final isDone = statusLower.contains('done') ||
-                                    statusLower.contains('successful') ||
-                                    statusLower.contains('approved');
+                                final isDone = item.isFullyApproved;
                                 final isReject = statusLower.contains('reject') ||
                                     statusLower.contains('failed') ||
-                                    statusLower.contains('declined');
+                                    statusLower.contains('declined') ||
+                                    statusLower.contains('cancel');
 
                                 String displayLabel = 'PENDING';
-                                Color badgeFg = const Color(0xFFD97706);
-                                Color badgeBg = const Color(0xFFFFF7ED);
+                                Color badgeFg = const Color(0xFFFFB800);
+                                Color badgeBg = isDark ? const Color(0xFF332A15) : const Color(0xFFFFF7ED);
 
                                 if (isDone) {
                                   displayLabel = 'SUCCESSFUL';

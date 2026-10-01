@@ -31,4 +31,11 @@ class Validators {
     }
     return null;
   }
+
+  static String? validateTxnId(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Transaction ID / UTR is required';
+    }
+    return null;
+  }
 }

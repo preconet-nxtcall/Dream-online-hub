@@ -7,21 +7,21 @@ import '../../../../storage/local_storage_repository.dart';
 import '../../../../storage/secure_storage_service.dart';
 import '../../../../widgets/skeleton_loader.dart';
 
-class ApprovedRechargeWidget extends StatefulWidget {
+class WithdrawalRequestsWidget extends StatefulWidget {
   final int? userId;
   final List<RechargeRecordModel>? initialRecords;
 
-  const ApprovedRechargeWidget({
+  const WithdrawalRequestsWidget({
     super.key,
     this.userId,
     this.initialRecords,
   });
 
   @override
-  State<ApprovedRechargeWidget> createState() => ApprovedRechargeWidgetState();
+  State<WithdrawalRequestsWidget> createState() => WithdrawalRequestsWidgetState();
 }
 
-class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
+class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
   List<RechargeRecordModel> _records = [];
   bool _isLoading = false;
   String _selectedStatusFilter = 'all'; // 'all', 'pending', 'successful', 'rejected'
@@ -37,7 +37,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     if (widget.initialRecords != null && widget.initialRecords!.isNotEmpty) {
       _records = List.from(widget.initialRecords!);
     } else {
-      _fetchBackendRecords();
+      _fetchBackendWithdrawals();
     }
   }
 
@@ -48,7 +48,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
   }
 
   Future<void> refreshRecords() async {
-    await _fetchBackendRecords();
+    await _fetchBackendWithdrawals();
   }
 
   Future<String> _resolveCurrentAgencyId() async {
@@ -69,7 +69,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     return '';
   }
 
-  Future<void> _fetchBackendRecords() async {
+  Future<void> _fetchBackendWithdrawals() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -82,15 +82,18 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
       final response = await apiClient.post(
         ApiEndpoints.getQrCode,
         data: {
-          'action': 'recharge_records',
+          'action': 'withdraw_records',
+          'status_type': 'all',
         },
       );
 
       final List<RechargeRecordModel> fetchedList = [];
       final data = response.data;
-      if (data is Map<String, dynamic> && (data['status'] == 'success' || data['success'] == true || data['data'] != null)) {
-        final rawData = data['data'];
+      if (data is Map<String, dynamic> &&
+          (data['status'] == 'success' || data['success'] == true || data['data'] != null || data['withdrawals'] != null)) {
         final List listData = [];
+        final rawData = data['data'] ?? data['withdrawals'];
+
         if (rawData is List) {
           listData.addAll(rawData);
         } else if (rawData is Map<String, dynamic>) {
@@ -101,34 +104,61 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
 
         for (final item in listData) {
           if (item is Map<String, dynamic>) {
-            final model = RechargeRecordModel.fromJson(item);
-
-            // Strict Agency Isolation: WHERE emp_id = '$app_u_id' (matching pending-recharge.php line 79)
+            // Strict Agency Isolation: WHERE agency_id = '$app_u_id'
             if (currentAgencyId.isNotEmpty) {
-              final itemEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().replaceAll(RegExp(r'\D'), '');
-              if (itemEmpId != null && itemEmpId.isNotEmpty && itemEmpId != currentAgencyId) {
-                continue; // Skip records assigned to another agency!
+              final itemEmpId = (item['agency_id'] ?? item['emp_id'])?.toString().replaceAll(RegExp(r'\D'), '');
+              if (itemEmpId != null && itemEmpId.isNotEmpty && itemEmpId != currentAgencyId && currentAgencyId != '1') {
+                continue;
               }
             }
 
-            fetchedList.add(model);
+            final idStr = item['withdrawal_id']?.toString() ?? item['id']?.toString() ?? '#01';
+            final formattedId = idStr.startsWith('#') ? idStr : '#$idStr';
+            final amountVal = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
+            final stageStatus = item['stage_status']?.toString() ?? 'EMPLOYEE-PENDING';
+            final bookName = item['book_name']?.toString() ?? 'Lucky Vault';
+            final userName = item['user_name']?.toString() ?? item['name']?.toString() ?? 'Client';
+            final formattedDate = item['formatted_date']?.toString() ?? item['date']?.toString() ?? 'Just now';
+
+            // User Payment details
+            final acHolder = item['user_ac_holder_name']?.toString() ?? '';
+            final acNo = item['user_ac_number']?.toString() ?? '';
+            final bankName = item['user_bank_name']?.toString() ?? '';
+            final ifsc = item['user_bank_ifsc']?.toString() ?? '';
+            final upi = item['user_upi_id']?.toString() ?? '';
+
+            final detailSummary = [
+              if (acHolder.isNotEmpty) 'A/C: $acHolder',
+              if (acNo.isNotEmpty) 'No: $acNo',
+              if (bankName.isNotEmpty) 'Bank: $bankName',
+              if (ifsc.isNotEmpty) 'IFSC: $ifsc',
+              if (upi.isNotEmpty) 'UPI: $upi',
+            ].join(' | ');
+
+            fetchedList.add(
+              RechargeRecordModel(
+                id: formattedId,
+                bookName: bookName,
+                userName: userName,
+                transactionDetails: detailSummary.isNotEmpty ? detailSummary : (item['deatil']?.toString() ?? item['transaction_id']?.toString() ?? 'Withdrawal Request'),
+                amount: amountVal,
+                status: stageStatus,
+                date: formattedDate,
+                imageUrl: item['image_url']?.toString() ?? item['image']?.toString(),
+                invoiceUrl: item['emp_agency_image_url']?.toString() ?? item['emp_agency_image']?.toString(),
+              ),
+            );
           }
         }
       }
 
-      if (fetchedList.isEmpty) {
-        _loadLocalSubmittedRecords();
-      } else {
-        if (mounted) {
-          setState(() {
-            _records = fetchedList;
-            _isLoading = false;
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _records = fetchedList;
+          _isLoading = false;
+        });
       }
     } catch (_) {
-      _loadLocalSubmittedRecords();
-    } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -137,51 +167,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     }
   }
 
-  void _loadLocalSubmittedRecords() {
-    final localList = LocalStorageRepositoryImpl().getSubmittedRecharges();
-    final List<RechargeRecordModel> localRecords = [];
-
-    final targetUserIdStr = widget.userId?.toString().replaceAll(RegExp(r'\D'), '');
-
-    for (final item in localList) {
-      if (item is Map) {
-        final itemUserIdStr = item['user_id']?.toString().replaceAll(RegExp(r'\D'), '') ??
-            item['userId']?.toString().replaceAll(RegExp(r'\D'), '');
-
-        if (targetUserIdStr != null &&
-            targetUserIdStr.isNotEmpty &&
-            itemUserIdStr != null &&
-            itemUserIdStr.isNotEmpty &&
-            itemUserIdStr != targetUserIdStr) {
-          continue;
-        }
-
-        final idStr = item['id']?.toString() ?? '#01';
-        localRecords.add(
-          RechargeRecordModel(
-            id: idStr.startsWith('#') ? idStr : '#$idStr',
-            bookName: item['bookName']?.toString() ?? 'Lucky Vault',
-            transactionDetails: item['transactionDetails']?.toString() ?? '',
-            amount: double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0,
-            status: item['status']?.toString() ?? 'EMPLOYEE-PENDING',
-            date: item['date']?.toString() ?? 'Just now',
-            imageUrl: item['imageUrl']?.toString() ?? item['image_url']?.toString(),
-            invoiceUrl: item['invoiceUrl']?.toString() ?? item['invoice_url']?.toString(),
-          ),
-        );
-      } else if (item is RechargeRecordModel) {
-        localRecords.add(item);
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _records = localRecords;
-      });
-    }
-  }
-
-  // ─── Details Modal ────────────────────────────────────────────────────────
+  // ─── View Withdrawal Details Modal ───────────────────────────────────────
   void _showViewDetailsModal(BuildContext context, RechargeRecordModel item) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -196,7 +182,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
             color: isDark ? const Color(0xFF14102B) : Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             border: Border.all(
-              color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
               width: 1.5,
             ),
           ),
@@ -220,19 +206,19 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
-                      Icons.receipt_long_rounded,
-                      color: Color(0xFF6366F1),
+                      Icons.account_balance_wallet_rounded,
+                      color: Color(0xFFF59E0B),
                       size: 20,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Check Request Details',
+                      'Check Withdrawal Details',
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
@@ -259,18 +245,20 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                 child: Column(
                   children: [
                     if (item.userName != null && item.userName!.isNotEmpty) ...[
-                      _buildModalDetailRow('User / Client', item.userName!, isDark),
+                      _buildModalDetailRow('Player / Client', item.userName!, isDark),
                       const Divider(height: 16),
                     ],
-                    _buildModalDetailRow('ID', item.id, isDark),
+                    _buildModalDetailRow('Book Platform', item.bookName, isDark),
                     const Divider(height: 16),
-                    _buildModalDetailRow('Amount', '₹${item.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
+                    _buildModalDetailRow('Withdrawal ID', item.id, isDark),
                     const Divider(height: 16),
-                    _buildModalDetailRow('Transaction Details', item.transactionDetails, isDark),
+                    _buildModalDetailRow('Withdraw Amount', '₹${item.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
+                    const Divider(height: 16),
+                    _buildModalDetailRow('Payment Details', item.transactionDetails, isDark),
                     const Divider(height: 16),
                     _buildModalDetailRow('Date & Time', item.date, isDark),
                     const Divider(height: 16),
-                    _buildModalDetailRow('Status', item.status.toUpperCase(), isDark),
+                    _buildModalDetailRow('Stage Status', item.status.toUpperCase(), isDark),
                     Builder(
                       builder: (context) {
                         final stUpper = item.status.toUpperCase();
@@ -288,7 +276,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                               _buildModalDetailRow('Verification Lock', 'Verified & Locked (One-Time Action Completed)', isDark, isHighlight: true),
                             ],
                           );
-                        } else if (stUpper.contains('EMPLOYEE-PENDING')) {
+                        } else if (stUpper.contains('EMPLOYEE-PENDING') || stUpper.contains('EMPLOYEE-PASS') || stUpper.contains('AGENCY-PENDING')) {
                           return Column(
                             children: [
                               const Divider(height: 16),
@@ -309,11 +297,11 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                     const Icon(
                       Icons.image_outlined,
                       size: 16,
-                      color: Color(0xFF6366F1),
+                      color: Color(0xFFF59E0B),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Payment Proof Screenshot:',
+                      'User QR / Bank Passbook Image:',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -366,8 +354,8 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                       stUpper.contains('SUCCESSFUL') ||
                       stUpper.contains('REJECTED');
 
-                  final canApprove = !isAlreadyApprovedOrProcessed &&
-                      (stUpper == 'AGENCY-PENDING' || stUpper == 'PENDING');
+                  final canProcess = !isAlreadyApprovedOrProcessed &&
+                      (stUpper.contains('AGENCY-PENDING') || stUpper == 'PENDING' || stUpper.contains('EMPLOYEE-PASS'));
 
                   return Row(
                     children: [
@@ -395,7 +383,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                           ),
                         ),
                       ),
-                      if (canApprove) ...[
+                      if (canProcess) ...[
                         const SizedBox(width: 12),
                         Expanded(
                           flex: 2,
@@ -404,22 +392,22 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                             child: ElevatedButton.icon(
                               onPressed: () {
                                 Navigator.pop(modalContext);
-                                _showApproveRejectModal(context, item);
+                                _showProcessWithdrawalModal(context, item);
                               },
                               icon: const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
                               label: const Text(
-                                'APPROVE RECHARGE',
+                                'PROCESS WITHDRAWAL',
                                 style: TextStyle(
-                                  fontSize: 13.5,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w900,
                                   color: Colors.white,
                                   letterSpacing: 0.3,
                                 ),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF10B981),
+                                backgroundColor: const Color(0xFFF59E0B),
                                 elevation: 2,
-                                shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
+                                shadowColor: const Color(0xFFF59E0B).withValues(alpha: 0.4),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
                                 ),
@@ -439,34 +427,29 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     );
   }
 
-  // ─── Approve / Reject Dialog (Matching pending-recharge.php) ─────────────────
-  void _showApproveRejectModal(BuildContext context, RechargeRecordModel item) {
+  // ─── Process / Verify Withdrawal Modal ────────────────────────────────────
+  void _showProcessWithdrawalModal(BuildContext context, RechargeRecordModel item) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String selectedStatus = 'AGENCY-DONE';
-    final utrController = TextEditingController(text: item.transactionDetails);
-    final remarkController = TextEditingController(
-      text: 'Payment verified and recharge approved successfully.',
-    );
+    final transactionIdController = TextEditingController();
+    final remarkController = TextEditingController();
     bool isSubmitting = false;
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
+            return Dialog(
+              backgroundColor: Colors.transparent,
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF14102B) : Colors.white,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
                     width: 1.5,
                   ),
                 ),
@@ -475,66 +458,26 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
+                      Text(
+                        'Process Withdrawal (Agency)',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.verified_rounded,
-                              color: Color(0xFF10B981),
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Verify Recharge Request',
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w900,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                Text(
-                                  'Record #${item.id} • Amount: ₹${item.amount.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF10B981),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close_rounded),
-                            onPressed: () => Navigator.pop(dialogContext),
-                          ),
-                        ],
+                      const SizedBox(height: 6),
+                      Text(
+                        'Record ${item.id} • ₹${item.amount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFF59E0B),
+                        ),
                       ),
                       const SizedBox(height: 16),
-
-                      // 1. Choose Status
                       Text(
-                        'CHOOSE STATUS',
+                        'CHOOSE ACTION',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -563,34 +506,25 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                             ),
                             onChanged: (val) {
                               if (val != null) {
-                                setDialogState(() {
-                                  selectedStatus = val;
-                                  if (val == 'AGENCY-DONE') {
-                                    remarkController.text = 'Payment verified and recharge approved successfully.';
-                                  } else if (val == 'AGENCY-REJECT') {
-                                    remarkController.text = 'Payment not received in the bank account.';
-                                  }
-                                });
+                                setDialogState(() => selectedStatus = val);
                               }
                             },
                             items: const [
                               DropdownMenuItem(
                                 value: 'AGENCY-DONE',
-                                child: Text('Successful (AGENCY-DONE)'),
+                                child: Text('Successful (Process Withdrawal)'),
                               ),
                               DropdownMenuItem(
                                 value: 'AGENCY-REJECT',
-                                child: Text('Rejected (AGENCY-REJECT)'),
+                                child: Text('Rejected'),
                               ),
                             ],
                           ),
                         ),
                       ),
                       const SizedBox(height: 14),
-
-                      // 2. Transaction ID / UTR Input
                       Text(
-                        'TRANSACTION ID / UTR NUMBER',
+                        'TRANSACTION ID / UTR',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -607,14 +541,13 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                           ),
                         ),
                         child: TextField(
-                          controller: utrController,
+                          controller: transactionIdController,
                           style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
                             color: isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Enter Transaction UTR Number...',
+                            hintText: 'Enter Transaction / UTR reference number...',
                             hintStyle: TextStyle(
                               fontSize: 13,
                               color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
@@ -625,10 +558,8 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                         ),
                       ),
                       const SizedBox(height: 14),
-
-                      // 3. Remark Input
                       Text(
-                        'REMARK / NOTE',
+                        'AGENCY REMARK / NOTE',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -663,21 +594,16 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                         ),
                       ),
                       const SizedBox(height: 8),
-
-                      // Quick Remark Preset Buttons (Matching pending-recharge.php lines 220-228)
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           OutlinedButton.icon(
                             onPressed: () {
-                              setDialogState(() {
-                                selectedStatus = 'AGENCY-DONE';
-                                remarkController.text = 'Payment verified and recharge approved successfully.';
-                              });
+                              remarkController.text = 'Withdrawal processed and completed successfully.';
                             },
                             icon: const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF10B981)),
                             label: const Text(
-                              'Payment verified and recharge approved successfully.',
+                              'Withdrawal processed and completed successfully.',
                               style: TextStyle(fontSize: 11),
                             ),
                             style: OutlinedButton.styleFrom(
@@ -690,14 +616,11 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                           const SizedBox(height: 4),
                           OutlinedButton.icon(
                             onPressed: () {
-                              setDialogState(() {
-                                selectedStatus = 'AGENCY-REJECT';
-                                remarkController.text = 'Transaction ID / UTR number does not match.';
-                              });
+                              remarkController.text = 'Account / Banking details mismatch.';
                             },
                             icon: const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFF59E0B)),
                             label: const Text(
-                              'Transaction ID / UTR number does not match.',
+                              'Account / Banking details mismatch.',
                               style: TextStyle(fontSize: 11),
                             ),
                             style: OutlinedButton.styleFrom(
@@ -710,14 +633,11 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                           const SizedBox(height: 4),
                           OutlinedButton.icon(
                             onPressed: () {
-                              setDialogState(() {
-                                selectedStatus = 'AGENCY-REJECT';
-                                remarkController.text = 'Payment not received in the bank account.';
-                              });
+                              remarkController.text = 'Withdrawal request rejected.';
                             },
                             icon: const Icon(Icons.cancel, size: 14, color: Color(0xFFEF4444)),
                             label: const Text(
-                              'Payment not received in the bank account.',
+                              'Withdrawal request rejected.',
                               style: TextStyle(fontSize: 11),
                             ),
                             style: OutlinedButton.styleFrom(
@@ -730,53 +650,41 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                         ],
                       ),
                       const SizedBox(height: 20),
-
-                      // Action Buttons
                       Row(
                         children: [
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => Navigator.pop(dialogContext),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
                               child: const Text('CANCEL'),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: ElevatedButton.icon(
+                            child: ElevatedButton(
                               onPressed: isSubmitting
                                   ? null
                                   : () async {
                                       // Capture stable references before any async gaps
                                       final messenger = ScaffoldMessenger.of(context);
-                                      final utrTextSnapshot = utrController.text.trim();
 
                                       setDialogState(() => isSubmitting = true);
                                       try {
                                         final apiClient = ApiClient();
                                         final rawId = item.id.replaceAll(RegExp(r'\D'), '');
                                         final remarkText = remarkController.text.trim();
-                                        final utrText = utrController.text.trim();
-                                        final currentAgencyId = await _resolveCurrentAgencyId();
+                                        final transactionId = transactionIdController.text.trim();
 
                                         await apiClient.post(
                                           ApiEndpoints.getQrCode,
                                           data: {
-                                            'action': 'edit_recharge',
-                                            'edit_recharge': 1,
-                                            'edit_emp_recharge_pending': 1,
+                                            'action': 'edit_agency_withdraw_pending',
+                                            'edit_agency_withdraw_pending': 1,
                                             'id': rawId,
-                                            'emp_id': currentAgencyId,
+                                            'agency_id': widget.userId ?? '',
                                             'amount': item.amount,
                                             'stage_status': selectedStatus,
-                                            'transection_id': utrText.isNotEmpty ? utrText : item.transactionDetails,
+                                            'transaction_id': transactionId,
                                             'remark': remarkText,
-                                            'employee_remark': remarkText,
                                           },
                                         );
                                       } catch (_) {}
@@ -788,6 +696,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
 
                                       // Use widget's mounted to safely call setState
                                       if (mounted) {
+                                        // Update local list state
                                         final cleanTargetId = item.id.replaceAll(RegExp(r'\D'), '');
                                         setState(() {
                                           final idx = _records.indexWhere((r) =>
@@ -798,9 +707,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                               id: _records[idx].id,
                                               bookName: _records[idx].bookName,
                                               userName: _records[idx].userName,
-                                              transactionDetails: utrTextSnapshot.isNotEmpty
-                                                  ? utrTextSnapshot
-                                                  : _records[idx].transactionDetails,
+                                              transactionDetails: _records[idx].transactionDetails,
                                               amount: _records[idx].amount,
                                               status: selectedStatus,
                                               date: _records[idx].date,
@@ -810,11 +717,11 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                           }
                                         });
 
+                                        final displayStatus = (selectedStatus == 'AGENCY-DONE' || selectedStatus == 'EMPLOYEE-DONE') ? 'Successful' : 'Rejected';
                                         final isSuccess = selectedStatus == 'AGENCY-DONE' || selectedStatus == 'EMPLOYEE-DONE';
-                                        final displayStatus = isSuccess ? 'Approved & Completed' : 'Rejected';
                                         messenger.showSnackBar(
                                           SnackBar(
-                                            content: Text('Recharge #${item.id} $displayStatus successfully!'),
+                                            content: Text('Withdrawal ${item.id} marked as $displayStatus successfully!'),
                                             backgroundColor: isSuccess ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                                             behavior: SnackBarBehavior.floating,
                                           ),
@@ -822,26 +729,16 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                         refreshRecords();
                                       }
                                     },
-                              icon: isSubmitting
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFF59E0B),
+                              ),
+                              child: isSubmitting
                                   ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
+                                      width: 18,
+                                      height: 18,
                                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                     )
-                                  : const Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
-                              label: Text(
-                                isSubmitting ? 'SAVING...' : 'UPDATE RECHARGE',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                backgroundColor: selectedStatus == 'AGENCY-DONE'
-                                    ? const Color(0xFF10B981)
-                                    : const Color(0xFFEF4444),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
+                                  : const Text('UPDATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ],
@@ -881,7 +778,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
               color: isRed
                   ? const Color(0xFFEF4444)
                   : (isHighlight
-                      ? const Color(0xFF10B981)
+                      ? const Color(0xFFF59E0B)
                       : (isDark ? Colors.white : const Color(0xFF0F172A))),
             ),
           ),
@@ -890,10 +787,8 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     );
   }
 
-  // ─── Filtered Records Getter ──────────────────────────────────────────────
   List<RechargeRecordModel> get _filteredRecords {
     return _records.where((record) {
-      // 1. Status Filter
       if (_selectedStatusFilter != 'all') {
         final statusLower = record.status.toLowerCase();
         final isDone = statusLower.contains('done') || statusLower.contains('successful') || statusLower.contains('approved');
@@ -908,7 +803,6 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
         }
       }
 
-      // 2. Search Query Filter
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
         final matchId = record.id.toLowerCase().contains(query);
@@ -924,7 +818,6 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     }).toList();
   }
 
-  // ─── Shimmering Skeleton Loader Rows ─────────────────────────────────────
   Widget _buildSkeletonRows(bool isDark) {
     return Column(
       children: List.generate(4, (index) {
@@ -940,13 +833,11 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
           ),
           child: const Row(
             children: [
-              // ID Skeleton
               Expanded(
                 flex: 2,
                 child: ShimmerBox(width: 40, height: 16, borderRadius: 6),
               ),
               SizedBox(width: 8),
-              // Transaction Details Skeleton
               Expanded(
                 flex: 4,
                 child: Column(
@@ -959,7 +850,6 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                 ),
               ),
               SizedBox(width: 8),
-              // Status & Date Skeleton
               Expanded(
                 flex: 3,
                 child: Column(
@@ -972,14 +862,11 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                 ),
               ),
               SizedBox(width: 8),
-              // Action Buttons Skeleton
               Expanded(
                 flex: 3,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    ShimmerBox(width: 32, height: 32, borderRadius: 8),
-                    SizedBox(width: 6),
                     ShimmerBox(width: 32, height: 32, borderRadius: 8),
                   ],
                 ),
@@ -996,7 +883,6 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final filtered = _filteredRecords;
 
-    // Pagination calculations
     final totalRecords = filtered.length;
     final totalPages = (totalRecords / _pageSize).ceil();
     final safePage = _currentPage > totalPages ? (totalPages == 0 ? 1 : totalPages) : _currentPage;
@@ -1036,12 +922,12 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
-                          Icons.check_circle_outline_rounded,
-                          color: Color(0xFF10B981),
+                          Icons.account_balance_wallet_outlined,
+                          color: Color(0xFFF59E0B),
                           size: 22,
                         ),
                       ),
@@ -1051,7 +937,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Approved Recharge Requests',
+                              'Withdrawal Requests',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -1061,7 +947,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                               ),
                             ),
                             Text(
-                              'Review and accept pending client recharges',
+                              'Review and process pending client withdrawals',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -1077,8 +963,8 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                 ),
                 IconButton(
                   onPressed: refreshRecords,
-                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF10B981)),
-                  tooltip: 'Refresh Recharges',
+                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFFF59E0B)),
+                  tooltip: 'Refresh Withdrawals',
                 ),
               ],
             ),
@@ -1294,7 +1180,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                         Expanded(
                           flex: 4,
                           child: Text(
-                            'TRANSACTION DETAILS',
+                            'WITHDRAWAL DETAILS',
                             style: TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w900,
@@ -1349,7 +1235,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'No recharge requests found',
+                              'No withdrawal requests found',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -1371,12 +1257,13 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                       ),
                       itemBuilder: (context, index) {
                         final item = paginatedRecords[index];
+                        final stUpper = item.status.toUpperCase();
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           child: Row(
                             children: [
-                              // Recharge ID ONLY
+                              // Withdrawal ID ONLY
                               Expanded(
                                 flex: 2,
                                 child: Text(
@@ -1389,7 +1276,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                 ),
                               ),
 
-                              // Transaction Details
+                              // Transaction Details & Amount
                               Expanded(
                                 flex: 4,
                                 child: Column(
@@ -1400,7 +1287,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w900,
-                                        color: Color(0xFF10B981),
+                                        color: Color(0xFFF59E0B),
                                       ),
                                     ),
                                     const SizedBox(height: 2),
@@ -1415,9 +1302,9 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                     ),
                                     Builder(
                                       builder: (context) {
-                                        final stUpper = item.status.toUpperCase();
                                         if (stUpper.contains('EMPLOYEE-PENDING') ||
-                                            stUpper.contains('AGENCY-DONE')) {
+                                            stUpper.contains('EMPLOYEE-PASS') ||
+                                            stUpper.contains('AGENCY-PENDING')) {
                                           return const Padding(
                                             padding: EdgeInsets.only(top: 3),
                                             child: Text(
@@ -1500,7 +1387,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                 ),
                               ),
 
-                              // Actions Column: View & Verify Buttons
+                              // Actions Column: View & Process Buttons
                               Expanded(
                                 flex: 3,
                                 child: Align(
@@ -1514,10 +1401,10 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                                            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                                             borderRadius: BorderRadius.circular(8),
                                             border: Border.all(
-                                              color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                                              color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
                                               width: 1,
                                             ),
                                           ),
@@ -1526,7 +1413,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                             children: [
                                               Icon(
                                                 Icons.visibility_rounded,
-                                                color: Color(0xFF6366F1),
+                                                color: Color(0xFFF59E0B),
                                                 size: 14,
                                               ),
                                               SizedBox(width: 4),
@@ -1535,7 +1422,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                                 style: TextStyle(
                                                   fontSize: 11.5,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF6366F1),
+                                                  color: Color(0xFFF59E0B),
                                                 ),
                                               ),
                                             ],
@@ -1552,14 +1439,15 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                               stUpper.contains('DONE') ||
                                               stUpper.contains('SUCCESSFUL') ||
                                               stUpper.contains('REJECTED');
-                                          final canVerify = !isAlreadyProcessed && (stUpper == 'AGENCY-PENDING' || stUpper == 'PENDING');
+                                          final canProcess = !isAlreadyProcessed &&
+                                              (stUpper.contains('AGENCY-PENDING') || stUpper == 'PENDING' || stUpper.contains('EMPLOYEE-PASS'));
 
-                                          if (!canVerify) return const SizedBox.shrink();
+                                          if (!canProcess) return const SizedBox.shrink();
 
                                           return Padding(
                                             padding: const EdgeInsets.only(left: 6),
                                             child: InkWell(
-                                              onTap: () => _showApproveRejectModal(context, item),
+                                              onTap: () => _showProcessWithdrawalModal(context, item),
                                               borderRadius: BorderRadius.circular(8),
                                               child: Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -1581,7 +1469,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                                     ),
                                                     SizedBox(width: 4),
                                                     Text(
-                                                      'Verify',
+                                                      'Process',
                                                       style: TextStyle(
                                                         fontSize: 11.5,
                                                         fontWeight: FontWeight.bold,
@@ -1641,7 +1529,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                             ? () => setState(() => _currentPage--)
                             : null,
                         icon: const Icon(Icons.chevron_left_rounded),
-                        color: const Color(0xFF10B981),
+                        color: const Color(0xFFF59E0B),
                         disabledColor: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
                       ),
                       Text(
@@ -1657,7 +1545,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                             ? () => setState(() => _currentPage++)
                             : null,
                         icon: const Icon(Icons.chevron_right_rounded),
-                        color: const Color(0xFF10B981),
+                        color: const Color(0xFFF59E0B),
                         disabledColor: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
                       ),
                     ],

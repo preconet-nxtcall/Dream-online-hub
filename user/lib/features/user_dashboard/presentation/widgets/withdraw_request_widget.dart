@@ -9,6 +9,7 @@ import '../../../../core/constants/storage_keys.dart';
 import '../../../../models/chat/chat_message_model.dart';
 import '../../../../models/dto/chat/send_message_request_dto.dart';
 import '../../../../models/user/payment_account_model.dart';
+import '../../../../models/user/recharge_record_model.dart';
 import '../../../../network/api_client.dart';
 import '../../../../network/chat_api_client.dart';
 import '../../../../providers/auth_provider.dart';
@@ -483,12 +484,13 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                   ? item['status_category'].toString()
                   : (item['status']?.toString() ?? ''));
 
+          final isDone = RechargeRecordModel.isRechargeFullyApproved(rawStatus, isWithdrawal: true);
           final statusUpper = rawStatus.trim().toUpperCase();
-          final bool isPending = statusUpper.contains('PENDING') ||
-              statusUpper.contains('WAITING') ||
-              statusUpper.contains('PROCESS') ||
-              statusUpper == 'REQUESTED' ||
-              statusUpper == 'NEW';
+          final isRejected = statusUpper.contains('REJECT') ||
+              statusUpper.contains('FAIL') ||
+              statusUpper.contains('DECLINE') ||
+              statusUpper.contains('CANCEL');
+          final bool isPending = !isDone && !isRejected;
 
           if (isPending) {
             foundPending = true;
@@ -521,10 +523,15 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
               continue;
             }
 
-            final statusUpper = (item['status']?.toString() ?? 'PENDING').toUpperCase();
-            if (statusUpper.contains('PENDING') ||
-                statusUpper.contains('WAITING') ||
-                statusUpper.contains('PROCESS')) {
+            final rawLocalStatus = (item['status']?.toString() ?? 'PENDING');
+            final isLocalDone = RechargeRecordModel.isRechargeFullyApproved(rawLocalStatus, isWithdrawal: true);
+            final localStatusUpper = rawLocalStatus.trim().toUpperCase();
+            final isLocalRejected = localStatusUpper.contains('REJECT') ||
+                localStatusUpper.contains('FAIL') ||
+                localStatusUpper.contains('DECLINE') ||
+                localStatusUpper.contains('CANCEL');
+
+            if (!isLocalDone && !isLocalRejected) {
               foundPending = true;
               break;
             }

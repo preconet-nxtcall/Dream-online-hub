@@ -172,10 +172,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             m['type'] = 'recharge';
             allItems.add(m);
             final amt = double.tryParse(m['amount']?.toString() ?? '0') ?? 0.0;
-            final status = (m['stage_status'] ?? m['status'] ?? '').toString().toLowerCase();
-            if (status.contains('done') || status.contains('successful') || status.contains('approved')) {
+            final status = (m['stage_status'] ?? m['status'] ?? '').toString();
+            if (RechargeRecordModel.isRechargeFullyApproved(status)) {
               successSum += amt;
-            } else if (status.contains('pending')) {
+            } else {
               pendingSum += amt;
             }
           }
@@ -277,10 +277,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         m['type'] = 'recharge';
         allItems.add(m);
         final amt = double.tryParse(m['amount']?.toString() ?? '0') ?? 0.0;
-        final status = (m['status'] ?? '').toString().toLowerCase();
-        if (status.contains('done') || status.contains('successful') || status.contains('approved')) {
+        final status = (m['status'] ?? '').toString();
+        if (RechargeRecordModel.isRechargeFullyApproved(status)) {
           successSum += amt;
-        } else if (status.contains('pending')) {
+        } else {
           pendingSum += amt;
         }
       } else if (item is RechargeRecordModel) {
@@ -290,9 +290,9 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           'amount': item.amount,
           'type': 'recharge',
         });
-        if (item.status.toLowerCase().contains('done') || item.status.toLowerCase().contains('successful') || item.status.toLowerCase().contains('approved')) {
+        if (item.isFullyApproved) {
           successSum += item.amount;
-        } else if (item.status.toLowerCase().contains('pending')) {
+        } else {
           pendingSum += item.amount;
         }
       }
@@ -2214,7 +2214,17 @@ class _UserRechargeSingleLineNotificationsWidgetState extends State<_UserRecharg
           }
 
           final idStr = (item['id'] ?? '').toString();
-          if (idStr.isNotEmpty && !fetched.any((r) => r.id == idStr)) {
+          final localTxn = (item['transactionDetails'] ?? item['transection_id'] ?? item['utr'] ?? '').toString().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+          final isAlreadyInFetched = fetched.any((r) {
+            if (r.id == idStr || r.id == '#$idStr') return true;
+            if (localTxn.isNotEmpty && localTxn.length >= 4) {
+              final cleanDetail = r.transactionDetails.replaceAll(RegExp(r'[^A-Z0-9]'), '');
+              if (cleanDetail.contains(localTxn)) return true;
+            }
+            return false;
+          });
+
+          if (idStr.isNotEmpty && !isAlreadyInFetched) {
             fetched.insert(
               0,
               RechargeRecordModel(
@@ -2306,19 +2316,28 @@ class _UserRechargeSingleLineNotificationsWidgetState extends State<_UserRecharg
 
         final record = displayRecords[index];
         final st = record.status.toLowerCase();
+        final isDone = record.isFullyApproved;
+        final isReject = st.contains('reject') ||
+            st.contains('fail') ||
+            st.contains('cancel') ||
+            st.contains('decline');
 
         Color statusFg = const Color(0xFFFFB800);
         Color statusBg = const Color(0xFF2E2105);
         String statusText = 'PENDING';
 
-        if (st.contains('done') || st.contains('successful') || st.contains('approved') || st.contains('success')) {
+        if (isDone) {
           statusFg = const Color(0xFF10B981);
           statusBg = const Color(0xFF052E16);
           statusText = 'APPROVED';
-        } else if (st.contains('reject') || st.contains('fail') || st.contains('cancel') || st.contains('decline')) {
+        } else if (isReject) {
           statusFg = const Color(0xFFEF4444);
           statusBg = const Color(0xFF2E080A);
           statusText = 'REJECTED';
+        } else {
+          statusFg = const Color(0xFFFFB800);
+          statusBg = const Color(0xFF2E2105);
+          statusText = 'PENDING';
         }
 
         final isWithdrawal = record.id.startsWith('W') || record.transactionDetails.contains('Withdrawal');

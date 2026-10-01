@@ -18,6 +18,365 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
     AppLogoutDialog.show(context);
   }
 
+  void _showUpdatePasswordModal(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final oldPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    bool obscureOld = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    bool isSubmitting = false;
+    String? localError;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF14102B) : Colors.white,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  border: Border.all(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                    width: 1.5,
+                  ),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Handle bar
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.lock_reset_rounded,
+                              color: Color(0xFFF59E0B),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Update Password',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w900,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                Text(
+                                  'Change your agency portal password',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.pop(modalContext),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (localError != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  localError!,
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFFEF4444), fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // 1. Current Password
+                      Text(
+                        'CURRENT PASSWORD',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF221F3D) : const Color(0xFFF8F7FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: oldPasswordController,
+                          obscureText: obscureOld,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Enter current password...',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureOld ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                size: 18,
+                                color: isDark ? Colors.white60 : Colors.black54,
+                              ),
+                              onPressed: () => setModalState(() => obscureOld = !obscureOld),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 2. New Password
+                      Text(
+                        'NEW PASSWORD',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF221F3D) : const Color(0xFFF8F7FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: newPasswordController,
+                          obscureText: obscureNew,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Enter new password (min 6 chars)...',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureNew ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                size: 18,
+                                color: isDark ? Colors.white60 : Colors.black54,
+                              ),
+                              onPressed: () => setModalState(() => obscureNew = !obscureNew),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 3. Confirm New Password
+                      Text(
+                        'CONFIRM NEW PASSWORD',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF221F3D) : const Color(0xFFF8F7FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: confirmPasswordController,
+                          obscureText: obscureConfirm,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Re-enter new password...',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureConfirm ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                size: 18,
+                                color: isDark ? Colors.white60 : Colors.black54,
+                              ),
+                              onPressed: () => setModalState(() => obscureConfirm = !obscureConfirm),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(modalContext),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('CANCEL'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () async {
+                                      final oldPass = oldPasswordController.text.trim();
+                                      final newPass = newPasswordController.text.trim();
+                                      final confirmPass = confirmPasswordController.text.trim();
+
+                                      if (oldPass.isEmpty) {
+                                        setModalState(() => localError = 'Please enter your current password.');
+                                        return;
+                                      }
+                                      if (newPass.length < 6) {
+                                        setModalState(() => localError = 'New password must be at least 6 characters.');
+                                        return;
+                                      }
+                                      if (newPass != confirmPass) {
+                                        setModalState(() => localError = 'New passwords do not match.');
+                                        return;
+                                      }
+
+                                      setModalState(() {
+                                        localError = null;
+                                        isSubmitting = true;
+                                      });
+
+                                      final authProvider = context.read<AuthProvider>();
+                                      final success = await authProvider.updatePassword(
+                                        oldPassword: oldPass,
+                                        newPassword: newPass,
+                                        confirmPassword: confirmPass,
+                                      );
+
+                                      if (modalContext.mounted) {
+                                        if (success) {
+                                          Navigator.pop(modalContext);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Password updated successfully!'),
+                                              backgroundColor: Color(0xFF10B981),
+                                              behavior: SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        } else {
+                                          setModalState(() {
+                                            isSubmitting = false;
+                                            localError = authProvider.errorMessage ?? 'Failed to update password.';
+                                          });
+                                        }
+                                      }
+                                    },
+                              icon: isSubmitting
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
+                              label: Text(
+                                isSubmitting ? 'SAVING...' : 'UPDATE PASSWORD',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                backgroundColor: const Color(0xFFF59E0B),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
@@ -335,12 +694,51 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // 4. Higher Escalation & Logout Actions
+            // 4. Management Actions (Update Password & Logout)
             const Text(
               'Management Actions',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
+
+            // Update Password Button
+            InkWell(
+              onTap: () => _showUpdatePasswordModal(context),
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E2128) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.lock_reset_rounded, color: Color(0xFFF59E0B), size: 24),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Update Password',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          Text(
+                            'Change agency portal login password',
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: Color(0xFFF59E0B)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
 
             // Logout Action Button
             InkWell(

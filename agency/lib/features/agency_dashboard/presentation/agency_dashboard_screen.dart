@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../models/agency/agency_user_item_model.dart';
@@ -13,6 +12,7 @@ import 'widgets/agency_user_skeleton_tile.dart';
 import 'widgets/agency_user_tile.dart';
 import 'widgets/recharge_records_widget.dart';
 import 'widgets/approved_recharge_widget.dart';
+import 'widgets/withdrawal_requests_widget.dart';
 
 class AgencyDashboardScreen extends StatefulWidget {
   const AgencyDashboardScreen({super.key});
@@ -25,8 +25,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
-  int _currentNavIndex = 0; // 0: Dashboard, 1: Chat, 2: Profile
-  int _selectedSectionTab = 0; // 0: Assigned Clients, 1: Pending Recharge
+  int _currentNavIndex = 0; // 0: Dashboard, 1: Recharge Requests, 2: Withdraw Requests, 3: Profile
 
   @override
   void initState() {
@@ -86,14 +85,53 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F0C20) : const Color(0xFFF7F7FD),
       body: SafeArea(
-        child: _currentNavIndex == 0
-            ? _buildDashboardHomeTab(agencyProvider, user, isDark, surfaceColor, surfaceHigh, borderColor)
-            : _currentNavIndex == 1
-                ? _buildChatDirectoryTab(agencyProvider, isDark, surfaceColor, surfaceHigh, borderColor)
-                : const AgencyProfileScreen(),
+        child: _buildCurrentNavScreen(
+          agencyProvider,
+          user,
+          isDark,
+          surfaceColor,
+          surfaceHigh,
+          borderColor,
+        ),
       ),
       bottomNavigationBar: _buildAgencyBottomNavBar(isDark),
     );
+  }
+
+  Widget _buildCurrentNavScreen(
+    AgencyProvider agencyProvider,
+    dynamic user,
+    bool isDark,
+    Color surfaceColor,
+    Color surfaceHigh,
+    Color borderColor,
+  ) {
+    switch (_currentNavIndex) {
+      case 0:
+        return _buildDashboardHomeTab(
+          agencyProvider,
+          user,
+          isDark,
+          surfaceColor,
+          surfaceHigh,
+          borderColor,
+        );
+      case 1:
+        return _buildRechargeRequestsPage(isDark);
+      case 2:
+        return _buildWithdrawRequestsPage(isDark);
+      case 3:
+        return const AgencyProfileScreen();
+      default:
+        return _buildDashboardHomeTab(
+          agencyProvider,
+          user,
+          isDark,
+          surfaceColor,
+          surfaceHigh,
+          borderColor,
+        );
+    }
   }
 
   // ─── TAB 0: DASHBOARD HOME (Matching user layout) ──────────────────────────
@@ -137,6 +175,10 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Quick Action Buttons Row: [ Recharge Requests ] & [ Withdraw Requests ]
+                _buildQuickActionButtonsRow(isDark),
+                const SizedBox(height: 14),
+
                 // Search Input & Filter Button Row
                 _buildSearchAndFilterRow(
                   surfaceColor: surfaceColor,
@@ -144,151 +186,321 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                   isDark: isDark,
                   agencyProvider: agencyProvider,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Section Header Chips: [ Assigned Clients ] and [ Pending Recharge ]
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      // Chip 1: Assigned Clients
-                      GestureDetector(
-                        onTap: () => setState(() => _selectedSectionTab = 0),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _selectedSectionTab == 0
-                                ? const Color(0xFF6366F1)
-                                : (isDark ? const Color(0xFF1E1B3A) : const Color(0xFFEEF2FF)),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: _selectedSectionTab == 0
-                                ? [
-                                    BoxShadow(
-                                      color: const Color(0xFF6366F1).withValues(alpha: 0.35),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : null,
+                // Section Header: [ Assigned Clients ]
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.people_rounded,
-                                size: 15,
-                                color: _selectedSectionTab == 0
-                                    ? Colors.white
-                                    : (isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6366F1)),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Assigned Clients',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: _selectedSectionTab == 0
-                                      ? Colors.white
-                                      : (isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6366F1)),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: _selectedSectionTab == 0
-                                      ? Colors.white.withValues(alpha: 0.25)
-                                      : (isDark ? const Color(0xFF2E2756) : const Color(0xFFE0E7FF)),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  '${agencyProvider.filteredUsers.length}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w900,
-                                    color: _selectedSectionTab == 0
-                                        ? Colors.white
-                                        : (isDark ? const Color(0xFFC4B5FD) : const Color(0xFF4338CA)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-
-                      // Chip 2: Approved Recharge / Records
-                      GestureDetector(
-                        onTap: () => setState(() => _selectedSectionTab = 1),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _selectedSectionTab == 1
-                                ? const Color(0xFF10B981)
-                                : (isDark ? const Color(0xFF173827) : const Color(0xFFECFDF5)),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: _selectedSectionTab == 1
-                                ? [
-                                    BoxShadow(
-                                      color: const Color(0xFF10B981).withValues(alpha: 0.35),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : null,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.people_rounded,
+                            size: 15,
+                            color: Colors.white,
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle_rounded,
-                                size: 15,
-                                color: _selectedSectionTab == 1
-                                    ? Colors.white
-                                    : (isDark ? const Color(0xFF34D399) : const Color(0xFF059669)),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Approved Recharge',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: _selectedSectionTab == 1
-                                      ? Colors.white
-                                      : (isDark ? const Color(0xFF34D399) : const Color(0xFF059669)),
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Assigned Clients',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${agencyProvider.filteredUsers.length}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
 
-                // Main User List Body vs Pending Recharge Records Widget
+                // Main User List Body
                 Expanded(
-                  child: _selectedSectionTab == 0
-                      ? RefreshIndicator(
-                          onRefresh: () =>
-                              agencyProvider.fetchUsers(isRefresh: true),
-                          color: const Color(0xFF6366F1),
-                          child: _buildUserListBody(
-                            agencyProvider,
-                            isDark,
-                            surfaceColor,
-                            surfaceHigh,
-                            borderColor,
-                          ),
-                        )
-                      : const SingleChildScrollView(
-                          physics: BouncingScrollPhysics(),
-                          child: ApprovedRechargeWidget(),
-                        ),
+                  child: RefreshIndicator(
+                    onRefresh: () =>
+                        agencyProvider.fetchUsers(isRefresh: true),
+                    color: const Color(0xFF6366F1),
+                    child: _buildUserListBody(
+                      agencyProvider,
+                      isDark,
+                      surfaceColor,
+                      surfaceHigh,
+                      borderColor,
+                    ),
+                  ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── SEPARATE PAGE: RECHARGE REQUESTS ─────────────────────────────────────
+  Widget _buildRechargeRequestsPage(bool isDark) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF141128) : Colors.white,
+            border: Border(
+              bottom: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : const Color(0xFFECEAFE),
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_back_rounded,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                ),
+                onPressed: () => setState(() => _currentNavIndex = 0),
+              ),
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.receipt_long_rounded,
+                  color: Color(0xFF10B981),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recharge Requests',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF1E293B),
+                      ),
+                    ),
+                    Text(
+                      'Verify and approve client recharge requests',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Expanded(
+          child: SingleChildScrollView(
+            physics: BouncingScrollPhysics(),
+            child: ApprovedRechargeWidget(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── SEPARATE PAGE: WITHDRAW REQUESTS ─────────────────────────────────────
+  Widget _buildWithdrawRequestsPage(bool isDark) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF141128) : Colors.white,
+            border: Border(
+              bottom: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : const Color(0xFFECEAFE),
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_back_rounded,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                ),
+                onPressed: () => setState(() => _currentNavIndex = 0),
+              ),
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Color(0xFFF59E0B),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Withdraw Requests',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF1E293B),
+                      ),
+                    ),
+                    Text(
+                      'Verify and process client withdrawal requests',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Expanded(
+          child: SingleChildScrollView(
+            physics: BouncingScrollPhysics(),
+            child: WithdrawalRequestsWidget(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── QUICK ACTION BUTTONS ROW ─────────────────────────────────────────────
+  Widget _buildQuickActionButtonsRow(bool isDark) {
+    return Row(
+      children: [
+        // Recharge Requests Button
+        Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() => _currentNavIndex = 1),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF10B981), Color(0xFF059669)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 17),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Recharge Requests',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+
+        // Withdraw Requests Button
+        Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() => _currentNavIndex = 2),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 17),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Withdraw Requests',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -540,75 +752,6 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                       RechargeRecordsWidget(
                         userId: client.id,
                       ),
-                      const SizedBox(height: 20),
-
-                      // Premium Action Button: Open Chat Thread
-                      Container(
-                        width: double.infinity,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF6366F1).withValues(alpha: 0.4),
-                              blurRadius: 14,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              Navigator.pop(modalContext);
-                              final targetChatId = client.email.isNotEmpty ? client.email : client.id;
-                              context.push('/chat/$targetChatId', extra: client);
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.forum_rounded,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Chat with Client',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: Colors.white,
-                                      fontSize: 15.5,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  const Icon(
-                                    Icons.arrow_forward_rounded,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -667,19 +810,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
           builder: (context, setModalState) {
             return Consumer<AgencyProvider>(
               builder: (context, provider, child) {
-                final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-
-                final unreadCount = provider.totalUnreadCount;
                 final pendingRecharges = provider.pendingRechargeRequestsCount;
-
-                final unreadClients = provider.users.where((u) {
-                  if (u.unreadCount > 0) return true;
-                  if (u.lastActiveTime != null) {
-                    if (!showOnlyLast7Days) return true;
-                    return u.lastActiveTime!.isAfter(sevenDaysAgo);
-                  }
-                  return false;
-                }).toList();
 
                 return Container(
                   height: MediaQuery.of(context).size.height * 0.78,
@@ -762,21 +893,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                                     ],
                                   ),
                                 ),
-                                if (unreadCount > 0)
-                                  TextButton.icon(
-                                    onPressed: () {
-                                      provider.markAllAsRead();
-                                    },
-                                    icon: const Icon(Icons.done_all_rounded, size: 16, color: Color(0xFF6366F1)),
-                                    label: const Text(
-                                      'Read All',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF6366F1),
-                                      ),
-                                    ),
-                                  ),
+
                                 IconButton(
                                   icon: const Icon(Icons.close_rounded),
                                   color: isDark ? Colors.white60 : Colors.grey[600],
@@ -876,140 +993,50 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                             child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Summary Counter Cards
-                          Row(
-                            children: [
-                              // Card 1: Total Unread Messages
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () {
-                                    Navigator.pop(modalContext);
-                                    provider.setFilter(AgencyUserFilterTab.unread);
-                                    if (mounted) {
-                                      setState(() {
-                                        _currentNavIndex = 0;
-                                      });
-                                    }
-                                  },
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF1E1B3A) : const Color(0xFFEEF2FF),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: const Color(0xFF6366F1).withValues(alpha: 0.3),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            const Icon(
-                                              Icons.chat_bubble_outline_rounded,
-                                              color: Color(0xFF6366F1),
-                                              size: 20,
-                                            ),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFF6366F1),
-                                                borderRadius: BorderRadius.circular(10),
-                                              ),
-                                              child: Text(
-                                                unreadCount > 99 ? '99+' : '$unreadCount',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          'Unread Messages',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: isDark ? Colors.white : const Color(0xFF1E293B),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          unreadCount > 0
-                                              ? '$unreadCount client chat${unreadCount > 1 ? "s" : ""}'
-                                              : 'No unread chats',
-                                          style: TextStyle(
-                                            fontSize: 11.5,
-                                            color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                          // Summary Counter Card for Pending Recharges
+                          InkWell(
+                            onTap: () {
+                              Navigator.pop(modalContext);
+                              if (mounted) {
+                                setState(() {
+                                  _currentNavIndex = 1;
+                                });
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF2D2318) : const Color(0xFFFFF7ED),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-
-                              // Card 2: Pending Recharges
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () {
-                                    Navigator.pop(modalContext);
-                                    if (mounted) {
-                                      setState(() {
-                                        _currentNavIndex = 0;
-                                        _selectedSectionTab = 1;
-                                      });
-                                    }
-                                  },
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF2D2318) : const Color(0xFFFFF7ED),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                                      ),
+                                      color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
+                                    child: const Icon(
+                                      Icons.hourglass_top_rounded,
+                                      color: Color(0xFFF59E0B),
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            const Icon(
-                                              Icons.hourglass_top_rounded,
-                                              color: Color(0xFFF59E0B),
-                                              size: 20,
-                                            ),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF59E0B),
-                                                borderRadius: BorderRadius.circular(10),
-                                              ),
-                                              child: Text(
-                                                '$pendingRecharges',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
                                         Text(
                                           'Pending Recharges',
                                           style: TextStyle(
-                                            fontSize: 13,
+                                            fontSize: 14,
                                             fontWeight: FontWeight.bold,
                                             color: isDark ? Colors.white : const Color(0xFF1E293B),
                                           ),
@@ -1020,186 +1047,33 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                                               ? '$pendingRecharges request${pendingRecharges > 1 ? "s" : ""} pending'
                                               : 'No pending requests',
                                           style: TextStyle(
-                                            fontSize: 11.5,
+                                            fontSize: 12,
                                             color: isDark ? Colors.white60 : const Color(0xFF64748B),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Section 1: Unread Client Messages List
-                          if (unreadClients.isEmpty && unreadCount > 0 && showOnlyLast7Days) ...[
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF6366F1).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.info_outline_rounded, color: Color(0xFF6366F1), size: 18),
-                                  const SizedBox(width: 10),
-                                  Expanded(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF59E0B),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                     child: Text(
-                                      'You have $unreadCount unread client message(s) older than 7 days. Tap "All Time" above to view them.',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: isDark ? Colors.white70 : const Color(0xFF4338CA),
+                                      '$pendingRecharges',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ],
-                          if (unreadClients.isNotEmpty) ...[
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Unread Client Chats',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF4338CA),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF6366F1).withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '${unreadClients.length} clients',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF6366F1),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: unreadClients.length > 20 ? 20 : unreadClients.length,
-                              itemBuilder: (ctx, index) {
-                                final client = unreadClients[index];
-                                final avatarColors = _getPastelAvatarColor(client.name);
-                                final initials = client.name.isNotEmpty ? client.name[0].toUpperCase() : 'U';
-
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF13102B) : const Color(0xFFF8F7FF),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isDark ? const Color(0xFF2E2756) : const Color(0xFFECEAFE),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 14,
-                                        backgroundColor: avatarColors['bg'],
-                                        child: Text(
-                                          initials,
-                                          style: TextStyle(
-                                            color: avatarColors['text'],
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      // Single Line Format: Client Name • Message
-                                      Expanded(
-                                        child: Text(
-                                          '${client.name} • ${client.lastMessage ?? "New message received"}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 13.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      // Single Line Action Badge Pill matching User App
-                                      InkWell(
-                                        onTap: () {
-                                          Navigator.pop(modalContext);
-                                          final targetChatId = client.email.isNotEmpty ? client.email : client.id;
-                                          if (context.mounted) {
-                                            context.push('/chat/$targetChatId', extra: client);
-                                          }
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF6366F1).withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: const Text(
-                                            'Chat',
-                                            style: TextStyle(
-                                              color: Color(0xFF6366F1),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                            if (unreadClients.length > 20) ...[
-                              const SizedBox(height: 4),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.pop(modalContext);
-                                    provider.setFilter(AgencyUserFilterTab.unread);
-                                    if (mounted) {
-                                      setState(() {
-                                        _currentNavIndex = 1;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                                  label: Text(
-                                    'View All ${unreadClients.length} Unread Chats',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF6366F1),
-                                    side: const BorderSide(color: Color(0xFF6366F1)),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 16),
-                          ],
+                          ),
+                          const SizedBox(height: 20),
 
                           // Section 2: Pending Recharge Requests List
                           Row(
@@ -1235,7 +1109,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                           const RechargeRecordsWidget(isCompactSingleLine: true),
 
                           // If All Caught Up
-                          if (unreadCount == 0 && pendingRecharges == 0) ...[
+                          if (pendingRecharges == 0) ...[
                             const SizedBox(height: 24),
                             Container(
                               width: double.infinity,
@@ -1587,7 +1461,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
             isDark: isDark,
             onTap: () {
               setState(() {
-                _selectedSectionTab = 1;
+                _currentNavIndex = 1;
               });
             },
           ),
@@ -1723,266 +1597,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     );
   }
 
-  // ─── TAB 1: DEDICATED CHAT DIRECTORY ──────────────────────────────────────
-  Widget _buildChatDirectoryTab(
-    AgencyProvider agencyProvider,
-    bool isDark,
-    Color surfaceColor,
-    Color surfaceHigh,
-    Color borderColor,
-  ) {
-    return Column(
-      children: [
-        // Dedicated Chat Directory Header Banner (Brand Gold Theme)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF0D0F1D),
-                Color(0xFF1F1403),
-                Color(0xFF0D0F1D),
-              ],
-            ),
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
-            border: Border(
-              bottom: BorderSide(
-                color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-                width: 1.5,
-              ),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: const Color(0xFF0E0921),
-                      border: Border.all(
-                        color: const Color(0xFF00B2FF),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF00B2FF).withValues(alpha: 0.45),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.asset(
-                        'assets/icons/app_logo.png',
-                        width: 44,
-                        height: 44,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Agency Client Chats',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Real-time messages & assigned client threads',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: const Color(0xFF94A3B8),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Notification Button
-                  Builder(
-                    builder: (context) {
-                      final unseenCount = agencyProvider.unseenNotificationCount;
-                      return Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => _showNotificationModal(context, agencyProvider, isDark),
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14),
-                              color: Colors.white.withValues(alpha: 0.08),
-                              border: Border.all(
-                                color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              clipBehavior: Clip.none,
-                              children: [
-                                Icon(
-                                  unseenCount > 0
-                                      ? Icons.notifications_active_rounded
-                                      : Icons.notifications_none_rounded,
-                                  color: unseenCount > 0
-                                      ? const Color(0xFFF59E0B)
-                                      : const Color(0xFF94A3B8),
-                                  size: 20,
-                                ),
-                                if (unseenCount > 0)
-                                  Positioned(
-                                    top: -3,
-                                    right: -3,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(3),
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFF43F5E),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      constraints: const BoxConstraints(
-                                        minWidth: 15,
-                                        minHeight: 15,
-                                      ),
-                                      child: Text(
-                                        unseenCount > 99 ? '99+' : '$unseenCount',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 8.5,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
 
-                  // Logout Button
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => AppLogoutDialog.show(context),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: const Color(0xFF1D0D45),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
-                          ),
-                        ),
-                        child: const Icon(Icons.logout_rounded, color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 10),
-
-        // Search & Filter Section
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Search Input
-                _buildSearchAndFilterRow(
-                  surfaceColor: surfaceColor,
-                  borderColor: borderColor,
-                  isDark: isDark,
-                  agencyProvider: agencyProvider,
-                ),
-                const SizedBox(height: 14),
-
-                // Directory Header Label
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Assigned Client Threads',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                    Text(
-                      'Showing ${agencyProvider.filteredUsers.length} clients',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Main User List Body
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () => agencyProvider.fetchUsers(isRefresh: true),
-                    color: const Color(0xFF6366F1),
-                    child: _buildUserListBody(
-                      agencyProvider,
-                      isDark,
-                      surfaceColor,
-                      surfaceHigh,
-                      borderColor,
-                      onUserTap: (user) {
-                        // Chat tab: tap user → open chat immediately with user email
-                        final targetChatId = user.email.isNotEmpty ? user.email : user.id;
-                        context.push('/chat/$targetChatId', extra: user);
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   // ─── Floating Dark Pill Bottom Navigation Bar ─────────────────────────────
   Widget _buildAgencyBottomNavBar(bool isDark) {
@@ -2023,16 +1638,22 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                 onTap: () => setState(() => _currentNavIndex = 0),
               ),
               _buildNavItem(
-                icon: Icons.chat_bubble_rounded,
-                label: 'Chat',
+                icon: Icons.receipt_long_rounded,
+                label: 'Recharge',
                 isSelected: _currentNavIndex == 1,
                 onTap: () => setState(() => _currentNavIndex = 1),
               ),
               _buildNavItem(
-                icon: Icons.person_rounded,
-                label: 'Profile',
+                icon: Icons.account_balance_wallet_rounded,
+                label: 'Withdraw',
                 isSelected: _currentNavIndex == 2,
                 onTap: () => setState(() => _currentNavIndex = 2),
+              ),
+              _buildNavItem(
+                icon: Icons.person_rounded,
+                label: 'Profile',
+                isSelected: _currentNavIndex == 3,
+                onTap: () => setState(() => _currentNavIndex = 3),
               ),
             ],
           ),
@@ -2054,8 +1675,8 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 20 : 14,
-          vertical: 9,
+          horizontal: isSelected ? 12 : 8,
+          vertical: 8,
         ),
         decoration: isSelected
             ? BoxDecoration(

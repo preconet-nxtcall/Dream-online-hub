@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
@@ -53,6 +54,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
   int? _qrId;
   int? _rangeId;
   int? _empId;
+  String? _acNo;
+  String? _acHolder;
+  String? _acUpi;
+  String? _ifscCode;
   Timer? _debounceTimer;
 
   Map<String, int> _dynamicBookIds = {};
@@ -281,6 +286,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
           _qrId = null;
           _rangeId = null;
           _empId = null;
+          _acNo = null;
+          _acHolder = null;
+          _acUpi = null;
+          _ifscCode = null;
         });
       }
       return;
@@ -352,6 +361,13 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
             }
           }
 
+          final Map qrMap = (data['data'] is Map) ? data['data'] as Map : ((data['qr'] is Map) ? data['qr'] as Map : data);
+
+          final acNoVal = qrMap['ac_no']?.toString() ?? qrMap['ac_number']?.toString() ?? qrMap['account_no']?.toString() ?? data['ac_no']?.toString();
+          final acHolderVal = qrMap['ac_holder']?.toString() ?? qrMap['ac_name']?.toString() ?? qrMap['account_holder']?.toString() ?? data['ac_holder']?.toString();
+          final upiVal = qrMap['ac_upi']?.toString() ?? qrMap['upi_id']?.toString() ?? qrMap['upi']?.toString() ?? data['ac_upi']?.toString();
+          final ifscVal = qrMap['ifsc_code']?.toString() ?? qrMap['ifsc']?.toString() ?? data['ifsc_code']?.toString();
+
           setState(() {
             _isLoadingQr = false;
             _qrAvailable = true;
@@ -359,6 +375,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
             _qrId = data['qr_id'] != null ? int.tryParse(data['qr_id'].toString()) : null;
             _rangeId = data['range_id'] != null ? int.tryParse(data['range_id'].toString()) : null;
             _empId = data['emp_id'] != null ? int.tryParse(data['emp_id'].toString()) : null;
+            _acNo = (acNoVal != null && acNoVal.isNotEmpty && acNoVal != 'null') ? acNoVal.trim() : null;
+            _acHolder = (acHolderVal != null && acHolderVal.isNotEmpty && acHolderVal != 'null') ? acHolderVal.trim() : null;
+            _acUpi = (upiVal != null && upiVal.isNotEmpty && upiVal != 'null') ? upiVal.trim() : null;
+            _ifscCode = (ifscVal != null && ifscVal.isNotEmpty && ifscVal != 'null') ? ifscVal.trim() : null;
             _qrMessage = null;
           });
         } else {
@@ -370,6 +390,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
             _qrId = data['qr_id'] != null ? int.tryParse(data['qr_id'].toString()) : null;
             _rangeId = data['range_id'] != null ? int.tryParse(data['range_id'].toString()) : null;
             _empId = null;
+            _acNo = null;
+            _acHolder = null;
+            _acUpi = null;
+            _ifscCode = null;
           });
         }
       } else {
@@ -391,6 +415,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         _qrId = 5;
         _rangeId = 2;
         _empId = widget.agencyId;
+        _acNo = null;
+        _acHolder = null;
+        _acUpi = null;
+        _ifscCode = null;
         _qrMessage = null;
       });
     } else if (amount >= 1001 && amount <= 10000) {
@@ -401,6 +429,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         _qrId = 4;
         _rangeId = 3;
         _empId = widget.agencyId;
+        _acNo = null;
+        _acHolder = null;
+        _acUpi = null;
+        _ifscCode = null;
         _qrMessage = null;
       });
     } else if (amount >= 1 && amount <= 100) {
@@ -411,6 +443,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         _qrId = 1;
         _rangeId = 1;
         _empId = widget.agencyId;
+        _acNo = null;
+        _acHolder = null;
+        _acUpi = null;
+        _ifscCode = null;
         _qrMessage = null;
       });
     } else {
@@ -422,6 +458,10 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         _qrId = null;
         _rangeId = null;
         _empId = null;
+        _acNo = null;
+        _acHolder = null;
+        _acUpi = null;
+        _ifscCode = null;
       });
     }
   }
@@ -473,24 +513,119 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
     }
   }
 
+  bool _isDuplicateTxn(String itemText, String targetChars) {
+    if (itemText.trim().isEmpty || targetChars.trim().isEmpty) return false;
+    final cleanTarget = targetChars.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    if (cleanTarget.isEmpty) return false;
+
+    final upperItem = itemText.toUpperCase();
+    final cleanedItem = upperItem.replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
+    // 1. Direct exact match on cleaned alphanumeric strings
+    if (cleanedItem == cleanTarget) return true;
+
+    // 2. Contains check for full transaction IDs (6+ alphanumeric chars)
+    if (cleanTarget.length >= 6 && cleanedItem.contains(cleanTarget)) return true;
+
+    // 3. Exact token match for extracted words/numbers from formatted details
+    final tokens = upperItem.replaceAll(RegExp(r'[^A-Z0-9]'), ' ').split(RegExp(r'\s+'));
+    for (final token in tokens) {
+      if (token == cleanTarget) return true;
+    }
+
+    return false;
+  }
+
   Future<void> _submitForm() async {
     if (_selectedBook == null || _selectedBook!.isEmpty) {
-      _showIssueDialog('Validation Issue', 'Please select a target book market before submitting.');
+      _showIssueDialog('Validation Error', 'Please select a book market.');
       return;
     }
     final amountText = _amountController.text.trim();
     final parsedAmount = double.tryParse(amountText);
     if (parsedAmount == null || parsedAmount <= 0) {
-      _showIssueDialog('Validation Issue', 'Please enter a valid recharge amount (e.g. ₹500).');
+      _showIssueDialog('Validation Error', 'Please enter a valid amount.');
       return;
     }
-    final txnId = _txnIdController.text.trim();
+    final txnId = _txnIdController.text.trim().toUpperCase();
     if (txnId.isEmpty) {
-      _showIssueDialog('Validation Issue', 'Please enter the 12-digit UTR or Transaction ID.');
+      _showIssueDialog('Validation Error', 'Please enter UTR / Txn ID.');
       return;
     }
+
+    final cleanTxnId = txnId.replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
+    // 1. Check duplicate against local submitted recharges (Ignore REJECTED/FAILED records)
+    final localRecharges = LocalStorageRepositoryImpl().getSubmittedRecharges();
+    for (final item in localRecharges) {
+      String itemTxn = '';
+      String status = '';
+      if (item is Map) {
+        itemTxn = (item['transection_id'] ?? item['transaction_id'] ?? item['utr'] ?? item['transactionDetails'] ?? item['details'] ?? '').toString();
+        status = (item['status'] ?? item['stage_status'] ?? '').toString().toLowerCase();
+      } else if (item is RechargeRecordModel) {
+        itemTxn = item.transactionDetails;
+        status = item.status.toLowerCase();
+      }
+
+      // Allow resubmission if the previous attempt was REJECTED / FAILED
+      final isRejected = status.contains('reject') || status.contains('failed') || status.contains('declined') || status.contains('cancel');
+      if (isRejected) continue;
+
+      if (_isDuplicateTxn(itemTxn, cleanTxnId)) {
+        _showIssueDialog(
+          'Duplicate Txn ID',
+          'Transaction ID already submitted.',
+        );
+        return;
+      }
+    }
+
+    // 2. Check duplicate against backend recharge records history (Only PENDING or SUCCESSFUL)
+    try {
+      final userId = await _resolveUserId();
+      final apiClient = ApiClient();
+      final response = await apiClient.post(
+        ApiEndpoints.getQrCode,
+        options: Options(validateStatus: (status) => status != null && status < 500),
+        data: {
+          'action': 'recharge_records',
+          'user_id': userId,
+        },
+      );
+      final data = response.data;
+      List rawList = [];
+      if (data is Map<String, dynamic>) {
+        if (data['data'] is List) {
+          rawList.addAll(data['data'] as List);
+        } else if (data['recharges'] is List) {
+          rawList.addAll(data['recharges'] as List);
+        } else if (data['categorized'] is Map) {
+          final cat = data['categorized'] as Map;
+          // Only check pending and successful categories for duplicates
+          if (cat['pending'] is List) rawList.addAll(cat['pending'] as List);
+          if (cat['successful'] is List) rawList.addAll(cat['successful'] as List);
+        }
+      }
+      for (final item in rawList) {
+        if (item is Map) {
+          final status = (item['stage_status'] ?? item['status'] ?? '').toString().toLowerCase();
+          final isRejected = status.contains('reject') || status.contains('failed') || status.contains('declined') || status.contains('cancel');
+          if (isRejected) continue;
+
+          final itemTxn = (item['transection_id'] ?? item['transaction_id'] ?? item['utr'] ?? item['transaction_details'] ?? '').toString();
+          if (_isDuplicateTxn(itemTxn, cleanTxnId)) {
+            _showIssueDialog(
+              'Duplicate Txn ID',
+              'Transaction ID already submitted.',
+            );
+            return;
+          }
+        }
+      }
+    } catch (_) {}
     if (_selectedScreenshot == null) {
-      _showIssueDialog('Validation Issue', 'Please upload a payment proof screenshot before submitting.');
+      _showIssueDialog('Validation Error', 'Please upload payment proof screenshot.');
       return;
     }
 
@@ -1345,6 +1480,9 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 Expanded(
                   child: TextField(
                     controller: _txnIdController,
+                    keyboardType: TextInputType.text,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]'))],
                     cursorColor: const Color(0xFF00B2FF),
                     style: const TextStyle(
                       fontSize: 13.5,
@@ -1352,7 +1490,8 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                       color: Colors.white,
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Enter 12-digit UTR or Txn ID',
+                      hintText: 'Enter UTR or Transaction ID',
+                      counterText: '',
                       hintStyle: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withValues(alpha: 0.4),
@@ -1850,12 +1989,153 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            if (_acNo != null && _acNo!.isNotEmpty)
+              _buildCopyableDetailCard(
+                icon: Icons.account_balance_rounded,
+                title: 'A/C NUMBER :',
+                value: _acNo!,
+              ),
+            if (_acHolder != null && _acHolder!.isNotEmpty)
+              _buildCopyableDetailCard(
+                icon: Icons.person_search_rounded,
+                title: 'A/C HOLDER NAME :',
+                value: _acHolder!,
+              ),
+            if (_ifscCode != null && _ifscCode!.isNotEmpty)
+              _buildCopyableDetailCard(
+                icon: Icons.tag_rounded,
+                title: 'IFSC CODE :',
+                value: _ifscCode!,
+              ),
+            if (_acUpi != null && _acUpi!.isNotEmpty)
+              _buildCopyableDetailCard(
+                icon: Icons.account_balance_wallet_rounded,
+                title: 'UPI ID :',
+                value: _acUpi!,
+              ),
           ],
         ),
       );
     }
 
     return const SizedBox.shrink();
+  }
+
+  Widget _buildCopyableDetailCard({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF07142A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF0066FF).withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                color: const Color(0xFF00B2FF),
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF00B2FF),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF040A1B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: value));
+                    final cleanTitle = title.replaceAll(':', '').trim();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Copied $cleanTitle: $value'),
+                        duration: const Duration(seconds: 2),
+                        backgroundColor: const Color(0xFF00B2FF),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF00B2FF).withValues(alpha: 0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.copy_rounded,
+                          color: Color(0xFF00B2FF),
+                          size: 14,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Copy',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF00B2FF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildRefLabel(String label) {

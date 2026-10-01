@@ -187,34 +187,26 @@ class AgencyUserTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
 
-                      // Email / Last Message Subtitle
+                      // Client Subtitle Info
                       Row(
                         children: [
                           Icon(
-                            hasUnread
-                                ? Icons.mark_chat_unread_rounded
-                                : Icons.chat_bubble_outline_rounded,
+                            Icons.badge_outlined,
                             size: 14,
-                            color: hasUnread
-                                ? const Color(0xFFFBBF24)
-                                : (isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+                            color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
                           ),
                           const SizedBox(width: 5),
                           Expanded(
                             child: Text(
-                              (user.lastMessage != null && user.lastMessage!.isNotEmpty)
-                                  ? user.lastMessage!
-                                  : 'Tap to open client chat thread',
+                              user.email.isNotEmpty ? user.email : 'Client ID: #${user.id}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
-                                fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w400,
-                                color: hasUnread
-                                    ? const Color(0xFFFBBF24)
-                                    : (isDark
-                                        ? Colors.white.withValues(alpha: 0.6)
-                                        : const Color(0xFF64748B)),
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.6)
+                                    : const Color(0xFF64748B),
                               ),
                             ),
                           ),
@@ -243,59 +235,25 @@ class AgencyUserTile extends StatelessWidget {
                         ),
                       ),
                     const SizedBox(height: 6),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (hasUnread) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              user.unreadCount > 99
-                                  ? '99+ new'
-                                  : '${user.unreadCount} new',
-                              style: GoogleFonts.plusJakartaSans(
-                                color: Colors.white,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF1F1403)
-                                : const Color(0xFFFFF7ED),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                              width: 1,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.chevron_right_rounded,
-                            size: 18,
-                            color: Color(0xFFF59E0B),
-                          ),
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF1F1403)
+                            : const Color(0xFFFFF7ED),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                          width: 1,
                         ),
-                      ],
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: Color(0xFFF59E0B),
+                      ),
                     ),
                   ],
                 ),
