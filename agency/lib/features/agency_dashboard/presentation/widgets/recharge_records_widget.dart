@@ -161,7 +161,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           final bookIdVal = item['book_id']?.toString();
           final rawBookName = item['book_name']?.toString() ?? item['book']?.toString();
 
-          String resolvedBookName = 'Lucky Vault';
+          String resolvedBookName = rawBookName ?? 'Official Portal';
           if (rawBookName != null && rawBookName.isNotEmpty) {
             resolvedBookName = rawBookName;
           } else if (bookIdVal != null) {
@@ -243,7 +243,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                   ? item['status_category'].toString()
                   : (item['status']?.toString() ?? 'PENDING'));
 
-          final rawBookName = item['book_name']?.toString() ?? item['book']?.toString() ?? 'Lucky Vault';
+          final rawBookName = item['book_name']?.toString() ?? item['book']?.toString() ?? 'Official Portal';
 
           final rawDetail = (item['deatil']?.toString().trim().isNotEmpty == true)
               ? item['deatil'].toString().trim()
@@ -292,7 +292,9 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
       }
     } catch (_) {
       if (mounted) {
-        _loadLocalSubmittedRecords();
+        setState(() {
+          _records = [];
+        });
       }
     } finally {
       if (mounted && !silent) {
@@ -347,50 +349,6 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-    }
-  }
-
-  void _loadLocalSubmittedRecords() {
-    final localList = LocalStorageRepositoryImpl().getSubmittedRecharges();
-    final List<RechargeRecordModel> localRecords = [];
-
-    final targetUserIdStr = widget.userId?.toString().replaceAll(RegExp(r'\D'), '');
-
-    for (final item in localList) {
-      if (item is Map) {
-        final itemUserIdStr = item['user_id']?.toString().replaceAll(RegExp(r'\D'), '') ??
-            item['userId']?.toString().replaceAll(RegExp(r'\D'), '');
-
-        if (targetUserIdStr != null &&
-            targetUserIdStr.isNotEmpty &&
-            itemUserIdStr != null &&
-            itemUserIdStr.isNotEmpty &&
-            itemUserIdStr != targetUserIdStr) {
-          continue; // Skip records belonging to another user
-        }
-
-        final idStr = item['id']?.toString() ?? '#01';
-        localRecords.add(
-          RechargeRecordModel(
-            id: idStr.startsWith('#') ? idStr : '#$idStr',
-            bookName: item['bookName']?.toString() ?? 'Lucky Vault',
-            transactionDetails: item['transactionDetails']?.toString() ?? '',
-            amount: double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0,
-            status: item['status']?.toString() ?? 'EMPLOYEE-PENDING',
-            date: item['date']?.toString() ?? 'Just now',
-            imageUrl: item['imageUrl']?.toString() ?? item['image_url']?.toString(),
-            invoiceUrl: item['invoiceUrl']?.toString() ?? item['invoice_url']?.toString(),
-          ),
-        );
-      } else if (item is RechargeRecordModel) {
-        localRecords.add(item);
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _records = localRecords;
-      });
     }
   }
 
@@ -1067,30 +1025,24 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                               const SizedBox(height: 5),
                               GestureDetector(
                                 onTap: () => _downloadOrOpenInvoice(context, item.invoiceUrl!),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.picture_as_pdf_rounded, size: 12, color: Color(0xFF38BDF8)),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Invoice PDF',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF38BDF8),
-                                        ),
+                                child: Tooltip(
+                                  message: 'Invoice PDF',
+                                  child: Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
+                                        width: 1,
                                       ),
-                                    ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.picture_as_pdf_rounded,
+                                      size: 14,
+                                      color: Color(0xFF38BDF8),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1134,17 +1086,21 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Record counter (e.g. "Showing 1-5 of 24")
-          Text(
-            'Showing $startRecord-$endRecord of $totalRecords',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          Expanded(
+            child: Text(
+              'Showing $startRecord-$endRecord of $totalRecords',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
             ),
           ),
+          const SizedBox(width: 8),
 
           // Pagination Page Controls: [<] [1] [2] [3] [>]
           Row(

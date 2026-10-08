@@ -50,14 +50,14 @@ class RechargeRecordModel {
 
     return RechargeRecordModel(
       id: (json['id'] ?? json['recharge_id'] ?? json['withdrawal_id'] ?? '#1').toString(),
-      bookName: (json['book_name'] ?? json['bookName'] ?? 'Lucky Vault').toString(),
+      bookName: (json['book_name'] ?? json['bookName'] ?? json['book'] ?? 'Official Portal').toString(),
       transactionDetails: (json['transaction_details'] ??
               json['transactionDetails'] ??
               json['deatil'] ??
               json['detail'] ??
               json['transection_id'] ??
               json['transaction_id'] ??
-              'UPI Deposit')
+              'Payment Transaction')
           .toString(),
       amount: (json['amount'] is num)
           ? (json['amount'] as num).toDouble()

@@ -41,28 +41,24 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen>
         context.go('/login');
         return;
       }
-      final roleUpper = user.role.toUpperCase();
-      if (roleUpper != 'EMPLOYEE') {
-        // Agency / Admin users must not access employee portal
+      if (!user.isEmployee && !user.isAdmin) {
+        // Pure agency manager accounts must access agency portal
         context.go('/agency-dashboard');
         return;
       }
       // ─────────────────────────────────────────────────────────────────────
 
-      // Resolve agency ID from the logged-in employee's profile.
-      // NEVER fall back to a hardcoded value — use null to signal "unassigned".
+      // Resolve agency ID and employee user ID from the logged-in profile.
       final String? agencyId = (user.agencyId != null && user.agencyId!.isNotEmpty)
           ? user.agencyId
           : null;
+      final String? empUserId = user.id.isNotEmpty ? user.id : null;
 
-      if (agencyId == null) {
-        // Employee is not yet assigned to an agency — show empty state.
-        // Still call setAgencyId with empty string so provider shows no data.
-        context.read<EmployeeProvider>().setAgencyId('');
-      } else {
-        context.read<EmployeeProvider>().setAgencyId(agencyId);
-        context.read<EmployeeProvider>().refreshAll();
-      }
+      context.read<EmployeeProvider>().setEmployeeContext(
+            agencyId: agencyId,
+            employeeUserId: empUserId,
+          );
+      context.read<EmployeeProvider>().refreshAll();
     });
   }
 
@@ -119,7 +115,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen>
         ? user.agencyUnqId!
         : (user != null && user.agencyId != null && user.agencyId!.isNotEmpty)
             ? 'Agency #${user.agencyId}'
-            : 'Agency #3';
+            : (user != null && user.id.isNotEmpty ? 'Staff #${user.id}' : 'Employee');
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),

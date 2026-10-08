@@ -30,10 +30,6 @@ class EmployeeProfileWidget extends StatelessWidget {
         ? user.email
         : 'staff@dreamhub.com';
 
-    final String userPhone = (user != null && user.phone != null && user.phone!.isNotEmpty)
-        ? user.phone!
-        : 'N/A';
-
     final userId = user?.id ?? '01';
 
     return SingleChildScrollView(
@@ -130,13 +126,6 @@ class EmployeeProfileWidget extends StatelessWidget {
                   icon: Icons.tag_rounded,
                   label: 'Staff ID',
                   value: '#$userId',
-                  isDark: isDark,
-                ),
-                const Divider(height: 20),
-                _buildInfoRow(
-                  icon: Icons.phone_outlined,
-                  label: 'Phone Number',
-                  value: userPhone,
                   isDark: isDark,
                 ),
                 const Divider(height: 20),

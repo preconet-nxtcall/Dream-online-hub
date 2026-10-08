@@ -116,7 +116,7 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
             final formattedId = idStr.startsWith('#') ? idStr : '#$idStr';
             final amountVal = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
             final stageStatus = item['stage_status']?.toString() ?? 'EMPLOYEE-PENDING';
-            final bookName = item['book_name']?.toString() ?? 'Lucky Vault';
+            final bookName = item['book_name']?.toString() ?? item['book']?.toString() ?? 'Official Portal';
             final userName = item['user_name']?.toString() ?? item['name']?.toString() ?? 'Client';
             final formattedDate = item['formatted_date']?.toString() ?? item['date']?.toString() ?? 'Just now';
 
@@ -354,8 +354,7 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
                       stUpper.contains('SUCCESSFUL') ||
                       stUpper.contains('REJECTED');
 
-                  final canProcess = !isAlreadyApprovedOrProcessed &&
-                      (stUpper.contains('AGENCY-PENDING') || stUpper == 'PENDING' || stUpper.contains('EMPLOYEE-PASS'));
+                  final canProcess = !isAlreadyApprovedOrProcessed;
 
                   return Row(
                     children: [
@@ -673,6 +672,7 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
                                         final rawId = item.id.replaceAll(RegExp(r'\D'), '');
                                         final remarkText = remarkController.text.trim();
                                         final transactionId = transactionIdController.text.trim();
+                                        final currentAgencyId = await _resolveCurrentAgencyId();
 
                                         await apiClient.post(
                                           ApiEndpoints.getQrCode,
@@ -680,7 +680,7 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
                                             'action': 'edit_agency_withdraw_pending',
                                             'edit_agency_withdraw_pending': 1,
                                             'id': rawId,
-                                            'agency_id': widget.userId ?? '',
+                                            'agency_id': currentAgencyId,
                                             'amount': item.amount,
                                             'stage_status': selectedStatus,
                                             'transaction_id': transactionId,
@@ -1387,103 +1387,80 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
                                 ),
                               ),
 
-                              // Actions Column: View & Process Buttons
+                              // Actions Column: Compact icon-only buttons to prevent overflow
                               Expanded(
                                 flex: 3,
                                 child: Align(
                                   alignment: Alignment.centerRight,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      InkWell(
-                                        onTap: () => _showViewDetailsModal(context, item),
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(
-                                              color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
-                                              width: 1,
-                                            ),
-                                          ),
-                                          child: const Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.visibility_rounded,
-                                                color: Color(0xFFF59E0B),
-                                                size: 14,
-                                              ),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'View',
-                                                style: TextStyle(
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xFFF59E0B),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      Builder(
-                                        builder: (context) {
-                                          final stUpper = item.status.toUpperCase();
-                                          final isAlreadyProcessed = stUpper.contains('AGENCY-DONE') ||
-                                              stUpper.contains('AGENCY-REJECT') ||
-                                              stUpper.contains('EMPLOYEE-DONE') ||
-                                              stUpper.contains('EMPLOYEE-REJECT') ||
-                                              stUpper.contains('DONE') ||
-                                              stUpper.contains('SUCCESSFUL') ||
-                                              stUpper.contains('REJECTED');
-                                          final canProcess = !isAlreadyProcessed &&
-                                              (stUpper.contains('AGENCY-PENDING') || stUpper == 'PENDING' || stUpper.contains('EMPLOYEE-PASS'));
+                                  child: Builder(
+                                    builder: (context) {
+                                      final stUpper = item.status.toUpperCase();
+                                      final isAlreadyProcessed = stUpper.contains('AGENCY-DONE') ||
+                                          stUpper.contains('AGENCY-REJECT') ||
+                                          stUpper.contains('EMPLOYEE-DONE') ||
+                                          stUpper.contains('EMPLOYEE-REJECT') ||
+                                          stUpper.contains('DONE') ||
+                                          stUpper.contains('SUCCESSFUL') ||
+                                          stUpper.contains('REJECTED');
+                                      final canProcess = !isAlreadyProcessed;
 
-                                          if (!canProcess) return const SizedBox.shrink();
-
-                                          return Padding(
-                                            padding: const EdgeInsets.only(left: 6),
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Tooltip(
+                                            message: 'View Details',
                                             child: InkWell(
-                                              onTap: () => _showProcessWithdrawalModal(context, item),
+                                              onTap: () => _showViewDetailsModal(context, item),
                                               borderRadius: BorderRadius.circular(8),
                                               child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                                width: 32,
+                                                height: 32,
                                                 decoration: BoxDecoration(
-                                                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                                                   borderRadius: BorderRadius.circular(8),
                                                   border: Border.all(
-                                                    color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                                                    color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
                                                     width: 1,
                                                   ),
                                                 ),
-                                                child: const Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons.check_circle_rounded,
-                                                      color: Color(0xFF10B981),
-                                                      size: 14,
-                                                    ),
-                                                    SizedBox(width: 4),
-                                                    Text(
-                                                      'Process',
-                                                      style: TextStyle(
-                                                        fontSize: 11.5,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: Color(0xFF10B981),
-                                                      ),
-                                                    ),
-                                                  ],
+                                                child: const Icon(
+                                                  Icons.visibility_rounded,
+                                                  color: Color(0xFFF59E0B),
+                                                  size: 16,
                                                 ),
                                               ),
                                             ),
-                                          );
-                                        },
-                                      ),
-                                    ],
+                                          ),
+                                          if (canProcess) ...[
+                                            const SizedBox(width: 6),
+                                            Tooltip(
+                                              message: 'Process Withdrawal',
+                                              child: InkWell(
+                                                onTap: () => _showProcessWithdrawalModal(context, item),
+                                                borderRadius: BorderRadius.circular(8),
+                                                child: Container(
+                                                  width: 32,
+                                                  height: 32,
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(
+                                                      color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.check_circle_rounded,
+                                                    color: Color(0xFF10B981),
+                                                    size: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
@@ -1511,40 +1488,53 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
           // 6. Pagination Footer
           if (filtered.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Showing ${startIndex + 1} to $endIndex of $totalRecords entries',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  Expanded(
+                    child: Text(
+                      'Showing ${startIndex + 1} to $endIndex of $totalRecords entries',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                         onPressed: safePage > 1
                             ? () => setState(() => _currentPage--)
                             : null,
-                        icon: const Icon(Icons.chevron_left_rounded),
+                        icon: const Icon(Icons.chevron_left_rounded, size: 20),
                         color: const Color(0xFFF59E0B),
                         disabledColor: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
                       ),
+                      const SizedBox(width: 4),
                       Text(
                         '$safePage / $totalPages',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
+                      const SizedBox(width: 4),
                       IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                         onPressed: safePage < totalPages
                             ? () => setState(() => _currentPage++)
                             : null,
-                        icon: const Icon(Icons.chevron_right_rounded),
+                        icon: const Icon(Icons.chevron_right_rounded, size: 20),
                         color: const Color(0xFFF59E0B),
                         disabledColor: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
                       ),

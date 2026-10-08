@@ -744,28 +744,13 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       _showSuccessDialog(successMsg, withdrawModel, agentId);
     } catch (e) {
       if (!mounted) return;
-
-      // Fallback for demo / offline mode: still save and trigger dialogs
-      final withdrawModel = WithdrawRequestModel(
-        id: '#W${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-        bookName: _selectedBook!,
-        amount: parsedAmount,
-        description: description,
-        status: 'PENDING',
-        date: 'Just now',
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to submit withdrawal: ${e.toString().replaceAll("Exception:", "").trim()}'),
+          backgroundColor: Colors.red,
+        ),
       );
-
-      final agentId = await _saveWithdrawToChatHistory(withdrawModel, description);
-
-      setState(() {
-        _hasPendingWithdrawal = true;
-        _isSubmitting = false;
-        _amountController.clear();
-        _descriptionController.clear();
-      });
-
-      if (!mounted) return;
-      _showSuccessDialog('Withdrawal request submitted to Agency Support!', withdrawModel, agentId);
     }
   }
 
@@ -1082,7 +1067,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
                         }
                         _dismissSheetIfModal(context); // Close parent bottom sheet ONLY if it's a modal sheet!
                         if (mounted) {
-                          context.push('/chat/$agentId'); // Navigate to chat screen
+                          context.push('/chat/${ApiEndpoints.adminAgencyUnqId}'); // Navigate to admin chat screen
                         }
                       },
                       icon: const Icon(Icons.chat_rounded, color: Colors.white, size: 17),

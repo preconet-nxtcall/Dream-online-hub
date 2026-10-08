@@ -79,40 +79,10 @@ class AuthRepositoryImpl implements AuthRepository {
 
       final roleUpper = user.role.trim().toUpperCase();
 
-      // Agency portal: strictly allow only AGENCY / ADMIN / AGENCYS-EMPLOYEE — block USER and pure EMPLOYEE
-      if (portalType == 'agency') {
-        final isAgencyRole = roleUpper == 'AGENCY' || roleUpper == 'ADMIN' || roleUpper == 'AGENCYS-EMPLOYEE';
-        if (!isAgencyRole) {
-          throw ServerException(
-            message: roleUpper == 'EMPLOYEE'
-                ? 'This is an Employee account. Please switch to Employee Login.'
-                : (roleUpper == 'USER'
-                    ? 'This is the Agency Portal. Please use the User Login.'
-                    : 'Access restricted. Only Agency accounts can log in here.'),
-            statusCode: 403,
-          );
-        }
-      }
-
-      // Employee portal: strictly allow EMPLOYEE / ADMIN / AGENCYS-EMPLOYEE — block standard USER and pure AGENCY
-      if (portalType == 'employee') {
-        final isEmployeeRole = roleUpper == 'EMPLOYEE' || roleUpper == 'ADMIN' || roleUpper == 'AGENCYS-EMPLOYEE';
-        if (!isEmployeeRole) {
-          throw ServerException(
-            message: roleUpper == 'AGENCY'
-                ? 'This is an Agency account. Please switch to Agency Login.'
-                : (roleUpper == 'USER'
-                    ? 'This is the Employee Portal. Please use the User Login.'
-                    : 'Access restricted. Only Employee accounts can log in here.'),
-            statusCode: 403,
-          );
-        }
-      }
-
-      // User portal: strictly allow only USER type
-      if (portalType == 'user' && roleUpper != 'USER') {
+      // Block plain customer/player accounts from accessing staff/agency portal
+      if (roleUpper == 'USER') {
         throw ServerException(
-          message: 'Access restricted. Only User accounts can log in here.',
+          message: 'This is the Agency & Employee Portal. Please use the User App to log in.',
           statusCode: 403,
         );
       }

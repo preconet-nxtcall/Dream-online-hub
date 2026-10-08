@@ -116,68 +116,25 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
         }
       }
 
-      if (fetchedList.isEmpty) {
-        _loadLocalSubmittedRecords();
-      } else {
-        if (mounted) {
-          setState(() {
-            _records = fetchedList;
-            _isLoading = false;
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _records = fetchedList;
+          _isLoading = false;
+        });
       }
     } catch (_) {
-      _loadLocalSubmittedRecords();
+      if (mounted) {
+        setState(() {
+          _records = [];
+          _isLoading = false;
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
-    }
-  }
-
-  void _loadLocalSubmittedRecords() {
-    final localList = LocalStorageRepositoryImpl().getSubmittedRecharges();
-    final List<RechargeRecordModel> localRecords = [];
-
-    final targetUserIdStr = widget.userId?.toString().replaceAll(RegExp(r'\D'), '');
-
-    for (final item in localList) {
-      if (item is Map) {
-        final itemUserIdStr = item['user_id']?.toString().replaceAll(RegExp(r'\D'), '') ??
-            item['userId']?.toString().replaceAll(RegExp(r'\D'), '');
-
-        if (targetUserIdStr != null &&
-            targetUserIdStr.isNotEmpty &&
-            itemUserIdStr != null &&
-            itemUserIdStr.isNotEmpty &&
-            itemUserIdStr != targetUserIdStr) {
-          continue;
-        }
-
-        final idStr = item['id']?.toString() ?? '#01';
-        localRecords.add(
-          RechargeRecordModel(
-            id: idStr.startsWith('#') ? idStr : '#$idStr',
-            bookName: item['bookName']?.toString() ?? 'Lucky Vault',
-            transactionDetails: item['transactionDetails']?.toString() ?? '',
-            amount: double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0,
-            status: item['status']?.toString() ?? 'EMPLOYEE-PENDING',
-            date: item['date']?.toString() ?? 'Just now',
-            imageUrl: item['imageUrl']?.toString() ?? item['image_url']?.toString(),
-            invoiceUrl: item['invoiceUrl']?.toString() ?? item['invoice_url']?.toString(),
-          ),
-        );
-      } else if (item is RechargeRecordModel) {
-        localRecords.add(item);
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _records = localRecords;
-      });
     }
   }
 
@@ -366,8 +323,7 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                       stUpper.contains('SUCCESSFUL') ||
                       stUpper.contains('REJECTED');
 
-                  final canApprove = !isAlreadyApprovedOrProcessed &&
-                      (stUpper == 'AGENCY-PENDING' || stUpper == 'PENDING');
+                  final canApprove = !isAlreadyApprovedOrProcessed;
 
                   return Row(
                     children: [
@@ -1500,102 +1456,80 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                 ),
                               ),
 
-                              // Actions Column: View & Verify Buttons
+                              // Actions Column: Compact icon-only buttons to prevent overflow
                               Expanded(
                                 flex: 3,
                                 child: Align(
                                   alignment: Alignment.centerRight,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      InkWell(
-                                        onTap: () => _showViewDetailsModal(context, item),
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF6366F1).withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(
-                                              color: const Color(0xFF6366F1).withValues(alpha: 0.4),
-                                              width: 1,
-                                            ),
-                                          ),
-                                          child: const Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.visibility_rounded,
-                                                color: Color(0xFF6366F1),
-                                                size: 14,
-                                              ),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'View',
-                                                style: TextStyle(
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF6366F1),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      Builder(
-                                        builder: (context) {
-                                          final stUpper = item.status.toUpperCase();
-                                          final isAlreadyProcessed = stUpper.contains('AGENCY-DONE') ||
-                                              stUpper.contains('AGENCY-REJECT') ||
-                                              stUpper.contains('EMPLOYEE-DONE') ||
-                                              stUpper.contains('EMPLOYEE-REJECT') ||
-                                              stUpper.contains('DONE') ||
-                                              stUpper.contains('SUCCESSFUL') ||
-                                              stUpper.contains('REJECTED');
-                                          final canVerify = !isAlreadyProcessed && (stUpper == 'AGENCY-PENDING' || stUpper == 'PENDING');
+                                  child: Builder(
+                                    builder: (context) {
+                                      final stUpper = item.status.toUpperCase();
+                                      final isAlreadyProcessed = stUpper.contains('AGENCY-DONE') ||
+                                          stUpper.contains('AGENCY-REJECT') ||
+                                          stUpper.contains('EMPLOYEE-DONE') ||
+                                          stUpper.contains('EMPLOYEE-REJECT') ||
+                                          stUpper.contains('DONE') ||
+                                          stUpper.contains('SUCCESSFUL') ||
+                                          stUpper.contains('REJECTED');
+                                      final canVerify = !isAlreadyProcessed;
 
-                                          if (!canVerify) return const SizedBox.shrink();
-
-                                          return Padding(
-                                            padding: const EdgeInsets.only(left: 6),
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Tooltip(
+                                            message: 'View Details',
                                             child: InkWell(
-                                              onTap: () => _showApproveRejectModal(context, item),
+                                              onTap: () => _showViewDetailsModal(context, item),
                                               borderRadius: BorderRadius.circular(8),
                                               child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                                width: 32,
+                                                height: 32,
                                                 decoration: BoxDecoration(
-                                                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                                  color: const Color(0xFF6366F1).withValues(alpha: 0.15),
                                                   borderRadius: BorderRadius.circular(8),
                                                   border: Border.all(
-                                                    color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                                                    color: const Color(0xFF6366F1).withValues(alpha: 0.4),
                                                     width: 1,
                                                   ),
                                                 ),
-                                                child: const Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons.check_circle_rounded,
-                                                      color: Color(0xFF10B981),
-                                                      size: 14,
-                                                    ),
-                                                    SizedBox(width: 4),
-                                                    Text(
-                                                      'Verify',
-                                                      style: TextStyle(
-                                                        fontSize: 11.5,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: Color(0xFF10B981),
-                                                      ),
-                                                    ),
-                                                  ],
+                                                child: const Icon(
+                                                  Icons.visibility_rounded,
+                                                  color: Color(0xFF6366F1),
+                                                  size: 16,
                                                 ),
                                               ),
                                             ),
-                                          );
-                                        },
-                                      ),
-                                    ],
+                                          ),
+                                          if (canVerify) ...[
+                                            const SizedBox(width: 6),
+                                            Tooltip(
+                                              message: 'Verify Recharge',
+                                              child: InkWell(
+                                                onTap: () => _showApproveRejectModal(context, item),
+                                                borderRadius: BorderRadius.circular(8),
+                                                child: Container(
+                                                  width: 32,
+                                                  height: 32,
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(
+                                                      color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.check_circle_rounded,
+                                                    color: Color(0xFF10B981),
+                                                    size: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
@@ -1623,40 +1557,53 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
           // 6. Pagination Footer
           if (filtered.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Showing ${startIndex + 1} to $endIndex of $totalRecords entries',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  Expanded(
+                    child: Text(
+                      'Showing ${startIndex + 1} to $endIndex of $totalRecords entries',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                         onPressed: safePage > 1
                             ? () => setState(() => _currentPage--)
                             : null,
-                        icon: const Icon(Icons.chevron_left_rounded),
+                        icon: const Icon(Icons.chevron_left_rounded, size: 20),
                         color: const Color(0xFF10B981),
                         disabledColor: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
                       ),
+                      const SizedBox(width: 4),
                       Text(
                         '$safePage / $totalPages',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
+                      const SizedBox(width: 4),
                       IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                         onPressed: safePage < totalPages
                             ? () => setState(() => _currentPage++)
                             : null,
-                        icon: const Icon(Icons.chevron_right_rounded),
+                        icon: const Icon(Icons.chevron_right_rounded, size: 20),
                         color: const Color(0xFF10B981),
                         disabledColor: isDark ? const Color(0xFF332D4A) : const Color(0xFFCBD5E1),
                       ),

@@ -15,11 +15,29 @@ class EmployeeWithdrawalVerificationWidget extends StatefulWidget {
 class _EmployeeWithdrawalVerificationWidgetState
     extends State<EmployeeWithdrawalVerificationWidget> {
   final TextEditingController _searchController = TextEditingController();
+  int _displayedCount = 30;
+  bool _isLoadingMore = false;
+  String _lastSearch = '';
+  String _lastFilter = '';
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _loadMoreRecords(int totalCount) async {
+    if (_isLoadingMore) return;
+    setState(() {
+      _isLoadingMore = true;
+    });
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (mounted) {
+      setState(() {
+        _displayedCount = (_displayedCount + 30).clamp(0, totalCount);
+        _isLoadingMore = false;
+      });
+    }
   }
 
   @override
@@ -28,35 +46,107 @@ class _EmployeeWithdrawalVerificationWidgetState
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final records = provider.filteredWithdrawals;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Search & Filter Section
-        _buildSearchAndFilters(context, provider, isDark),
-        const SizedBox(height: 12),
+    // Reset pagination on search or filter change
+    if (_lastSearch != provider.withdrawalSearchQuery || _lastFilter != provider.withdrawalFilter) {
+      _lastSearch = provider.withdrawalSearchQuery;
+      _lastFilter = provider.withdrawalFilter;
+      _displayedCount = 30;
+    }
 
-        // List Content
-        if (provider.isLoadingWithdrawals && records.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFFF59E0B),
+    final totalCount = records.length;
+    final paginatedRecords = records.take(_displayedCount).toList();
+    final hasMore = _displayedCount < totalCount;
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (ScrollNotification scrollInfo) {
+        if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 250 &&
+            !_isLoadingMore &&
+            hasMore) {
+          _loadMoreRecords(totalCount);
+        }
+        return false;
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Search & Filter Section
+          _buildSearchAndFilters(context, provider, isDark),
+          const SizedBox(height: 12),
+
+          // List Content
+          if (provider.isLoadingWithdrawals && records.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFFF59E0B),
+                ),
               ),
-            ),
-          )
-        else if (records.isEmpty)
-          _buildEmptyState(isDark)
-        else
-          Column(
-            children: [
-              for (int i = 0; i < records.length; i++) ...[
-                _buildWithdrawalCard(context, records[i], isDark),
-                if (i < records.length - 1) const SizedBox(height: 12),
+            )
+          else if (records.isEmpty)
+            _buildEmptyState(isDark)
+          else
+            Column(
+              children: [
+                for (int i = 0; i < paginatedRecords.length; i++) ...[
+                  _buildWithdrawalCard(context, paginatedRecords[i], isDark),
+                  if (i < paginatedRecords.length - 1) const SizedBox(height: 12),
+                ],
+
+                // Pagination Loading & Footer Status
+                if (_isLoadingMore) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF18152D) : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Color(0xFFF59E0B),
+                            strokeWidth: 2,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Loading more withdrawals...',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else if (totalCount > 30) ...[
+                  const SizedBox(height: 14),
+                  Center(
+                    child: Text(
+                      hasMore
+                          ? 'Showing ${_displayedCount.clamp(0, totalCount)} of $totalCount withdrawals • Scroll down for more'
+                          : 'All $totalCount withdrawal records loaded',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
-      ],
+            ),
+        ],
+      ),
     );
   }
 

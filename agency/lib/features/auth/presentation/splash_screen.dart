@@ -59,8 +59,8 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     if (isLoggedIn && authProvider.currentUser != null) {
-      final role = (authProvider.currentUser?.role ?? '').toUpperCase();
-      if (role == 'EMPLOYEE') {
+      final user = authProvider.currentUser!;
+      if (user.isEmployee && !user.isAgency && !user.isAdmin) {
         context.go('/employee-dashboard');
       } else {
         context.go('/agency-dashboard');

@@ -44,7 +44,14 @@ class UserRoutes {
             userItem = extra;
           } else if (extra is Map<String, dynamic>) {
             userItem = extra['userItem'] as AgencyUserItem?;
-            initialGameName = (extra['gameName'] ?? extra['initialGameName']) as String?;
+            if (extra['autoSendTxnId'] != null) {
+              final txnId = extra['autoSendTxnId'];
+              final amount = extra['depositAmount'];
+              final book = extra['bookName'];
+              initialGameName = 'Deposit ₹$amount on $book (Txn: $txnId)';
+            } else {
+              initialGameName = (extra['gameName'] ?? extra['initialGameName']) as String?;
+            }
           }
 
           return UserChatScreen(

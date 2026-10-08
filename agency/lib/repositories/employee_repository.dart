@@ -165,6 +165,7 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
         ApiEndpoints.getQrCode,
         data: {
           'action': 'edit_recharge',
+          'edit_recharge': 1,
           'edit_emp_recharge_pending': 1,
           'id': rawId,
           'stage_status': status,
@@ -198,10 +199,13 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
       final response = await _apiClient.post(
         ApiEndpoints.getQrCode,
         data: {
-          'action': 'edit_withdraw',
+          'action': 'edit_agency_withdraw_pending',
+          'edit_agency_withdraw_pending': 1,
           'edit_emp_withdraw_pending': 1,
+          'edit_withdraw': 1,
           'id': rawId,
           'stage_status': status,
+          'employee_remark': remark,
           'remark': remark,
           if (transactionId != null && transactionId.isNotEmpty)
             'transaction_id': transactionId,

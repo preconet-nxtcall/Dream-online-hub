@@ -12,13 +12,20 @@ class Validators {
 
   static String? validateEmailOrPhone(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Email or Mobile Number is required';
+      return 'Username, Email or Mobile Number is required';
     }
-    final trimmed = value.trim();
-    final isDigitsOnly = RegExp(r'^[0-9]{8,15}$').hasMatch(trimmed);
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!isDigitsOnly && !emailRegex.hasMatch(trimmed)) {
-      return 'Enter a valid email address or phone number';
+    if (value.trim().length < 2) {
+      return 'Enter a valid Username, Email or Mobile Number';
+    }
+    return null;
+  }
+
+  static String? validateUsernameEmailOrPhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Username, Email or Mobile Number is required';
+    }
+    if (value.trim().length < 2) {
+      return 'Enter a valid Username, Email or Mobile Number';
     }
     return null;
   }

@@ -42,9 +42,8 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
         context.go('/login');
         return;
       }
-      final roleUpper = user.role.toUpperCase();
-      if (roleUpper == 'EMPLOYEE') {
-        // Employees must not access the agency dashboard
+      if (user.isEmployee && !user.isAgency && !user.isAdmin) {
+        // Employees must access the employee dashboard
         context.go('/employee-dashboard');
         return;
       }
@@ -441,7 +440,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
           child: GestureDetector(
             onTap: () => setState(() => _currentNavIndex = 1),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFF10B981), Color(0xFF059669)],
@@ -460,13 +459,14 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 17),
-                  const SizedBox(width: 6),
+                  const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 16),
+                  const SizedBox(width: 5),
                   Flexible(
                     child: Text(
                       'Recharge Requests',
+                      maxLines: 1,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -485,7 +485,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
           child: GestureDetector(
             onTap: () => setState(() => _currentNavIndex = 2),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
@@ -504,13 +504,14 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 17),
-                  const SizedBox(width: 6),
+                  const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 16),
+                  const SizedBox(width: 5),
                   Flexible(
                     child: Text(
                       'Withdraw Requests',
+                      maxLines: 1,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -1320,6 +1321,8 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                 ),
                 Text(
                   user?.name != null ? '${user.name} 👋' : 'Agency Team 👋',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -1427,7 +1430,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   // ─── Floating Stat Summary Card ────────────────────────────────────────────
   Widget _buildFloatingStatCard(AgencyProvider provider, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1B1836) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -1453,7 +1456,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
               provider.setFilter(AgencyUserFilterTab.all);
             },
           ),
-          Container(width: 1, height: 32, color: Colors.grey.withValues(alpha: 0.15)),
+          Container(width: 1, height: 28, color: Colors.grey.withValues(alpha: 0.15)),
 
           // Online Clients Stat
           _buildMetricColumn(
@@ -1467,7 +1470,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
               provider.setFilter(AgencyUserFilterTab.online);
             },
           ),
-          Container(width: 1, height: 32, color: Colors.grey.withValues(alpha: 0.15)),
+          Container(width: 1, height: 28, color: Colors.grey.withValues(alpha: 0.15)),
 
           // Requests Stat (Total Database Recharge Requests)
           _buildMetricColumn(
@@ -1502,36 +1505,41 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: iconBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: iconColor, size: icon == Icons.circle ? 12 : 18),
+                child: Icon(icon, color: iconColor, size: icon == Icons.circle ? 11 : 16),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Flexible(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      value,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
                       ),
                     ),
                     Text(
                       label,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w500,
                         color: isDark
                             ? Colors.white.withValues(alpha: 0.5)
@@ -1644,34 +1652,41 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(32),
         child: Container(
-          height: 66,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(
-                icon: Icons.dashboard_rounded,
-                label: 'Dashboard',
-                isSelected: _currentNavIndex == 0,
-                onTap: () => setState(() => _currentNavIndex = 0),
+              Expanded(
+                child: _buildNavItem(
+                  icon: Icons.dashboard_rounded,
+                  label: 'Dashboard',
+                  isSelected: _currentNavIndex == 0,
+                  onTap: () => setState(() => _currentNavIndex = 0),
+                ),
               ),
-              _buildNavItem(
-                icon: Icons.receipt_long_rounded,
-                label: 'Recharge',
-                isSelected: _currentNavIndex == 1,
-                onTap: () => setState(() => _currentNavIndex = 1),
+              Expanded(
+                child: _buildNavItem(
+                  icon: Icons.receipt_long_rounded,
+                  label: 'Recharge',
+                  isSelected: _currentNavIndex == 1,
+                  onTap: () => setState(() => _currentNavIndex = 1),
+                ),
               ),
-              _buildNavItem(
-                icon: Icons.account_balance_wallet_rounded,
-                label: 'Withdraw',
-                isSelected: _currentNavIndex == 2,
-                onTap: () => setState(() => _currentNavIndex = 2),
+              Expanded(
+                child: _buildNavItem(
+                  icon: Icons.account_balance_wallet_rounded,
+                  label: 'Withdraw',
+                  isSelected: _currentNavIndex == 2,
+                  onTap: () => setState(() => _currentNavIndex = 2),
+                ),
               ),
-              _buildNavItem(
-                icon: Icons.person_rounded,
-                label: 'Profile',
-                isSelected: _currentNavIndex == 3,
-                onTap: () => setState(() => _currentNavIndex = 3),
+              Expanded(
+                child: _buildNavItem(
+                  icon: Icons.person_rounded,
+                  label: 'Profile',
+                  isSelected: _currentNavIndex == 3,
+                  onTap: () => setState(() => _currentNavIndex = 3),
+                ),
               ),
             ],
           ),
@@ -1689,51 +1704,58 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(22),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 12 : 8,
-          vertical: 8,
-        ),
-        decoration: isSelected
-            ? BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(
+            horizontal: isSelected ? 8 : 4,
+            vertical: 7,
+          ),
+          decoration: isSelected
+              ? BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
-              )
-            : null,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-              size: 20,
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: 0.2,
-                ),
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                )
+              : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                size: 19,
               ),
+              if (isSelected) ...[
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

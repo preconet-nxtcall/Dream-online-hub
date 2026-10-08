@@ -52,8 +52,10 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
     if (!mounted) return;
 
     if (success && authProvider.currentUser != null) {
-      if (_selectedRole == LoginRole.employee ||
-          authProvider.currentUser?.role.toUpperCase() == 'EMPLOYEE') {
+      final user = authProvider.currentUser!;
+      final isEmployee = user.isEmployee || _selectedRole == LoginRole.employee;
+
+      if (isEmployee) {
         context.go('/employee-dashboard');
       } else {
         context.go('/agency-dashboard');
@@ -107,246 +109,261 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Brand Logo Header
-                    Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: const Color(0xFF0E0921),
-                        border: Border.all(
-                          color: const Color(0xFF00B2FF),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accentColor.withValues(alpha: 0.35),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Brand Logo Header
+                      Container(
+                        width: 82,
+                        height: 82,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          color: const Color(0xFF0E0921),
+                          border: Border.all(
+                            color: const Color(0xFF00B2FF),
+                            width: 2,
                           ),
-                          BoxShadow(
-                            color: const Color(0xFF00B2FF).withValues(alpha: 0.25),
-                            blurRadius: 14,
-                            spreadRadius: 1,
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentColor.withValues(alpha: 0.35),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                            BoxShadow(
+                              color: const Color(0xFF00B2FF).withValues(alpha: 0.25),
+                              blurRadius: 14,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Image.asset(
+                            'assets/images/app_logo.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Header Titles
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Dream',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                color: textPrimaryColor,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Hub',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF00B2FF),
+                                letterSpacing: -0.5,
+                                shadows: [
+                                  Shadow(
+                                    color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Role Subtitle Badge
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          Flexible(
+                            child: Text(
+                              isAgency ? 'Agency Management' : 'Employee Verification',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w900,
+                                color: accentColor,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          Container(
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: Image.asset(
-                          'assets/images/app_logo.png',
-                          fit: BoxFit.contain,
+                      const SizedBox(height: 8),
+                      Text(
+                        isAgency
+                            ? 'Sign in to access your Dream Online Hub Agency Dashboard'
+                            : 'Sign in to verify and manage Recharge & Withdrawal requests',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 18),
+                      const SizedBox(height: 20),
 
-                    // Header Titles
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Dream',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w900,
-                              color: textPrimaryColor,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Hub',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF00B2FF),
-                              letterSpacing: -0.5,
-                              shadows: [
-                                Shadow(
-                                  color: const Color(0xFF00B2FF).withValues(alpha: 0.4),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-
-                    // Role Subtitle Badge
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 4,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                            shape: BoxShape.circle,
-                          ),
+                      // Role Selector Tabs (Agency vs Employee)
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF161F33) : const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        const SizedBox(width: 7),
-                        Text(
-                          isAgency ? 'Agency Management' : 'Employee Verification',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            color: accentColor,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Container(
-                          width: 4,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      isAgency
-                          ? 'Sign in to access your Dream Online Hub Agency Dashboard'
-                          : 'Sign in to verify and manage Recharge & Withdrawal requests',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                        fontSize: 12.5,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-
-                    // Role Selector Tabs (Agency vs Employee)
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF161F33) : const Color(0xFFE2E8F0),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          // Agency Option
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                if (_selectedRole != LoginRole.agency) {
-                                  setState(() => _selectedRole = LoginRole.agency);
-                                  authProvider.clearError();
-                                }
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: isAgency
-                                      ? (isDark ? const Color(0xFF282352) : Colors.white)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: isAgency
-                                      ? [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.1),
-                                            blurRadius: 6,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.admin_panel_settings_rounded,
-                                      size: 18,
-                                      color: isAgency
-                                          ? AppColors.agencyAccent
-                                          : (isDark ? Colors.white54 : const Color(0xFF64748B)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Agency Login',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: isAgency ? FontWeight.w800 : FontWeight.w600,
+                        child: Row(
+                          children: [
+                            // Agency Option
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  if (_selectedRole != LoginRole.agency) {
+                                    setState(() => _selectedRole = LoginRole.agency);
+                                    authProvider.clearError();
+                                  }
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                                  decoration: BoxDecoration(
+                                    color: isAgency
+                                        ? (isDark ? const Color(0xFF282352) : Colors.white)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: isAgency
+                                        ? [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.1),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.admin_panel_settings_rounded,
+                                        size: 17,
                                         color: isAgency
-                                            ? (isDark ? Colors.white : AppColors.agencyAccent)
+                                            ? AppColors.agencyAccent
                                             : (isDark ? Colors.white54 : const Color(0xFF64748B)),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-
-                          // Employee Option
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                if (_selectedRole != LoginRole.employee) {
-                                  setState(() => _selectedRole = LoginRole.employee);
-                                  authProvider.clearError();
-                                }
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: !isAgency
-                                      ? (isDark ? const Color(0xFF13362B) : Colors.white)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: !isAgency
-                                      ? [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.1),
-                                            blurRadius: 6,
-                                            offset: const Offset(0, 2),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          'Agency Login',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: isAgency ? FontWeight.w800 : FontWeight.w600,
+                                            color: isAgency
+                                                ? (isDark ? Colors.white : AppColors.agencyAccent)
+                                                : (isDark ? Colors.white54 : const Color(0xFF64748B)),
                                           ),
-                                        ]
-                                      : null,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.badge_rounded,
-                                      size: 18,
-                                      color: !isAgency
-                                          ? const Color(0xFF10B981)
-                                          : (isDark ? Colors.white54 : const Color(0xFF64748B)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Employee Login',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: !isAgency ? FontWeight.w800 : FontWeight.w600,
-                                        color: !isAgency
-                                            ? (isDark ? Colors.white : const Color(0xFF10B981))
-                                            : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+
+                            // Employee Option
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  if (_selectedRole != LoginRole.employee) {
+                                    setState(() => _selectedRole = LoginRole.employee);
+                                    authProvider.clearError();
+                                  }
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                                  decoration: BoxDecoration(
+                                    color: !isAgency
+                                        ? (isDark ? const Color(0xFF13362B) : Colors.white)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: !isAgency
+                                        ? [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.1),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.badge_rounded,
+                                        size: 17,
+                                        color: !isAgency
+                                            ? const Color(0xFF10B981)
+                                            : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          'Employee Login',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: !isAgency ? FontWeight.w800 : FontWeight.w600,
+                                            color: !isAgency
+                                                ? (isDark ? Colors.white : const Color(0xFF10B981))
+                                                : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 18),
+                      const SizedBox(height: 18),
 
                     // Login Form Card
                     Container(
@@ -437,16 +454,16 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                               const SizedBox(height: 18),
                             ],
 
-                            // Email / Mobile Address Field
+                            // Username / Mobile / Email Field
                             TextFormField(
                               controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              validator: Validators.validateEmailOrPhone,
+                              keyboardType: TextInputType.text,
+                              validator: Validators.validateUsernameEmailOrPhone,
                               style: TextStyle(color: textPrimaryColor, fontSize: 14),
                               decoration: InputDecoration(
-                                labelText: 'Email or Mobile Number',
-                                hintText: 'Enter Email / Mobile',
-                                prefixIcon: Icon(Icons.mail_outline_rounded, color: accentColor),
+                                labelText: 'Username / Mobile / Email',
+                                hintText: 'Enter Username, Mobile or Email',
+                                prefixIcon: Icon(Icons.person_outline_rounded, color: accentColor),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
@@ -568,8 +585,9 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 }

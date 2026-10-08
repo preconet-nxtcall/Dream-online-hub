@@ -185,23 +185,7 @@ class AgencyProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {
-      final localList = _localStorage.getSubmittedRecharges();
-      _totalRechargeRequestsCount = localList.length;
-      final newPendingCount = localList.where((item) {
-        final status = (item is Map ? (item['status'] ?? item['stage_status']) : (item as dynamic).status).toString().trim().toLowerCase();
-        return status.contains('pending') ||
-            status == '0' ||
-            status == 'created' ||
-            status == 'submitted' ||
-            status.contains('progress') ||
-            status == 'new';
-      }).length;
-
-      if (newPendingCount > _pendingRechargeRequestsCount) {
-        _hasSeenNotifications = false;
-      }
-      _pendingRechargeRequestsCount = newPendingCount;
-      notifyListeners();
+      // Keep existing count or leave as 0
     }
   }
 

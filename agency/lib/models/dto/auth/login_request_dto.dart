@@ -16,9 +16,15 @@ class LoginRequestDto {
   });
 
   Map<String, dynamic> toJson() {
+    final identifier = email.trim();
     return {
       'action': action,
-      'email': email.trim(),
+      'email': identifier,
+      'mob': identifier,
+      'mobile': identifier,
+      'username': identifier,
+      'user_name': identifier,
+      'phone': identifier,
       'password': password,
       if (role != null) 'role': role,
       if (portal != null) 'portal': portal,

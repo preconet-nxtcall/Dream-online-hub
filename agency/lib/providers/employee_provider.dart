@@ -19,6 +19,7 @@ class EmployeeProvider extends ChangeNotifier {
   String _withdrawalFilter = 'all'; // 'all', 'pending', 'successful', 'rejected'
 
   String? _currentAgencyId;
+  String? _currentEmployeeUserId;
 
   EmployeeProvider({EmployeeRepository? repository})
       : _repository = repository ?? EmployeeRepositoryImpl();
@@ -32,6 +33,7 @@ class EmployeeProvider extends ChangeNotifier {
   bool get isProcessingAction => _isProcessingAction;
   String? get errorMessage => _errorMessage;
   String? get currentAgencyId => _currentAgencyId;
+  String? get currentEmployeeUserId => _currentEmployeeUserId;
 
   String get rechargeSearchQuery => _rechargeSearchQuery;
   String get withdrawalSearchQuery => _withdrawalSearchQuery;
@@ -40,6 +42,12 @@ class EmployeeProvider extends ChangeNotifier {
 
   void setAgencyId(String? agencyId) {
     _currentAgencyId = agencyId;
+    notifyListeners();
+  }
+
+  void setEmployeeContext({String? agencyId, String? employeeUserId}) {
+    _currentAgencyId = agencyId;
+    _currentEmployeeUserId = employeeUserId;
     notifyListeners();
   }
 
@@ -64,23 +72,65 @@ class EmployeeProvider extends ChangeNotifier {
   }
 
   List<RechargeRecordModel> get agencyScopedRecharges {
-    final targetId = _currentAgencyId ?? '3';
-    return _recharges.where((r) {
-      if (r.empId != null && r.empId!.isNotEmpty) {
-        return r.empId == targetId;
-      }
-      return true;
-    }).toList();
+    final cleanEmpUser = _currentEmployeeUserId?.replaceAll(RegExp(r'\D'), '');
+    final cleanAgency = _currentAgencyId?.replaceAll(RegExp(r'\D'), '');
+
+    // Priority 1: Strict Employee ID isolation (Employee A only sees Employee A's assigned records)
+    if (cleanEmpUser != null && cleanEmpUser.isNotEmpty) {
+      return _recharges.where((r) {
+        final rEmpId = (r.empId ?? r.agencyId)?.replaceAll(RegExp(r'\D'), '');
+        if (rEmpId != null && rEmpId.isNotEmpty) {
+          final matchesEmp = rEmpId == cleanEmpUser;
+          final matchesAgency = cleanAgency != null && cleanAgency.isNotEmpty && rEmpId == cleanAgency;
+          return matchesEmp || matchesAgency;
+        }
+        return true;
+      }).toList();
+    }
+
+    // Priority 2: Agency level isolation
+    if (cleanAgency != null && cleanAgency.isNotEmpty) {
+      return _recharges.where((r) {
+        final rEmpId = (r.empId ?? r.agencyId)?.replaceAll(RegExp(r'\D'), '');
+        if (rEmpId != null && rEmpId.isNotEmpty) {
+          return rEmpId == cleanAgency;
+        }
+        return true;
+      }).toList();
+    }
+
+    return _recharges;
   }
 
   List<RechargeRecordModel> get agencyScopedWithdrawals {
-    final targetId = _currentAgencyId ?? '3';
-    return _withdrawals.where((w) {
-      if (w.agencyId != null && w.agencyId!.isNotEmpty) {
-        return w.agencyId == targetId;
-      }
-      return true;
-    }).toList();
+    final cleanEmpUser = _currentEmployeeUserId?.replaceAll(RegExp(r'\D'), '');
+    final cleanAgency = _currentAgencyId?.replaceAll(RegExp(r'\D'), '');
+
+    // Priority 1: Strict Employee ID isolation (Employee A only sees Employee A's assigned records)
+    if (cleanEmpUser != null && cleanEmpUser.isNotEmpty) {
+      return _withdrawals.where((w) {
+        final wEmpId = (w.empId ?? w.agencyId)?.replaceAll(RegExp(r'\D'), '');
+        if (wEmpId != null && wEmpId.isNotEmpty) {
+          final matchesEmp = wEmpId == cleanEmpUser;
+          final matchesAgency = cleanAgency != null && cleanAgency.isNotEmpty && wEmpId == cleanAgency;
+          return matchesEmp || matchesAgency;
+        }
+        return true;
+      }).toList();
+    }
+
+    // Priority 2: Agency level isolation
+    if (cleanAgency != null && cleanAgency.isNotEmpty) {
+      return _withdrawals.where((w) {
+        final wAgencyId = (w.agencyId ?? w.empId)?.replaceAll(RegExp(r'\D'), '');
+        if (wAgencyId != null && wAgencyId.isNotEmpty) {
+          return wAgencyId == cleanAgency;
+        }
+        return true;
+      }).toList();
+    }
+
+    return _withdrawals;
   }
 
   int get allRechargesCount =>

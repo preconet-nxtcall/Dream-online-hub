@@ -897,7 +897,7 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                         if (dialogContext.mounted) {
                           Navigator.of(dialogContext).pop();
                         }
-                        final targetAgentId = agentId.isNotEmpty ? agentId : 'agency_support';
+                        const targetAgentId = ApiEndpoints.adminAgencyUnqId;
                         context.push('/chat/$targetAgentId', extra: {
                           'agentId': targetAgentId,
                           'autoSendTxnId': record.transactionDetails,
@@ -905,9 +905,9 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
                           'bookName': record.bookName,
                         });
                       },
-                      icon: const Icon(Icons.support_agent_rounded, size: 20),
+                      icon: const Icon(Icons.shield_rounded, size: 20),
                       label: const Text(
-                        'NOTIFY AGENT IN CHAT',
+                        'NOTIFY ADMIN IN CHAT',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w900,

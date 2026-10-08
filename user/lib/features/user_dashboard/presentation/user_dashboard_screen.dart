@@ -515,30 +515,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     }
   }
 
-  void _onOpenChat([String? gameName]) async {
-    final secureStorage = SecureStorageService();
-    final storedAgentId = await secureStorage.read(StorageKeys.chatAgentId);
-    final currentUser = LocalStorageRepositoryImpl().getUser();
-
-    final rawUserAgency = currentUser?.agencyId;
-    final validUserAgency = (rawUserAgency != null &&
-            rawUserAgency.isNotEmpty &&
-            rawUserAgency != 'null' &&
-            rawUserAgency != '0')
-        ? rawUserAgency
-        : ((storedAgentId != null &&
-                storedAgentId.isNotEmpty &&
-                storedAgentId != 'null')
-            ? storedAgentId
-            : 'ADMIN-1');
-
-    final agentId = (validUserAgency.startsWith('AGENCY-') || validUserAgency.toUpperCase().contains('ADMIN') || validUserAgency.contains('@'))
-        ? validUserAgency
-        : 'AGENCY-$validUserAgency';
-
+  void _onOpenChat([String? gameName]) {
     if (!mounted) return;
     context.push(
-      '/chat/$agentId',
+      '/chat/${ApiEndpoints.adminAgencyUnqId}',
       extra: gameName != null ? {'gameName': gameName} : null,
     );
   }

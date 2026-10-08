@@ -21,12 +21,20 @@ class UserModel {
 
   // Only AGENCY type accounts access the agency dashboard
   bool get isAgency {
-    final r = role.toLowerCase();
-    return r == 'agency';
+    final r = role.trim().toUpperCase();
+    return r == 'AGENCY' || r == 'SUB-AGENCY' || (r.contains('AGENCY') && !r.contains('EMPLOYEE'));
   }
   bool get isUser => role.trim().toUpperCase() == 'USER';
   bool get isAdmin => role.trim().toUpperCase() == 'ADMIN';
-  bool get isEmployee => role.trim().toUpperCase() == 'EMPLOYEE';
+  bool get isEmployee {
+    final r = role.trim().toUpperCase();
+    return r == 'EMPLOYEE' ||
+        r == 'AGENCYS-EMPLOYEE' ||
+        r == 'AGENCY-EMPLOYEE' ||
+        r == 'AGENCY_EMPLOYEE' ||
+        r.contains('EMPLOYEE') ||
+        r.contains('STAFF');
+  }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final rawAvatar = json['avatar_url'] ?? json['avatarUrl'] ?? json['avatar'] ?? json['img'];
