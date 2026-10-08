@@ -397,63 +397,28 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
           });
         }
       } else {
-        _applyDatabaseQrFallback(amount);
+        setState(() {
+          _isLoadingQr = false;
+          _qrAvailable = false;
+          _qrMessage = (data is Map && data['message'] != null)
+              ? data['message'].toString()
+              : 'No payment method available for this amount. Please contact your agency.';
+          _qrImageUrl = null;
+          _qrId = null;
+          _rangeId = null;
+          _empId = null;
+          _acNo = null;
+          _acHolder = null;
+          _acUpi = null;
+          _ifscCode = null;
+        });
       }
     } catch (e) {
       if (!mounted) return;
-      _applyDatabaseQrFallback(amount);
-    }
-  }
-
-  void _applyDatabaseQrFallback(double amount) {
-    if (!mounted) return;
-    if (amount >= 101 && amount <= 1000) {
-      setState(() {
-        _isLoadingQr = false;
-        _qrAvailable = true;
-        _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1785149229_QR.png';
-        _qrId = 5;
-        _rangeId = 2;
-        _empId = widget.agencyId;
-        _acNo = null;
-        _acHolder = null;
-        _acUpi = null;
-        _ifscCode = null;
-        _qrMessage = null;
-      });
-    } else if (amount >= 1001 && amount <= 10000) {
-      setState(() {
-        _isLoadingQr = false;
-        _qrAvailable = true;
-        _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1785149209_QR.png';
-        _qrId = 4;
-        _rangeId = 3;
-        _empId = widget.agencyId;
-        _acNo = null;
-        _acHolder = null;
-        _acUpi = null;
-        _ifscCode = null;
-        _qrMessage = null;
-      });
-    } else if (amount >= 1 && amount <= 100) {
-      setState(() {
-        _isLoadingQr = false;
-        _qrAvailable = true;
-        _qrImageUrl = 'https://dreamonlinehub.club/uploads/photos/1784640233_QR.png';
-        _qrId = 1;
-        _rangeId = 1;
-        _empId = widget.agencyId;
-        _acNo = null;
-        _acHolder = null;
-        _acUpi = null;
-        _ifscCode = null;
-        _qrMessage = null;
-      });
-    } else {
       setState(() {
         _isLoadingQr = false;
         _qrAvailable = false;
-        _qrMessage = 'Only Cash Transaction Available.';
+        _qrMessage = 'Unable to fetch payment details from server. Please try again.';
         _qrImageUrl = null;
         _qrId = null;
         _rangeId = null;
@@ -635,6 +600,8 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
       final apiClient = ApiClient();
       final targetBookId = _getBookId(_selectedBook);
       final userId = await _resolveUserId();
+      final resolvedAgencyId = await _resolveAgencyId();
+      final finalEmpId = _empId ?? resolvedAgencyId ?? widget.agencyId ?? 1;
 
       // Encode screenshot image to base64 if selected
       String imageBase64 = '';
@@ -652,10 +619,11 @@ class _RechargeNowWidgetState extends State<RechargeNowWidget> {
         data: {
           'action': 'recharge_by_user',
           'user_id': userId,
-          'qr_id': _qrId ?? 3,
-          'range_id': _rangeId ?? 1,
+          if (_qrId != null) 'qr_id': _qrId,
+          if (_rangeId != null) 'range_id': _rangeId,
           'amount': parsedAmount,
-          'emp_id': _empId ?? widget.agencyId,
+          'emp_id': finalEmpId,
+          'agency_id': finalEmpId,
           'book_id': targetBookId,
           'transection_id': txnId,
           'image': imageBase64,

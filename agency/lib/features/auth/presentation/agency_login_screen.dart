@@ -6,6 +6,8 @@ import '../../../providers/auth_provider.dart';
 import '../../../theme/app_colors.dart';
 import '../../../utils/validators.dart';
 
+enum LoginRole { agency, employee }
+
 class AgencyLoginScreen extends StatefulWidget {
   const AgencyLoginScreen({super.key});
 
@@ -14,7 +16,7 @@ class AgencyLoginScreen extends StatefulWidget {
 }
 
 class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
-  static const Color accentColor = AppColors.agencyAccent; // Purple Accent
+  LoginRole _selectedRole = LoginRole.agency;
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -27,26 +29,37 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
     super.dispose();
   }
 
+  Color get _currentAccentColor {
+    return _selectedRole == LoginRole.agency
+        ? AppColors.agencyAccent // Purple (0xFF7C3AED / 0xFF6366F1)
+        : const Color(0xFF10B981); // Emerald Green
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     FocusScope.of(context).unfocus();
     final authProvider = context.read<AuthProvider>();
 
+    final portalType = _selectedRole == LoginRole.agency ? 'agency' : 'employee';
+
     final success = await authProvider.login(
       _emailController.text.trim(),
       _passwordController.text,
-      portalType: 'agency',
+      portalType: portalType,
     );
 
     if (!mounted) return;
 
     if (success && authProvider.currentUser != null) {
-      context.go('/agency-dashboard');
+      if (_selectedRole == LoginRole.employee ||
+          authProvider.currentUser?.role.toUpperCase() == 'EMPLOYEE') {
+        context.go('/employee-dashboard');
+      } else {
+        context.go('/agency-dashboard');
+      }
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +69,9 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
     final cardBgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final bodyBgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
     final textPrimaryColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final accentColor = _currentAccentColor;
+
+    final isAgency = _selectedRole == LoginRole.agency;
 
     return Scaffold(
       backgroundColor: bodyBgColor,
@@ -65,7 +81,8 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
           Positioned(
             top: -60,
             left: -60,
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
               width: 220,
               height: 220,
               decoration: BoxDecoration(
@@ -126,7 +143,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
                     // Header Titles
                     RichText(
@@ -135,7 +152,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                           TextSpan(
                             text: 'Dream',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 32,
+                              fontSize: 30,
                               fontWeight: FontWeight.w900,
                               color: textPrimaryColor,
                               letterSpacing: -0.5,
@@ -144,7 +161,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                           TextSpan(
                             text: 'Hub',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 32,
+                              fontSize: 30,
                               fontWeight: FontWeight.w900,
                               color: const Color(0xFF00B2FF),
                               letterSpacing: -0.5,
@@ -162,13 +179,13 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                     ),
                     const SizedBox(height: 4),
 
-                    // Subtitle matching logo image
+                    // Role Subtitle Badge
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 3.5,
-                          height: 3.5,
+                          width: 4,
+                          height: 4,
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                             shape: BoxShape.circle,
@@ -176,18 +193,18 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                         ),
                         const SizedBox(width: 7),
                         Text(
-                          'Agency Portal',
+                          isAgency ? 'Agency Management' : 'Employee Verification',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
+                            fontSize: 13,
                             fontWeight: FontWeight.w900,
-                            color: const Color(0xFF00B2FF),
-                            letterSpacing: 2.5,
+                            color: accentColor,
+                            letterSpacing: 1.5,
                           ),
                         ),
                         const SizedBox(width: 7),
                         Container(
-                          width: 3.5,
-                          height: 3.5,
+                          width: 4,
+                          height: 4,
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                             shape: BoxShape.circle,
@@ -195,21 +212,145 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Text(
-                      'Sign in to access your Dream Online Hub Agency Dashboard',
+                      isAgency
+                          ? 'Sign in to access your Dream Online Hub Agency Dashboard'
+                          : 'Sign in to verify and manage Recharge & Withdrawal requests',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
-                        fontSize: 13.5,
+                        fontSize: 12.5,
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 22),
 
-                    // Agency Login Glassmorphism Card
+                    // Role Selector Tabs (Agency vs Employee)
                     Container(
-                      padding: const EdgeInsets.all(24.0),
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF161F33) : const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          // Agency Option
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                if (_selectedRole != LoginRole.agency) {
+                                  setState(() => _selectedRole = LoginRole.agency);
+                                  authProvider.clearError();
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isAgency
+                                      ? (isDark ? const Color(0xFF282352) : Colors.white)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: isAgency
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.1),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.admin_panel_settings_rounded,
+                                      size: 18,
+                                      color: isAgency
+                                          ? AppColors.agencyAccent
+                                          : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Agency Login',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: isAgency ? FontWeight.w800 : FontWeight.w600,
+                                        color: isAgency
+                                            ? (isDark ? Colors.white : AppColors.agencyAccent)
+                                            : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+
+                          // Employee Option
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                if (_selectedRole != LoginRole.employee) {
+                                  setState(() => _selectedRole = LoginRole.employee);
+                                  authProvider.clearError();
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: !isAgency
+                                      ? (isDark ? const Color(0xFF13362B) : Colors.white)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: !isAgency
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.1),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.badge_rounded,
+                                      size: 18,
+                                      color: !isAgency
+                                          ? const Color(0xFF10B981)
+                                          : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Employee Login',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: !isAgency ? FontWeight.w800 : FontWeight.w600,
+                                        color: !isAgency
+                                            ? (isDark ? Colors.white : const Color(0xFF10B981))
+                                            : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Login Form Card
+                    Container(
+                      padding: const EdgeInsets.all(22.0),
                       decoration: BoxDecoration(
                         color: cardBgColor,
                         borderRadius: BorderRadius.circular(24),
@@ -238,16 +379,24 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                                 color: accentColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.admin_panel_settings_rounded, size: 16, color: accentColor),
-                                  SizedBox(width: 6),
+                                  Icon(
+                                    isAgency
+                                        ? Icons.admin_panel_settings_rounded
+                                        : Icons.badge_rounded,
+                                    size: 16,
+                                    color: accentColor,
+                                  ),
+                                  const SizedBox(width: 6),
                                   Text(
-                                    'AGENCY MANAGER LOGIN',
+                                    isAgency
+                                        ? 'AGENCY MANAGER LOGIN'
+                                        : 'EMPLOYEE VERIFIER LOGIN',
                                     style: TextStyle(
                                       color: accentColor,
-                                      fontSize: 12,
+                                      fontSize: 11.5,
                                       fontWeight: FontWeight.w900,
                                       letterSpacing: 0.8,
                                     ),
@@ -255,7 +404,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 22),
+                            const SizedBox(height: 20),
 
                             // Error Banner
                             if (authProvider.errorMessage != null) ...[
@@ -288,16 +437,16 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                               const SizedBox(height: 18),
                             ],
 
-                            // Email Address Field
+                            // Email / Mobile Address Field
                             TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
-                              validator: Validators.validateEmail,
+                              validator: Validators.validateEmailOrPhone,
                               style: TextStyle(color: textPrimaryColor, fontSize: 14),
                               decoration: InputDecoration(
-                                labelText: 'Email Address',
-                                hintText: 'Email',
-                                prefixIcon: const Icon(Icons.mail_outline_rounded, color: accentColor),
+                                labelText: 'Email or Mobile Number',
+                                hintText: 'Enter Email / Mobile',
+                                prefixIcon: Icon(Icons.mail_outline_rounded, color: accentColor),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
@@ -308,7 +457,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(color: accentColor, width: 2),
+                                  borderSide: BorderSide(color: accentColor, width: 2),
                                 ),
                                 filled: true,
                                 fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
@@ -325,7 +474,7 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                               decoration: InputDecoration(
                                 labelText: 'Password',
                                 hintText: '••••••••',
-                                prefixIcon: const Icon(Icons.lock_outline_rounded, color: accentColor),
+                                prefixIcon: Icon(Icons.lock_outline_rounded, color: accentColor),
                                 suffixIcon: IconButton(
                                   icon: Icon(
                                     _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
@@ -344,13 +493,13 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(color: accentColor, width: 2),
+                                  borderSide: BorderSide(color: accentColor, width: 2),
                                 ),
                                 filled: true,
                                 fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
                               ),
                             ),
-                            const SizedBox(height: 26),
+                            const SizedBox(height: 24),
 
                             // Sign In Action Button
                             SizedBox(
@@ -367,8 +516,10 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                                 ),
                                 child: Ink(
                                   decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [accentColor, AppColors.primary],
+                                    gradient: LinearGradient(
+                                      colors: isAgency
+                                          ? [accentColor, AppColors.primary]
+                                          : [const Color(0xFF10B981), const Color(0xFF059669)],
                                       begin: Alignment.centerLeft,
                                       end: Alignment.centerRight,
                                     ),
@@ -385,29 +536,28 @@ class _AgencyLoginScreenState extends State<AgencyLoginScreen> {
                                               strokeWidth: 2.5,
                                             ),
                                           )
-                                        : const Row(
+                                        : Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
                                               Text(
-                                                'Sign In to Agency Portal',
-                                                style: TextStyle(
-                                                  fontSize: 15,
+                                                isAgency
+                                                    ? 'Sign In to Agency Portal'
+                                                    : 'Sign In to Employee Portal',
+                                                style: const TextStyle(
+                                                  fontSize: 14.5,
                                                   fontWeight: FontWeight.bold,
                                                   color: Colors.white,
                                                   letterSpacing: 0.3,
                                                 ),
                                               ),
-                                              SizedBox(width: 8),
-                                              Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                                              const SizedBox(width: 8),
+                                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
                                             ],
                                           ),
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
-
-
                           ],
                         ),
                       ),

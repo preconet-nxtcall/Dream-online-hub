@@ -87,8 +87,9 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     try {
       setState(() => _isLoadingAccount = true);
       final userId = await _resolveUserId();
+      final agencyId = await _resolveAgencyId();
       final repo = widget.repository ?? PaymentAccountRepositoryImpl();
-      final account = await repo.getPaymentAccount(userId);
+      final account = await repo.getPaymentAccount(userId, empId: agencyId);
 
       if (!mounted) return;
 
@@ -133,14 +134,15 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
     }
   }
 
-  void _openPaymentAccountSettings() {
-    final parentCtx = context;
-    if (Navigator.of(parentCtx).canPop()) {
-      Navigator.of(parentCtx).pop();
+  Future<void> _openPaymentAccountSettings() async {
+    final uid = await _resolveUserId();
+    if (!mounted) return;
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
     }
 
     showModalBottomSheet(
-      context: parentCtx,
+      context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Padding(
@@ -159,6 +161,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.all(16),
               child: PaymentAccountWidget(
+                userId: uid,
                 repository: widget.repository,
                 onClose: () => Navigator.of(ctx).pop(),
               ),
@@ -584,7 +587,10 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       return;
     }
 
-    final bankInfoStr = 'Bank: ${_savedAccount?.bankName}, Holder: ${_savedAccount?.accountName}, Acc: ${_savedAccount?.accountNo}, IFSC: ${_savedAccount?.ifscCode}, UPI: ${_savedAccount?.upiId}';
+    final upiSuffix = (_savedAccount?.upiId != null && _savedAccount!.upiId.trim().isNotEmpty)
+        ? ', UPI: ${_savedAccount!.upiId.trim()}'
+        : '';
+    final bankInfoStr = 'Bank: ${_savedAccount?.bankName}, Holder: ${_savedAccount?.accountName}, Acc: ${_savedAccount?.accountNo}, IFSC: ${_savedAccount?.ifscCode}$upiSuffix';
 
     final String description = userRemarks.isNotEmpty
         ? '$bankInfoStr\nRemarks: $userRemarks'
@@ -603,38 +609,49 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
       }
 
       final targetAgencyId = await _resolveAgencyId();
+      final digitsOnlyUserId = userId.toString().replaceAll(RegExp(r'\D'), '');
+      final numericUserId = digitsOnlyUserId.isNotEmpty ? (int.tryParse(digitsOnlyUserId) ?? userId) : userId;
+      final digitsOnlyAgencyId = targetAgencyId != null ? targetAgencyId.toString().replaceAll(RegExp(r'\D'), '') : '';
+      final numericAgencyId = digitsOnlyAgencyId.isNotEmpty ? (int.tryParse(digitsOnlyAgencyId) ?? 1) : 1;
+
+      final acHolderName = _savedAccount?.accountName ?? '';
+      final acNumber = _savedAccount?.accountNo ?? '';
+      final bankName = _savedAccount?.bankName ?? '';
+      final ifscCode = _savedAccount?.ifscCode ?? '';
+      final upiId = _savedAccount?.upiId ?? '';
 
       final options = Options(validateStatus: (status) => status != null && status < 500);
+
+      final payload = <String, dynamic>{
+        'action': 'user_withdraw',
+        'user_id': numericUserId,
+        'book_id': targetBookId,
+        'amount': parsedAmount,
+        'agency_id': numericAgencyId,
+        'emp_id': numericAgencyId,
+        'deatil': description,
+        'detail': description,
+        'description': description,
+        'user_ac_holder_name': acHolderName,
+        'user_ac_number': acNumber,
+        'user_bank_name': bankName,
+        'user_bank_ifsc': ifscCode,
+        'user_upi_id': upiId,
+        if (imageBase64.isNotEmpty) 'image': imageBase64,
+        if (imageBase64.isNotEmpty) 'user_pay_image': imageBase64,
+      };
 
       var response = await apiClient.post(
         ApiEndpoints.getQrCode,
         options: options,
-        data: {
-          'action': 'user_withdraw',
-          'user_id': userId,
-          'book_id': targetBookId,
-          'amount': parsedAmount,
-          'deatil': description,
-          'description': description,
-          'emp_id': targetAgencyId,
-          'image': imageBase64,
-        },
+        data: payload,
       );
 
       var data = response.data;
 
       // If 400 or invalid success flag, retry with form-urlencoded content type for standard PHP $_POST
       if (response.statusCode == 400 || data is! Map<String, dynamic> || data['success'] != true) {
-        final formMap = {
-          'action': 'user_withdraw',
-          'user_id': userId.toString(),
-          'book_id': targetBookId.toString(),
-          'amount': parsedAmount.toString(),
-          'deatil': description,
-          'description': description,
-          'emp_id': (targetAgencyId ?? '').toString(),
-          'image': imageBase64,
-        };
+        final formMap = payload.map((k, v) => MapEntry(k, v.toString()));
 
         try {
           final formResp = await apiClient.post(
@@ -657,16 +674,7 @@ class _WithdrawRequestWidgetState extends State<WithdrawRequestWidget> {
         final fallbackResp = await apiClient.post(
           ApiEndpoints.getQrCode,
           options: options,
-          data: {
-            'action': 'withdraw_by_user',
-            'user_id': userId,
-            'book_id': targetBookId,
-            'amount': parsedAmount,
-            'deatil': description,
-            'description': description,
-            'emp_id': targetAgencyId,
-            'image': imageBase64,
-          },
+          data: Map<String, dynamic>.from(payload)..['action'] = 'withdraw_by_user',
         );
         if (fallbackResp.data is Map<String, dynamic> && fallbackResp.data['success'] == true) {
           data = fallbackResp.data;

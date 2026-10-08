@@ -6,6 +6,7 @@ class UserModel {
   final String? avatarUrl;
   final String? phone;
   final String? agencyId;
+  final String? agencyUnqId;
 
   UserModel({
     required this.id,
@@ -15,6 +16,7 @@ class UserModel {
     this.avatarUrl,
     this.phone,
     this.agencyId,
+    this.agencyUnqId,
   });
 
   // Only AGENCY type accounts access the agency dashboard
@@ -24,6 +26,7 @@ class UserModel {
   }
   bool get isUser => role.trim().toUpperCase() == 'USER';
   bool get isAdmin => role.trim().toUpperCase() == 'ADMIN';
+  bool get isEmployee => role.trim().toUpperCase() == 'EMPLOYEE';
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final rawAvatar = json['avatar_url'] ?? json['avatarUrl'] ?? json['avatar'] ?? json['img'];
@@ -63,6 +66,7 @@ class UserModel {
       avatarUrl: avatarStr,
       phone: json['phone'] ?? json['phone_number'] ?? json['phoneNumber'] ?? json['mob'] ?? json['mobile'],
       agencyId: resolvedAgencyId,
+      agencyUnqId: json['agency_unq_id']?.toString(),
     );
   }
 
@@ -86,6 +90,7 @@ class UserModel {
     String? avatarUrl,
     String? phone,
     String? agencyId,
+    String? agencyUnqId,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -95,6 +100,7 @@ class UserModel {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       phone: phone ?? this.phone,
       agencyId: agencyId ?? this.agencyId,
+      agencyUnqId: agencyUnqId ?? this.agencyUnqId,
     );
   }
 }

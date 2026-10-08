@@ -8,6 +8,8 @@ class RechargeRecordModel {
   final String? imageUrl;
   final String? invoiceUrl;
   final String? userName;
+  final String? empId;
+  final String? agencyId;
 
   const RechargeRecordModel({
     required this.id,
@@ -19,19 +21,59 @@ class RechargeRecordModel {
     this.imageUrl,
     this.invoiceUrl,
     this.userName,
+    this.empId,
+    this.agencyId,
   });
 
   factory RechargeRecordModel.fromJson(Map<String, dynamic> json) {
+    final rawImg = json['image_url'] ?? json['imageUrl'] ?? json['image'];
+    String? resolvedImg;
+    if (rawImg != null && rawImg.toString().isNotEmpty && rawImg.toString() != 'null') {
+      final str = rawImg.toString();
+      if (str.startsWith('http')) {
+        resolvedImg = str;
+      } else {
+        resolvedImg = 'https://dreamonlinehub.club/uploads/photos/$str';
+      }
+    }
+
+    final rawInvoice = json['invoice_url'] ?? json['invoiceUrl'] ?? json['invoice'];
+    String? resolvedInvoice;
+    if (rawInvoice != null && rawInvoice.toString().isNotEmpty && rawInvoice.toString() != 'null') {
+      final str = rawInvoice.toString();
+      if (str.startsWith('http')) {
+        resolvedInvoice = str;
+      } else {
+        resolvedInvoice = 'https://dreamonlinehub.club/uploads/documents/$str';
+      }
+    }
+
     return RechargeRecordModel(
-      id: (json['id'] ?? json['recharge_id'] ?? '#1').toString(),
+      id: (json['id'] ?? json['recharge_id'] ?? json['withdrawal_id'] ?? '#1').toString(),
       bookName: (json['book_name'] ?? json['bookName'] ?? 'Lucky Vault').toString(),
-      transactionDetails: (json['transaction_details'] ?? json['transactionDetails'] ?? 'UPI Deposit').toString(),
-      amount: (json['amount'] is num) ? (json['amount'] as num).toDouble() : double.tryParse(json['amount'].toString()) ?? 0.0,
-      status: (json['status'] ?? json['stage_status'] ?? 'pending').toString().toLowerCase(),
-      date: (json['formatted_date'] ?? json['date'] ?? '08 Aug 2026').toString(),
-      imageUrl: json['image_url']?.toString(),
-      invoiceUrl: json['invoice_url']?.toString(),
-      userName: (json['user_name'] ?? json['userName'] ?? json['user'] ?? json['name'] ?? json['email'])?.toString(),
+      transactionDetails: (json['transaction_details'] ??
+              json['transactionDetails'] ??
+              json['deatil'] ??
+              json['detail'] ??
+              json['transection_id'] ??
+              json['transaction_id'] ??
+              'UPI Deposit')
+          .toString(),
+      amount: (json['amount'] is num)
+          ? (json['amount'] as num).toDouble()
+          : double.tryParse(json['amount'].toString()) ?? 0.0,
+      status: (json['stage_status'] ?? json['status'] ?? 'pending').toString(),
+      date: (json['formatted_date'] ?? json['date'] ?? 'Just now').toString(),
+      imageUrl: resolvedImg,
+      invoiceUrl: resolvedInvoice,
+      userName: (json['user_name'] ??
+              json['userName'] ??
+              json['user'] ??
+              json['name'] ??
+              json['email'])
+          ?.toString(),
+      empId: json['emp_id']?.toString(),
+      agencyId: json['agency_id']?.toString(),
     );
   }
 
@@ -43,9 +85,11 @@ class RechargeRecordModel {
       'amount': amount,
       'status': status,
       'date': date,
-      'image_url': imageUrl,
-      'invoice_url': invoiceUrl,
-      'user_name': userName,
+      if (imageUrl != null) 'image_url': imageUrl,
+      if (invoiceUrl != null) 'invoice_url': invoiceUrl,
+      if (userName != null) 'user_name': userName,
+      if (empId != null) 'emp_id': empId,
+      if (agencyId != null) 'agency_id': agencyId,
     };
   }
 }

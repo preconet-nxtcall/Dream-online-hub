@@ -1,6 +1,5 @@
 import 'dart:convert';
 import '../models/agency/agency_user_item_model.dart';
-import '../models/chat/chat_message_model.dart';
 import '../models/common/user_model.dart';
 import '../models/user/recharge_record_model.dart';
 import 'local_storage_service.dart';
@@ -13,12 +12,6 @@ abstract class LocalStorageRepository {
   String? getAccessToken();
   String? getRefreshToken();
   Future<void> clearAuthData();
-
-  // Chats & Messages
-  Future<void> saveMessages(String userId, List<ChatMessageModel> messages);
-  List<ChatMessageModel> getCachedMessages(String userId);
-  Future<void> saveRecentChats(List<AgencyUserItem> recentChats);
-  List<AgencyUserItem> getCachedRecentChats();
 
   // Theme Mode
   Future<void> saveThemeMode(String themeMode);
@@ -38,6 +31,10 @@ abstract class LocalStorageRepository {
   // Recharge Persistence
   Future<void> saveSubmittedRecharge(dynamic record);
   List<dynamic> getSubmittedRecharges();
+
+  // Recent Contacts (for user list cache)
+  Future<void> saveRecentChats(List<AgencyUserItem> recentChats);
+  List<AgencyUserItem> getCachedRecentChats();
 }
 
 class LocalStorageRepositoryImpl implements LocalStorageRepository {
@@ -114,88 +111,6 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
     await box.delete(_userKey);
     await box.delete(_accessTokenKey);
     await box.delete(_refreshTokenKey);
-  }
-
-  @override
-  Future<void> saveMessages(String userId, List<ChatMessageModel> messages) async {
-    final box = _storageService.chatsBox;
-    if (box == null) return;
-
-    final List<ChatMessageModel> deduplicated = [];
-    for (final m in messages) {
-      final text = m.message.trim();
-      final isRequestMsg = text.contains('RECHARGE') ||
-          text.contains('WITHDRAW') ||
-          text.contains('REQUEST');
-      final exists = deduplicated.any((item) =>
-          (m.id.isNotEmpty && item.id == m.id) ||
-          (isRequestMsg &&
-              item.message.trim() == text &&
-              item.isMe == m.isMe &&
-              item.timestamp.difference(m.timestamp).abs().inSeconds <= 60));
-      if (!exists) {
-        deduplicated.add(m);
-      }
-    }
-
-    final List<Map<String, dynamic>> jsonList = deduplicated.map((m) => {
-      'id': m.id,
-      'sender_id': m.senderId,
-      'receiver_id': m.receiverId,
-      'message': m.message,
-      'timestamp': m.timestamp.toIso8601String(),
-      'status': m.status,
-      'type': m.type,
-      'image_url': m.imageUrl,
-      'audio_url': m.audioUrl,
-      'voice_duration': m.voiceDuration,
-      'reply_to_message': m.replyToMessage,
-      'is_me': m.isMe,
-      'local_file_path': m.localFilePath,
-    }).toList();
-
-    await box.put('messages_$userId', jsonEncode(jsonList));
-  }
-
-  @override
-  List<ChatMessageModel> getCachedMessages(String userId) {
-    final box = _storageService.chatsBox;
-    if (box == null) return [];
-    final raw = box.get('messages_$userId');
-    if (raw is String && raw.isNotEmpty) {
-      try {
-        final cachedUser = getUser();
-        final authBox = _storageService.authBox;
-        final chatEmailId = authBox?.get('chat_email_id')?.toString();
-        final userIdStored = authBox?.get('user_id')?.toString();
-        final agentIdStored = authBox?.get('chat_agent_id')?.toString();
-        final userRole = authBox?.get('chat_user_role')?.toString() ??
-            authBox?.get('user_role')?.toString() ??
-            cachedUser?.role ??
-            'user';
-
-        final roleLower = userRole.trim().toLowerCase();
-        final isCurrentUserAgentOrAdmin =
-            roleLower == 'agent' || roleLower == 'agency' || roleLower == 'admin';
-
-        final userKeys = {
-          'me',
-          if (cachedUser?.email != null && cachedUser!.email.isNotEmpty) cachedUser.email.trim().toLowerCase(),
-          if (cachedUser?.id != null && cachedUser!.id.isNotEmpty) cachedUser.id.trim().toLowerCase(),
-          if (chatEmailId != null && chatEmailId.isNotEmpty) chatEmailId.trim().toLowerCase(),
-          if (userIdStored != null && userIdStored.isNotEmpty) userIdStored.trim().toLowerCase(),
-          if (isCurrentUserAgentOrAdmin && agentIdStored != null && agentIdStored.isNotEmpty)
-            agentIdStored.trim().toLowerCase(),
-        };
-
-        final List jsonList = jsonDecode(raw);
-        return jsonList.map((m) {
-          final map = m is Map<String, dynamic> ? m : <String, dynamic>{};
-          return ChatMessageModel.fromJson(map, userKeys: userKeys, userRole: userRole);
-        }).toList();
-      } catch (_) {}
-    }
-    return [];
   }
 
   @override

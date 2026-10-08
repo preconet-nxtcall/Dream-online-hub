@@ -27,7 +27,6 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
-  double _successfulRechargeBalance = 0.0;
   int _successfulOrdersCount = 0;
   bool _isLoadingBalance = true;
 
@@ -144,7 +143,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
       if (mounted) {
         setState(() {
-          _successfulRechargeBalance = sumApproved;
           _successfulOrdersCount = approvedCount;
           _isLoadingBalance = false;
         });
@@ -374,6 +372,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   void _showPaymentAccountDialog(BuildContext context, {bool isReadOnly = false, bool isPendingApproval = false}) {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
     showDialog(
       context: context,
       builder: (ctx) {
@@ -392,6 +391,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: PaymentAccountWidget(
+                userId: user?.id,
                 isReadOnly: isReadOnly,
                 isPendingApproval: isPendingApproval,
                 onClose: () => Navigator.of(ctx).pop(),
@@ -1102,17 +1102,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             Row(
               children: [
                 _buildOverviewCard(
-                  title: 'Wallet Balance',
-                  value: _isLoadingBalance
-                      ? '...'
-                      : '₹${_successfulRechargeBalance.toStringAsFixed(0)}',
-                  icon: Icons.account_balance_wallet_rounded,
-                  color: const Color(0xFFFFD700),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 12),
-                _buildOverviewCard(
-                  title: 'ID Orders',
+                  title: 'Total Orders',
                   value: _isLoadingBalance
                       ? '...'
                       : '$_successfulOrdersCount ${_successfulOrdersCount == 1 ? "Item" : "Items"}',

@@ -46,7 +46,12 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<UserModel> login(String email, String password, {String portalType = 'agency'}) async {
-    final loginDto = LoginRequestDto(action: 'login', email: email, password: password);
+    final loginDto = LoginRequestDto(
+      action: 'login',
+      email: email,
+      password: password,
+      portal: portalType,
+    );
 
     try {
       final response = await _apiClient.post(
@@ -74,41 +79,51 @@ class AuthRepositoryImpl implements AuthRepository {
 
       final roleUpper = user.role.trim().toUpperCase();
 
-      // Agency portal: strictly allow only AGENCY type — block USER and ADMIN
-      if (portalType == 'agency' && roleUpper != 'AGENCY') {
-        throw ServerException(
-          message: roleUpper == 'USER'
-              ? 'This is the Agency Portal. Please use the User Login instead.'
-              : 'Access restricted. Only Agency accounts can log in here.',
-          statusCode: 403,
-        );
+      // Agency portal: strictly allow only AGENCY / ADMIN / AGENCYS-EMPLOYEE — block USER and pure EMPLOYEE
+      if (portalType == 'agency') {
+        final isAgencyRole = roleUpper == 'AGENCY' || roleUpper == 'ADMIN' || roleUpper == 'AGENCYS-EMPLOYEE';
+        if (!isAgencyRole) {
+          throw ServerException(
+            message: roleUpper == 'EMPLOYEE'
+                ? 'This is an Employee account. Please switch to Employee Login.'
+                : (roleUpper == 'USER'
+                    ? 'This is the Agency Portal. Please use the User Login.'
+                    : 'Access restricted. Only Agency accounts can log in here.'),
+            statusCode: 403,
+          );
+        }
       }
 
-      // User portal: strictly allow only USER type — block AGENCY and ADMIN
+      // Employee portal: strictly allow EMPLOYEE / ADMIN / AGENCYS-EMPLOYEE — block standard USER and pure AGENCY
+      if (portalType == 'employee') {
+        final isEmployeeRole = roleUpper == 'EMPLOYEE' || roleUpper == 'ADMIN' || roleUpper == 'AGENCYS-EMPLOYEE';
+        if (!isEmployeeRole) {
+          throw ServerException(
+            message: roleUpper == 'AGENCY'
+                ? 'This is an Agency account. Please switch to Agency Login.'
+                : (roleUpper == 'USER'
+                    ? 'This is the Employee Portal. Please use the User Login.'
+                    : 'Access restricted. Only Employee accounts can log in here.'),
+            statusCode: 403,
+          );
+        }
+      }
+
+      // User portal: strictly allow only USER type
       if (portalType == 'user' && roleUpper != 'USER') {
         throw ServerException(
-          message: roleUpper == 'AGENCY'
-              ? 'This is the User Portal. Please use the Agency Login instead.'
-              : 'Access restricted. Only User accounts can log in here.',
+          message: 'Access restricted. Only User accounts can log in here.',
           statusCode: 403,
         );
       }
 
       // Persist session — PHP doesn't issue tokens so we store the generated session key
       try {
-        final rawUserAgency = (user.agencyId != null && user.agencyId!.isNotEmpty) ? user.agencyId! : 'ADMIN-1';
-        final agentIdVal = user.isAgency
-            ? (user.id.startsWith('AGENCY-') ? user.id : 'AGENCY-${user.id}')
-            : (rawUserAgency.startsWith('AGENCY-') || rawUserAgency.contains('@') ? rawUserAgency : 'AGENCY-$rawUserAgency');
         await Future.wait([
           if (loginResponseDto.accessToken.isNotEmpty)
             _secureStorage.write(StorageKeys.authToken, loginResponseDto.accessToken),
           _secureStorage.write(StorageKeys.userRole, user.role),
           _secureStorage.write(StorageKeys.userId, user.id),
-          if (user.email.isNotEmpty)
-            _secureStorage.write(StorageKeys.chatEmailId, user.email),
-          if (agentIdVal.isNotEmpty)
-            _secureStorage.write(StorageKeys.chatAgentId, agentIdVal),
           _localStorage.saveTokens(
             accessToken: loginResponseDto.accessToken,
             refreshToken: '',
@@ -363,9 +378,6 @@ class AuthRepositoryImpl implements AuthRepository {
     await _secureStorage.delete(StorageKeys.refreshToken);
     await _secureStorage.delete(StorageKeys.userId);
     await _secureStorage.delete(StorageKeys.userRole);
-    await _secureStorage.delete(StorageKeys.chatToken);
-    await _secureStorage.delete(StorageKeys.chatEmailId);
-    await _secureStorage.delete(StorageKeys.chatAgentId);
     await _localStorage.clearAuthData();
   }
 

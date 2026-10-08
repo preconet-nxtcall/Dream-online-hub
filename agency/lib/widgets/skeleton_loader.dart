@@ -80,47 +80,7 @@ class _ShimmerBoxState extends State<ShimmerBox>
   }
 }
 
-/// Skeleton loading placeholder for Chat messages
-class ChatSkeletonLoader extends StatelessWidget {
-  const ChatSkeletonLoader({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      itemCount: 6,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, index) {
-        final isMe = index % 2 == 0;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: Align(
-            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (!isMe) ...[
-                  const ShimmerBox(width: 32, height: 32, borderRadius: 16),
-                  const SizedBox(width: 8),
-                ],
-                ShimmerBox(
-                  width: MediaQuery.of(context).size.width * (index % 3 == 0 ? 0.65 : 0.45),
-                  height: 48,
-                  borderRadius: 16,
-                ),
-                if (isMe) ...[
-                  const SizedBox(width: 8),
-                  const ShimmerBox(width: 14, height: 14, borderRadius: 7),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
 /// Skeleton loading placeholder for Agency Dashboard tiles and metrics
 class DashboardSkeletonLoader extends StatelessWidget {

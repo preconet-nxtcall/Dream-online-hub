@@ -174,7 +174,7 @@ void main() {
       expect(find.text('ACCOUNT NUMBER'), findsOneWidget);
       expect(find.text('BANK NAME'), findsOneWidget);
       expect(find.text('IFSC CODE'), findsOneWidget);
-      expect(find.text('UPI ID'), findsOneWidget);
+      expect(find.text('UPI ID (Optional)'), findsOneWidget);
       expect(find.text('QR CODE / PASSBOOK IMAGE'), findsOneWidget);
       expect(find.text('Choose File'), findsOneWidget);
       expect(find.text('Close Details'), findsOneWidget);
@@ -185,6 +185,42 @@ void main() {
       expect(find.widgetWithText(TextField, 'SBI Bank'), findsOneWidget);
       expect(find.widgetWithText(TextField, 'IFSC0001'), findsOneWidget);
       expect(find.widgetWithText(TextField, 'dreamhub@upi'), findsOneWidget);
+    });
+
+    testWidgets('Allows saving payment account when UPI ID is empty', (WidgetTester tester) async {
+      mockRepo.accountToReturn = const PaymentAccountModel(
+        accountName: 'John Doe',
+        accountNo: '987654321',
+        ifscCode: 'SBIN0001234',
+        bankName: 'State Bank of India',
+        upiId: '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(splashFactory: NoSplash.splashFactory),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: PaymentAccountWidget(repository: mockRepo, userId: 'user_123'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Tap the Save Payment Account button with empty UPI ID
+      final saveBtn = find.text('Save Payment Account');
+      expect(saveBtn, findsOneWidget);
+      await tester.tap(saveBtn);
+      await tester.pumpAndSettle();
+
+      // Verify mock repo successfully received update without error
+      expect(mockRepo.lastUpdatedAccountName, equals('John Doe'));
+      expect(mockRepo.lastUpdatedAccountNo, equals('987654321'));
+      expect(mockRepo.lastUpdatedIfscCode, equals('SBIN0001234'));
+      expect(mockRepo.lastUpdatedBankName, equals('State Bank of India'));
+      expect(mockRepo.lastUpdatedUpiId, equals(''));
     });
 
     testWidgets('Triggers updatePaymentAccount repository call on Save Payment Account click', (WidgetTester tester) async {

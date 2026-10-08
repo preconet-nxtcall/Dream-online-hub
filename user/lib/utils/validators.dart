@@ -10,6 +10,29 @@ class Validators {
     return null;
   }
 
+  static String? validateEmailOrPhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Phone number or email is required';
+    }
+    final trimmed = value.trim();
+    if (trimmed.contains('@')) {
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      if (!emailRegex.hasMatch(trimmed)) {
+        return 'Please enter a valid email address';
+      }
+      return null;
+    }
+
+    final cleanPhone = trimmed.replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+    if (cleanPhone.isEmpty || !RegExp(r'^[0-9]+$').hasMatch(cleanPhone)) {
+      return 'Please enter a valid phone number or email';
+    }
+    if (cleanPhone.length < 10) {
+      return 'Phone number must be at least 10 digits';
+    }
+    return null;
+  }
+
   static String? validatePassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Password is required';

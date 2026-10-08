@@ -1347,8 +1347,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   Widget _buildDreamHubSideDrawer(BuildContext context) {
     final authProv = Provider.of<AuthProvider>(context, listen: false);
     final user = authProv.currentUser ?? LocalStorageRepositoryImpl().getUser();
-    final userName = user?.name.isNotEmpty == true ? user!.name : 'Final Test';
-    final userEmail = user?.email.isNotEmpty == true ? user!.email : 'finaltest1@gmail.com';
+    final userName = user?.name.isNotEmpty == true
+        ? user!.name
+        : (user?.email.isNotEmpty == true ? user!.email.split('@').first : 'User');
+    final userEmail = user?.email.isNotEmpty == true ? user!.email : '';
 
     return Drawer(
       width: (MediaQuery.of(context).size.width * 0.82).clamp(280.0, 330.0),

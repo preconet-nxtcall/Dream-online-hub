@@ -72,7 +72,37 @@ class AuthRepositoryImpl implements AuthRepository {
           (data is Map<String, dynamic>) ? data : {};
 
       final loginResponseDto = LoginResponseDto.fromJson(responseData);
-      final user = UserModel.fromJson(loginResponseDto.user);
+      var user = UserModel.fromJson(loginResponseDto.user);
+
+      // If agencyId is not provided in login response, auto-resolve via read_users
+      if (user.isUser && (user.agencyId == null || user.agencyId!.isEmpty || user.agencyId == 'null')) {
+        try {
+          final usersResp = await _apiClient.post(
+            ApiEndpoints.login,
+            data: {'action': 'read_users', 'agency_id': '1'},
+          );
+          final uData = usersResp.data;
+          if (uData is Map<String, dynamic> && uData['data'] is List) {
+            final List list = uData['data'];
+            for (final item in list) {
+              if (item is Map) {
+                final emailMatch = item['email']?.toString().toLowerCase().trim() == user.email.toLowerCase().trim();
+                final idMatch = item['id']?.toString().trim() == user.id.trim();
+                if (emailMatch || idMatch) {
+                  final foundAgencyId = item['agency_id']?.toString().trim();
+                  if (foundAgencyId != null && foundAgencyId.isNotEmpty && foundAgencyId != 'null') {
+                    user = user.copyWith(agencyId: foundAgencyId);
+                    AppLogger.info('Auto-resolved user agencyId: $foundAgencyId for user: ${user.email}');
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          AppLogger.warning('Failed to auto-resolve agencyId via read_users: $e');
+        }
+      }
 
       final roleUpper = user.role.trim().toUpperCase();
 

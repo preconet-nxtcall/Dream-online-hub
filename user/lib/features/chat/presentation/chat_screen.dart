@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../models/agency/agency_user_item_model.dart';
@@ -738,9 +739,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     _buildInputAction(
                       icon: Icons.camera_alt_rounded,
                       color: accentColor,
-                      onTap: () {
-                        chatProvider.setStagedImage(
-                            'https://picsum.photos/800/600');
+                      onTap: () async {
+                        final picker = ImagePicker();
+                        final photo = await picker.pickImage(
+                          source: ImageSource.camera,
+                          imageQuality: 75,
+                        );
+                        if (photo != null && mounted) {
+                          chatProvider.setStagedImage(photo.path);
+                        }
                       },
                     ),
                     const SizedBox(width: 8),

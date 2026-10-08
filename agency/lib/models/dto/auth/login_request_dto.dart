@@ -3,6 +3,7 @@ class LoginRequestDto {
   final String email;
   final String password;
   final String? role;
+  final String? portal;
   final Map<String, dynamic>? deviceInfo;
 
   const LoginRequestDto({
@@ -10,6 +11,7 @@ class LoginRequestDto {
     required this.email,
     required this.password,
     this.role,
+    this.portal,
     this.deviceInfo,
   });
 
@@ -19,6 +21,7 @@ class LoginRequestDto {
       'email': email.trim(),
       'password': password,
       if (role != null) 'role': role,
+      if (portal != null) 'portal': portal,
       if (deviceInfo != null) 'device_info': deviceInfo,
     };
   }

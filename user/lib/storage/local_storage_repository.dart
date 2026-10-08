@@ -2,6 +2,7 @@ import 'dart:convert';
 import '../models/agency/agency_user_item_model.dart';
 import '../models/chat/chat_message_model.dart';
 import '../models/common/user_model.dart';
+import '../models/user/payment_account_model.dart';
 import '../models/user/recharge_record_model.dart';
 import 'local_storage_service.dart';
 
@@ -42,6 +43,10 @@ abstract class LocalStorageRepository {
   // Seen Notification Keys
   Set<String> getSeenNotificationKeys();
   Future<void> saveSeenNotificationKeys(Set<String> keys);
+
+  // Payment Account Persistence
+  Future<void> savePaymentAccount(String userId, PaymentAccountModel account);
+  PaymentAccountModel? getCachedPaymentAccount(String userId);
 }
 
 class LocalStorageRepositoryImpl implements LocalStorageRepository {
@@ -131,6 +136,15 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
     final offlineQueueBox = _storageService.offlineQueueBox;
     if (offlineQueueBox != null) {
       await offlineQueueBox.clear();
+    }
+    final settingsBox = _storageService.settingsBox;
+    if (settingsBox != null) {
+      final keysToRemove = settingsBox.keys
+          .where((k) => k.toString().startsWith('payment_account_'))
+          .toList();
+      for (final k in keysToRemove) {
+        await settingsBox.delete(k);
+      }
     }
   }
 
@@ -370,6 +384,37 @@ class LocalStorageRepositoryImpl implements LocalStorageRepository {
     final box = _storageService.settingsBox;
     if (box == null) return;
     await box.put(_seenNotificationKeysKey, jsonEncode(keys.toList()));
+  }
+
+  @override
+  Future<void> savePaymentAccount(String userId, PaymentAccountModel account) async {
+    try {
+      final cleanUid = userId.trim();
+      if (cleanUid.isEmpty || cleanUid == 'null') return;
+      final box = _storageService.settingsBox ?? _storageService.chatsBox;
+      if (box == null) return;
+      final jsonStr = jsonEncode(account.toJson());
+      await box.put('payment_account_$cleanUid', jsonStr);
+    } catch (_) {}
+  }
+
+  @override
+  PaymentAccountModel? getCachedPaymentAccount(String userId) {
+    try {
+      final cleanUid = userId.trim();
+      if (cleanUid.isEmpty || cleanUid == 'null' || cleanUid == 'default') return null;
+      final box = _storageService.settingsBox ?? _storageService.chatsBox;
+      if (box == null) return null;
+      var raw = box.get('payment_account_$cleanUid');
+      if (raw is String && raw.isNotEmpty) {
+        final Map<String, dynamic> jsonMap = jsonDecode(raw);
+        return PaymentAccountModel.fromJson(jsonMap);
+      } else if (raw is Map) {
+        final Map<String, dynamic> jsonMap = Map<String, dynamic>.from(raw);
+        return PaymentAccountModel.fromJson(jsonMap);
+      }
+    } catch (_) {}
+    return null;
   }
 }
 

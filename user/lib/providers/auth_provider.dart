@@ -76,9 +76,10 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.authenticated;
       notifyListeners();
 
-      // Auto-authenticate with the Node.js chat server using same credentials.
+      // Auto-authenticate with the Node.js chat server using user's email.
       // This is non-blocking — chat server failure does not block PHP login.
-      _loginToChatServerSilently(email, password);
+      final chatEmail = (user.email.isNotEmpty) ? user.email : email;
+      _loginToChatServerSilently(chatEmail, password);
 
       return true;
     } on ServerException catch (e) {

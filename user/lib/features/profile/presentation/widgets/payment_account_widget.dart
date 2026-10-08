@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/storage_keys.dart';
+import '../../../../models/user/payment_account_model.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../../../repositories/payment_account_repository.dart';
 import '../../../../storage/local_storage_repository.dart';
@@ -78,6 +79,9 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
       if (user?.id != null && user!.id.trim().isNotEmpty) {
         return user.id.trim();
       }
+      if (user?.email != null && user!.email.trim().isNotEmpty) {
+        return user.email.trim();
+      }
     } catch (_) {}
 
     // 2. Fetch dynamically from local Hive storage cache
@@ -85,18 +89,30 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
     if (currentUser?.id != null && currentUser!.id.trim().isNotEmpty) {
       return currentUser.id.trim();
     }
+    if (currentUser?.email != null && currentUser!.email.trim().isNotEmpty) {
+      return currentUser.email.trim();
+    }
 
     // 3. Fetch dynamically from secure storage
     try {
       final storedUserId = await SecureStorageService()
           .read(StorageKeys.userId)
-          .timeout(const Duration(milliseconds: 50), onTimeout: () => null);
+          .timeout(const Duration(milliseconds: 150), onTimeout: () => null);
       if (storedUserId != null && storedUserId.trim().isNotEmpty) {
         return storedUserId.trim();
       }
     } catch (_) {}
 
-    return null;
+    try {
+      final storedEmail = await SecureStorageService()
+          .read(StorageKeys.chatEmailId)
+          .timeout(const Duration(milliseconds: 150), onTimeout: () => null);
+      if (storedEmail != null && storedEmail.trim().isNotEmpty) {
+        return storedEmail.trim();
+      }
+    } catch (_) {}
+
+    return 'user';
   }
 
   Future<dynamic> _resolveEmpId() async {
@@ -131,7 +147,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
     try {
       final storedAgentId = await SecureStorageService()
           .read(StorageKeys.chatAgentId)
-          .timeout(const Duration(milliseconds: 50), onTimeout: () => null);
+          .timeout(const Duration(milliseconds: 150), onTimeout: () => null);
       if (storedAgentId != null &&
           storedAgentId.isNotEmpty &&
           storedAgentId != 'null' &&
@@ -143,7 +159,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
         return storedAgentId;
       }
     } catch (_) {}
-    return null;
+    return 1;
   }
 
   Future<void> _loadPaymentAccount() async {
@@ -161,10 +177,20 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
           _ifscCodeCtrl.text = account.ifscCode;
           _upiIdCtrl.text = account.upiId;
           _existingImageUrl = account.image;
-          _isPendingApproval = widget.isPendingApproval || account.isPendingApproval;
+          _selectedImageFile = null;
+          _isPendingApproval = widget.isPendingApproval || (widget.isReadOnly && account.isPendingApproval);
           _isLoading = false;
         });
       } else if (mounted) {
+        _accountNameCtrl.clear();
+        _accountNoCtrl.clear();
+        _bankNameCtrl.clear();
+        _ifscCodeCtrl.clear();
+        _upiIdCtrl.clear();
+        _existingImageUrl = null;
+        _selectedImageFile = null;
+        _isPendingApproval = false;
+
         // Default prefill account holder name from current user model
         final currentUser = LocalStorageRepositoryImpl().getUser();
         if (currentUser?.name != null && currentUser!.name.isNotEmpty) {
@@ -179,7 +205,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
 
   Future<void> _pickImage() async {
     if (!_isEditing) return;
-    if (_isPendingApproval) {
+    if (widget.isPendingApproval) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('You cannot update your payment account detail while approval is pending.'),
@@ -209,7 +235,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
 
   void _clearSelectedImage() {
     if (!_isEditing) return;
-    if (_isPendingApproval) {
+    if (widget.isPendingApproval) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('You cannot update your payment account detail while approval is pending.'),
@@ -225,7 +251,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
   }
 
   Future<void> _savePaymentAccount() async {
-    if (_isPendingApproval) {
+    if (widget.isPendingApproval) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
@@ -258,8 +284,6 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
       missingFieldMessage = 'Please enter Bank Name.';
     } else if (ifscCode.isEmpty) {
       missingFieldMessage = 'Please enter IFSC Code.';
-    } else if (upiId.isEmpty) {
-      missingFieldMessage = 'Please enter UPI ID.';
     }
 
     if (missingFieldMessage != null) {
@@ -289,6 +313,22 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
         imageBase64 = _existingImageUrl;
       }
 
+      // Save locally immediately to Hive storage
+      final localModel = PaymentAccountModel(
+        accountName: accountName,
+        accountNo: accountNo,
+        ifscCode: ifscCode,
+        bankName: bankName,
+        upiId: upiId,
+        image: imageBase64,
+        status: 'PENDING',
+      );
+      try {
+        await LocalStorageRepositoryImpl().savePaymentAccount(userId.toString(), localModel);
+      } catch (e) {
+        debugPrint('Local payment account cache failed (non-critical): $e');
+      }
+
       final success = await _repository.updatePaymentAccount(
         userId: userId,
         empId: empId,
@@ -303,13 +343,17 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
       if (!mounted) return;
       setState(() {
         _isSaving = false;
-        if (success && imageBase64 != null) {
-          _existingImageUrl = imageBase64;
+        if (success) {
           _isEditing = false; // Return to clean view mode after successful save
+          if (imageBase64 != null) {
+            _existingImageUrl = imageBase64;
+          }
+          _selectedImageFile = null;
         }
       });
 
       if (success) {
+        _loadPaymentAccount(); // Refresh latest verified/pending state from server
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Row(
@@ -421,6 +465,8 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                         children: [
                           Text(
                             _isEditing ? 'Update Payment Account' : 'Payment Account Details',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -433,6 +479,8 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                             _isEditing
                                 ? 'Modify saved bank, IFSC & UPI payout info'
                                 : 'Saved bank & UPI payout details for withdrawals',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 10.5,
                               color: Colors.white60,
@@ -441,58 +489,66 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                         ],
                       ),
                     ),
-                    if (_isLoading)
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFF97316)),
-                      )
-                    else if (widget.onClose != null)
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: widget.onClose,
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: Colors.white70,
-                          size: 20,
-                        ),
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: _isPendingApproval
-                              ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
-                              : const Color(0xFF10B981).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: _isPendingApproval
-                                ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
-                                : const Color(0xFF10B981).withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _isPendingApproval ? Icons.hourglass_top_rounded : Icons.verified_rounded,
-                              size: 11,
-                              color: _isPendingApproval ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              _isPendingApproval ? 'PENDING APPROVAL' : 'VERIFIED',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w900,
-                                color: _isPendingApproval ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                                letterSpacing: 0.5,
+                    const SizedBox(width: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!_isLoading) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: _isPendingApproval
+                                  ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                                  : const Color(0xFF10B981).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _isPendingApproval
+                                    ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
+                                    : const Color(0xFF10B981).withValues(alpha: 0.3),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isPendingApproval ? Icons.hourglass_top_rounded : Icons.verified_rounded,
+                                  size: 10,
+                                  color: _isPendingApproval ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                                ),
+                                const SizedBox(width: 2.5),
+                                Text(
+                                  _isPendingApproval ? 'PENDING APPROVAL' : 'VERIFIED',
+                                  style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: _isPendingApproval ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (widget.onClose != null) const SizedBox(width: 4),
+                        ],
+                        if (_isLoading)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFF97316)),
+                          ),
+                        if (widget.onClose != null)
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: widget.onClose,
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white70,
+                              size: 20,
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
                 if (_isPendingApproval) ...[
@@ -635,11 +691,12 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                             children: [
                               Expanded(
                                 child: _buildInputField(
-                                  label: 'UPI ID',
+                                  label: 'UPI ID (Optional)',
                                   controller: _upiIdCtrl,
-                                  hint: 'Enter UPI ID (e.g. name@upi)',
-                                  icon: Icons.mail_outline_rounded,
+                                  hint: 'Enter UPI ID (optional, e.g. name@upi)',
+                                  icon: Icons.alternate_email_rounded,
                                   isDark: isDark,
+                                  isRequired: false,
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -650,11 +707,12 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                           ),
                         ] else ...[
                           _buildInputField(
-                            label: 'UPI ID',
+                            label: 'UPI ID (Optional)',
                             controller: _upiIdCtrl,
-                            hint: 'Enter UPI ID (e.g. name@upi)',
-                            icon: Icons.mail_outline_rounded,
+                            hint: 'Enter UPI ID (optional, e.g. name@upi)',
+                            icon: Icons.alternate_email_rounded,
                             isDark: isDark,
+                            isRequired: false,
                           ),
                           const SizedBox(height: 10),
                           _buildFileUploadField(isDark: isDark),
@@ -776,6 +834,7 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
     required String hint,
     required IconData icon,
     required bool isDark,
+    bool isRequired = true,
     TextInputType keyboardType = TextInputType.text,
   }) {
     final bool isFieldEnabled = _isEditing && !_isPendingApproval;
@@ -794,15 +853,17 @@ class _PaymentAccountWidgetState extends State<PaymentAccountWidget> {
                 letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(width: 3),
-            const Text(
-              '*',
-              style: TextStyle(
-                color: Colors.redAccent,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+            if (isRequired) ...[
+              const SizedBox(width: 3),
+              const Text(
+                '*',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
+            ],
           ],
         ),
         const SizedBox(height: 5),

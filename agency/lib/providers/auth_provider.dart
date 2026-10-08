@@ -2,23 +2,19 @@ import 'package:flutter/foundation.dart';
 import '../core/errors/exceptions.dart';
 import '../models/common/user_model.dart';
 import '../repositories/auth_repository.dart';
-import '../repositories/chat_repository.dart';
-import '../socket/socket_service.dart';
 
 enum AuthStatus { initial, authenticating, authenticated, unauthenticated, error }
 
 class AuthProvider extends ChangeNotifier {
   late final AuthRepository _authRepository;
-  late final ChatRepository _chatRepository;
 
   AuthStatus _status = AuthStatus.initial;
   UserModel? _currentUser;
   String? _errorMessage;
 
-  AuthProvider({AuthRepository? authRepository, ChatRepository? chatRepository}) {
+  AuthProvider({AuthRepository? authRepository}) {
     _authRepository = authRepository ??
         AuthRepositoryImpl(onSessionExpired: () => handleSessionExpired());
-    _chatRepository = chatRepository ?? ChatRepositoryImpl();
   }
 
   AuthStatus get status => _status;
@@ -45,19 +41,16 @@ class AuthProvider extends ChangeNotifier {
       if (profile != null) {
         _currentUser = profile;
         _status = AuthStatus.authenticated;
-        SocketService.instance.connect();
         notifyListeners();
         return true;
       } else {
         await _authRepository.logout();
-        SocketService.instance.disconnect();
         _status = AuthStatus.unauthenticated;
         notifyListeners();
         return false;
       }
     } catch (e) {
       await _authRepository.logout();
-      SocketService.instance.disconnect();
       _status = AuthStatus.unauthenticated;
       notifyListeners();
       return false;
@@ -75,11 +68,6 @@ class AuthProvider extends ChangeNotifier {
       _currentUser = user;
       _status = AuthStatus.authenticated;
       notifyListeners();
-
-      // Auto-authenticate with the Node.js chat server using same credentials.
-      // This is non-blocking — chat server failure does not block PHP login.
-      _loginToChatServerSilently(email, password);
-
       return true;
     } on ServerException catch (e) {
       _errorMessage = e.message;
@@ -94,17 +82,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Silently login to the Node.js chat server after PHP login succeeds.
-  void _loginToChatServerSilently(String email, String password) {
-    _chatRepository.loginToChat(email, password).then((_) {
-      // Connect Socket.IO after we have the chat JWT
-      SocketService.instance.connect();
-    }).catchError((e) {
-      // Non-fatal — chat server may not be running
-      debugPrint('[AuthProvider] Chat server login skipped: $e');
-    });
-  }
-
   /// Perform user registration
   Future<bool> register(String fullName, String email, String phone, String password) async {
     _status = AuthStatus.authenticating;
@@ -115,7 +92,6 @@ class AuthProvider extends ChangeNotifier {
       final user = await _authRepository.register(fullName, email, phone, password);
       _currentUser = user;
       _status = AuthStatus.authenticated;
-      SocketService.instance.connect();
       notifyListeners();
       return true;
     } on ServerException catch (e) {
@@ -134,7 +110,6 @@ class AuthProvider extends ChangeNotifier {
   /// Perform user logout
   Future<void> logout() async {
     await _authRepository.logout();
-    SocketService.instance.disconnect();
     _currentUser = null;
     _errorMessage = null;
     _status = AuthStatus.unauthenticated;
@@ -213,7 +188,6 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final success = await _authRepository.deleteUser(id: _currentUser!.id);
-      SocketService.instance.disconnect();
       _currentUser = null;
       _status = AuthStatus.unauthenticated;
       notifyListeners();
@@ -234,7 +208,6 @@ class AuthProvider extends ChangeNotifier {
   /// Called when API interceptor catches 401 Unauthorized
   Future<void> handleSessionExpired() async {
     await _authRepository.logout();
-    SocketService.instance.disconnect();
     _currentUser = null;
     _errorMessage = 'Session expired. Please log in again.';
     _status = AuthStatus.unauthenticated;

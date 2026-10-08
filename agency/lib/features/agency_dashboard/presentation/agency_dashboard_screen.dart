@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../models/agency/agency_user_item_model.dart';
@@ -32,10 +33,27 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final authProvider = context.read<AuthProvider>();
+      final user = authProvider.currentUser;
+
+      // ── ROLE GUARD ──────────────────────────────────────────────────────
+      if (user == null || !authProvider.isAuthenticated) {
+        context.go('/login');
+        return;
+      }
+      final roleUpper = user.role.toUpperCase();
+      if (roleUpper == 'EMPLOYEE') {
+        // Employees must not access the agency dashboard
+        context.go('/employee-dashboard');
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       context.read<AgencyProvider>().fetchUsers();
     });
     _scrollController.addListener(_onScroll);
-  }
+  }          
 
   @override
   void dispose() {

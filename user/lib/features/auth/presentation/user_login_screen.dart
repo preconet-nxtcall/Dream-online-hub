@@ -668,18 +668,18 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
       key: const ValueKey('login_form'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Email Field
+        // Phone Number or Email Field
         TextFormField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
-          validator: Validators.validateEmail,
+          validator: Validators.validateEmailOrPhone,
           style: GoogleFonts.plusJakartaSans(color: textPrimaryColor, fontSize: 14, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Email Address',
+            labelText: 'Phone Number or Email',
             labelStyle: GoogleFonts.plusJakartaSans(color: textSecondaryColor, fontSize: 13),
-            hintText: 'Enter your email',
+            hintText: 'Enter your phone number or email',
             hintStyle: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 13),
-            prefixIcon: const Icon(Icons.mail_outline_rounded, color: accentColor, size: 20),
+            prefixIcon: const Icon(Icons.person_outline_rounded, color: accentColor, size: 20),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: inputBorderColor),
