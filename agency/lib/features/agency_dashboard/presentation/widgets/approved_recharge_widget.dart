@@ -51,21 +51,38 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     await _fetchBackendRecords();
   }
 
-  Future<String> _resolveCurrentAgencyId() async {
-    if (widget.userId != null && widget.userId.toString().isNotEmpty) {
-      final digitsOnly = widget.userId.toString().replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) return digitsOnly;
-    }
+  Future<Set<String>> _resolveCurrentAgencyIdSet() async {
+    final ids = <String>{};
     final currentUser = LocalStorageRepositoryImpl().getUser();
-    if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-      final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) return digitsOnly;
+    if (currentUser != null) {
+      if (currentUser.id.isNotEmpty) {
+        ids.add(currentUser.id.trim());
+        final d = currentUser.id.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
+      if (currentUser.agencyId != null && currentUser.agencyId!.isNotEmpty) {
+        ids.add(currentUser.agencyId!.trim());
+        final d = currentUser.agencyId!.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
+      if (currentUser.agencyUnqId != null && currentUser.agencyUnqId!.isNotEmpty) {
+        ids.add(currentUser.agencyUnqId!.trim());
+        final d = currentUser.agencyUnqId!.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
     }
     final storedUserId = await SecureStorageService().read(StorageKeys.userId);
     if (storedUserId != null && storedUserId.isNotEmpty) {
-      final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) return digitsOnly;
+      ids.add(storedUserId.trim());
+      final d = storedUserId.replaceAll(RegExp(r'\D'), '');
+      if (d.isNotEmpty) ids.add(d);
     }
+    return ids;
+  }
+
+  Future<String> _resolveCurrentAgencyId() async {
+    final set = await _resolveCurrentAgencyIdSet();
+    if (set.isNotEmpty) return set.first;
     return '';
   }
 
@@ -77,12 +94,15 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
 
     try {
       final apiClient = ApiClient();
-      final currentAgencyId = await _resolveCurrentAgencyId();
+      final agencyIdSet = await _resolveCurrentAgencyIdSet();
+      final targetClientId = widget.userId?.toString().replaceAll(RegExp(r'\D'), '') ?? '';
 
       final response = await apiClient.post(
         ApiEndpoints.getQrCode,
         data: {
           'action': 'recharge_records',
+          'status_type': 'all',
+          if (targetClientId.isNotEmpty) 'user_id': targetClientId,
         },
       );
 
@@ -97,20 +117,42 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
           if (rawData['pending'] is List) listData.addAll(rawData['pending'] as List);
           if (rawData['successful'] is List) listData.addAll(rawData['successful'] as List);
           if (rawData['rejected'] is List) listData.addAll(rawData['rejected'] as List);
+        } else if (data['recharges'] is List) {
+          listData.addAll(data['recharges'] as List);
+        } else if (data['categorized'] is Map) {
+          final cat = data['categorized'] as Map;
+          if (cat['pending'] is List) listData.addAll(cat['pending'] as List);
+          if (cat['successful'] is List) listData.addAll(cat['successful'] as List);
+          if (cat['rejected'] is List) listData.addAll(cat['rejected'] as List);
         }
 
+        final seenIds = <String>{};
         for (final item in listData) {
           if (item is Map<String, dynamic>) {
-            final model = RechargeRecordModel.fromJson(item);
-
-            // Strict Agency Isolation: WHERE emp_id = '$app_u_id' (matching pending-recharge.php line 79)
-            if (currentAgencyId.isNotEmpty) {
-              final itemEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().replaceAll(RegExp(r'\D'), '');
-              if (itemEmpId != null && itemEmpId.isNotEmpty && itemEmpId != currentAgencyId) {
-                continue; // Skip records assigned to another agency!
+            // Agency Scoping: match logged-in agency if not empty
+            if (agencyIdSet.isNotEmpty) {
+              final rawEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().trim();
+              final cleanEmpId = rawEmpId?.replaceAll(RegExp(r'\D'), '');
+              final matchesAgency = (rawEmpId != null && agencyIdSet.contains(rawEmpId)) ||
+                  (cleanEmpId != null && cleanEmpId.isNotEmpty && agencyIdSet.contains(cleanEmpId));
+              if (!matchesAgency) {
+                continue; // Skip records belonging to another agency
               }
             }
 
+            // Target Client Filtering
+            if (targetClientId.isNotEmpty) {
+              final itemUserId = (item['user_id'] ?? item['userId'])?.toString().replaceAll(RegExp(r'\D'), '');
+              if (itemUserId != null && itemUserId.isNotEmpty && itemUserId != targetClientId) {
+                continue;
+              }
+            }
+
+            final model = RechargeRecordModel.fromJson(item);
+            if (model.id.isNotEmpty) {
+              if (seenIds.contains(model.id)) continue;
+              seenIds.add(model.id);
+            }
             fetchedList.add(model);
           }
         }
@@ -138,9 +180,30 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     }
   }
 
+  Future<void> _markAsReadByAgency(String id) async {
+    try {
+      final rawId = id.replaceAll(RegExp(r'\D'), '');
+      if (rawId.isEmpty) return;
+      final apiClient = ApiClient();
+      final currentAgencyId = await _resolveCurrentAgencyId();
+
+      await apiClient.post(
+        ApiEndpoints.getQrCode,
+        data: {
+          'action': 'mark_read',
+          'type': 'recharge',
+          'id': rawId,
+          'agency_id': currentAgencyId,
+          'emp_id': currentAgencyId,
+        },
+      );
+    } catch (_) {}
+  }
+
   // ─── Details Modal ────────────────────────────────────────────────────────
   void _showViewDetailsModal(BuildContext context, RechargeRecordModel item) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    _markAsReadByAgency(item.id);
 
     showModalBottomSheet(
       context: context,
@@ -260,56 +323,8 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                 ),
               ),
               if (item.imageUrl != null && item.imageUrl!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.image_outlined,
-                      size: 16,
-                      color: Color(0xFF6366F1),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Payment Proof Screenshot:',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white70 : const Color(0xFF475569),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF2E2756) : const Color(0xFFE2E8F0),
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Image.network(
-                      item.imageUrl!,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        height: 80,
-                        color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF1F5F9),
-                        child: Center(
-                          child: Text(
-                            'Image not available',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 14),
+                _buildViewScreenshotButton(item.imageUrl!, isDark),
               ],
               const SizedBox(height: 20),
               Builder(
@@ -720,21 +735,32 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                         final utrText = utrController.text.trim();
                                         final currentAgencyId = await _resolveCurrentAgencyId();
 
-                                        await apiClient.post(
-                                          ApiEndpoints.getQrCode,
-                                          data: {
-                                            'action': 'edit_recharge',
-                                            'edit_recharge': 1,
-                                            'edit_emp_recharge_pending': 1,
-                                            'id': rawId,
-                                            'emp_id': currentAgencyId,
-                                            'amount': item.amount,
-                                            'stage_status': selectedStatus,
-                                            'transection_id': utrText.isNotEmpty ? utrText : item.transactionDetails,
-                                            'remark': remarkText,
-                                            'employee_remark': remarkText,
-                                          },
-                                        );
+                                        final isSuccess = selectedStatus == 'AGENCY-DONE' || selectedStatus == 'EMPLOYEE-DONE';
+                                        final isReject = selectedStatus.contains('REJECT') || selectedStatus.contains('FAIL');
+                                        final dbStatus = isSuccess ? 'successful' : (isReject ? 'rejected' : 'pending');
+
+                                        // Primary api.php
+                                        try {
+                                          await apiClient.post(
+                                            ApiEndpoints.getQrCode,
+                                            data: {
+                                              'action': 'edit_recharge',
+                                              'edit_recharge': 1,
+                                              'edit_agency_recharge_pending': 1,
+                                              'id': rawId,
+                                              'emp_id': currentAgencyId,
+                                              'agency_id': currentAgencyId,
+                                              'amount': item.amount,
+                                              'status': dbStatus,
+                                              'stage_status': selectedStatus,
+                                              'agency_read_status': 'READ',
+                                              'transection_id': utrText.isNotEmpty ? utrText : item.transactionDetails,
+                                              'transaction_id': utrText.isNotEmpty ? utrText : item.transactionDetails,
+                                              'remark': remarkText,
+                                              'agency_remark': remarkText,
+                                            },
+                                          );
+                                        } catch (_) {}
                                       } catch (_) {}
 
                                       // Use dialogContext.mounted to check if the dialog is still alive
@@ -846,16 +872,172 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
     );
   }
 
+  Widget _buildViewScreenshotButton(String imageUrl, bool isDark) {
+    return Builder(
+      builder: (context) {
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showImagePreviewDialog(context, imageUrl, 'Payment Proof Screenshot', isDark),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF221F3D) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFF6366F1).withValues(alpha: isDark ? 0.45 : 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.image_outlined,
+                    color: Color(0xFF6366F1),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Click to View Payment Screenshot',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF4338CA),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  const Icon(
+                    Icons.open_in_new_rounded,
+                    size: 13,
+                    color: Color(0xFF6366F1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showImagePreviewDialog(BuildContext context, String imageUrl, String title, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF14102B) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.image_outlined, color: Color(0xFF6366F1), size: 18),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(dialogContext),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: InteractiveViewer(
+                    maxScale: 4.0,
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (_, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          height: 200,
+                          alignment: Alignment.center,
+                          child: const CircularProgressIndicator(strokeWidth: 2),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 120,
+                        alignment: Alignment.center,
+                        child: const Text('Image unavailable'),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('CLOSE PREVIEW', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ─── Filtered Records Getter ──────────────────────────────────────────────
   List<RechargeRecordModel> get _filteredRecords {
     return _records.where((record) {
       // 1. Status Filter
       if (_selectedStatusFilter != 'all') {
-        final statusLower = record.status.toLowerCase();
-        final isDone = statusLower.contains('done') || statusLower.contains('successful') || statusLower.contains('approved');
-        final isReject = statusLower.contains('reject') || statusLower.contains('failed') || statusLower.contains('declined');
+        final statusUpper = record.status.toUpperCase();
+        final isDone = statusUpper == 'AGENCY-DONE' ||
+            statusUpper == 'EMPLOYEE-DONE' ||
+            statusUpper == 'SUCCESSFUL' ||
+            statusUpper == 'APPROVED' ||
+            statusUpper == 'DONE';
+        final isReject = statusUpper.contains('REJECT') || statusUpper.contains('FAIL') || statusUpper.contains('DECLIN');
+        final isPending = !isDone && !isReject;
 
-        if (_selectedStatusFilter == 'pending' && (isDone || isReject)) {
+        if (_selectedStatusFilter == 'pending' && !isPending) {
           return false;
         } else if (_selectedStatusFilter == 'successful' && !isDone) {
           return false;
@@ -1401,28 +1583,34 @@ class ApprovedRechargeWidgetState extends State<ApprovedRechargeWidget> {
                                   children: [
                                     Builder(
                                       builder: (context) {
-                                        final statusLower = item.status.toLowerCase();
-                                        final isDone = statusLower.contains('done') ||
-                                            statusLower.contains('successful') ||
-                                            statusLower.contains('approved');
-                                        final isReject = statusLower.contains('reject') ||
-                                            statusLower.contains('failed') ||
-                                            statusLower.contains('declined');
+                                        final stUpper = item.status.toUpperCase();
+                                        final isEmployeeDone = stUpper == 'EMPLOYEE-DONE';
+                                        final isAgencyDone = stUpper == 'AGENCY-DONE';
+                                        final isSuccess = stUpper == 'SUCCESSFUL' || stUpper == 'APPROVED' || stUpper == 'DONE';
+                                        final isReject = stUpper.contains('REJECT') || stUpper.contains('FAIL') || stUpper.contains('DECLIN');
 
                                         String displayLabel = 'PENDING';
                                         Color badgeFg = const Color(0xFFD97706);
-                                        Color badgeBg = const Color(0xFFFFF7ED);
+                                        Color badgeBg = isDark ? const Color(0xFF332A15) : const Color(0xFFFFF7ED);
 
-                                        if (isDone) {
+                                        if (isAgencyDone) {
+                                          displayLabel = 'AGENCY DONE';
+                                          badgeFg = const Color(0xFF6366F1);
+                                          badgeBg = isDark ? const Color(0xFF232048) : const Color(0xFFEEF2FF);
+                                        } else if (isEmployeeDone) {
+                                          displayLabel = 'EMPLOYEE DONE';
+                                          badgeFg = const Color(0xFF10B981);
+                                          badgeBg = isDark ? const Color(0xFF14382B) : const Color(0xFFE6F7ED);
+                                        } else if (isSuccess) {
                                           displayLabel = 'SUCCESSFUL';
                                           badgeFg = const Color(0xFF10B981);
                                           badgeBg = isDark ? const Color(0xFF14382B) : const Color(0xFFE6F7ED);
                                         } else if (isReject) {
-                                          displayLabel = 'REJECTED';
+                                          displayLabel = stUpper.contains('AGENCY') ? 'AGENCY REJECT' : 'EMPLOYEE REJECT';
                                           badgeFg = const Color(0xFFEF4444);
                                           badgeBg = isDark ? const Color(0xFF381418) : const Color(0xFFFEE2E2);
                                         } else {
-                                          displayLabel = 'PENDING';
+                                          displayLabel = stUpper.contains('EMPLOYEE') ? 'EMPLOYEE PENDING' : 'PENDING';
                                           badgeFg = const Color(0xFFFFB800);
                                           badgeBg = isDark ? const Color(0xFF332A15) : const Color(0xFFFFF7ED);
                                         }

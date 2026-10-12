@@ -52,93 +52,201 @@ class AgencyRepositoryImpl implements AgencyRepository {
   }) async {
     try {
       final currentUser = _localStorage.getUser();
-      final currentAgencyId = (currentUser?.agencyId != null && currentUser!.agencyId!.isNotEmpty)
-          ? currentUser.agencyId!
-          : (currentUser?.id.toString() ?? '');
+      final agencyIdSet = <String>{};
+      
+      if (currentUser != null) {
+        if (currentUser.id.isNotEmpty) {
+          agencyIdSet.add(currentUser.id.trim());
+          final cleanId = currentUser.id.replaceAll(RegExp(r'\D'), '');
+          if (cleanId.isNotEmpty) agencyIdSet.add(cleanId);
+        }
+        if (currentUser.agencyId != null && currentUser.agencyId!.isNotEmpty) {
+          agencyIdSet.add(currentUser.agencyId!.trim());
+          final cleanAg = currentUser.agencyId!.replaceAll(RegExp(r'\D'), '');
+          if (cleanAg.isNotEmpty) agencyIdSet.add(cleanAg);
+        }
+        if (currentUser.agencyUnqId != null && currentUser.agencyUnqId!.isNotEmpty) {
+          agencyIdSet.add(currentUser.agencyUnqId!.trim());
+          final cleanUnq = currentUser.agencyUnqId!.replaceAll(RegExp(r'\D'), '');
+          if (cleanUnq.isNotEmpty) agencyIdSet.add(cleanUnq);
+        }
+      }
+
+      final primaryAgencyId = currentUser?.id ?? '';
+      final cleanPrimaryAgencyId = primaryAgencyId.replaceAll(RegExp(r'\D'), '');
 
       List<dynamic> rawList = [];
 
-      // 1. Fetch all users via 'read_users' action
+      // Helper to extract list from diverse response structures
+      List<dynamic> extractListFromResponse(dynamic resData) {
+        if (resData is List) return resData;
+        if (resData is Map<String, dynamic>) {
+          if (resData['data'] is List) return resData['data'] as List;
+          if (resData['users'] is List) return resData['users'] as List;
+          if (resData['clients'] is List) return resData['clients'] as List;
+          if (resData['assigned_users'] is List) return resData['assigned_users'] as List;
+          if (resData['rows'] is List) return resData['rows'] as List;
+          if (resData['list'] is List) return resData['list'] as List;
+        }
+        return [];
+      }
+
+      // 1. Fetch via 'read_users'
       try {
         final res = await _apiClient.post(
-          ApiEndpoints.login, // api.php
+          ApiEndpoints.login,
           data: {'action': 'read_users'},
         );
-        final resData = res.data;
-        if (resData is Map<String, dynamic> && resData['success'] != false) {
-          final list = resData['data'] ?? resData['users'] ?? [];
-          if (list is List && list.isNotEmpty) {
-            rawList = list;
-          }
+        final list = extractListFromResponse(res.data);
+        if (list.isNotEmpty) {
+          rawList = list;
         }
       } catch (_) {}
 
-      // 2. If 'read_users' returned empty, try 'get_by_agency_id'
-      if (rawList.isEmpty && currentAgencyId.isNotEmpty) {
+      // 2. Fetch via 'get_by_agency_id' / 'agency_users' if empty
+      if (rawList.isEmpty && agencyIdSet.isNotEmpty) {
+        for (final agId in [cleanPrimaryAgencyId, primaryAgencyId, currentUser?.agencyId ?? '']) {
+          if (agId.isEmpty) continue;
+          try {
+            final res = await _apiClient.post(
+              ApiEndpoints.login,
+              data: {
+                'action': 'get_by_agency_id',
+                'agency_id': agId,
+              },
+            );
+            final list = extractListFromResponse(res.data);
+            if (list.isNotEmpty) {
+              rawList = list;
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 3. Fallback: try 'get_users' or 'get_assigned_users'
+      if (rawList.isEmpty && agencyIdSet.isNotEmpty) {
         try {
           final res = await _apiClient.post(
             ApiEndpoints.login,
             data: {
-              'action': 'get_by_agency_id',
-              'agency_id': currentAgencyId,
+              'action': 'get_assigned_users',
+              'agency_id': cleanPrimaryAgencyId,
             },
           );
-          final resData = res.data;
-          if (resData is Map<String, dynamic> && resData['success'] != false) {
-            final list = resData['data'] ?? resData['users'] ?? [];
-            if (list is List && list.isNotEmpty) {
-              rawList = list;
-            }
+          final list = extractListFromResponse(res.data);
+          if (list.isNotEmpty) {
+            rawList = list;
           }
         } catch (_) {}
       }
 
-      final rawAgencyId = currentAgencyId;
-      final cleanAgencyId = rawAgencyId.replaceAll(RegExp(r'^\D+'), '');
-
-      List<dynamic> extractAssignedUsers(List<dynamic> inputList, {bool strictAgencyCheck = true}) {
+      // Filter & normalize assigned clients (STRICT: ONLY regular users/clients, NO employees)
+      List<dynamic> extractAssignedUsers(List<dynamic> inputList) {
         return inputList.where((item) {
           if (item is! Map<String, dynamic>) return false;
-          final type = (item['type'] ?? item['role'] ?? '').toString().toUpperCase();
-          if (type != 'USER') return false;
 
-          final itemEmail = (item['email'] ?? '').toString().trim().toLowerCase();
-          final itemId = (item['id'] ?? '').toString().trim();
-          final myEmail = (currentUser?.email ?? '').trim().toLowerCase();
+          final roleVal = (item['role'] ?? '').toString().trim().toUpperCase();
+          final typeVal = (item['type'] ?? '').toString().trim().toUpperCase();
+          final portalVal = (item['portal'] ?? '').toString().trim().toUpperCase();
+          final userTypeVal = (item['user_type'] ?? '').toString().trim().toUpperCase();
 
-          // Exclude Admin and Agency's own account
-          if (itemEmail == myEmail || itemEmail == 'admin@gmail.com' || itemId == '1' || itemId == cleanAgencyId) {
+          // 1. STRICT: Exclude any employee, staff, agent, agency, or admin accounts
+          final isStaffOrEmployee = roleVal.contains('EMPLOYEE') ||
+              roleVal.contains('STAFF') ||
+              roleVal.contains('AGENT') ||
+              roleVal.contains('AGENCY') ||
+              roleVal.contains('ADMIN') ||
+              roleVal.contains('MANAGER') ||
+              typeVal.contains('EMPLOYEE') ||
+              typeVal.contains('STAFF') ||
+              typeVal.contains('AGENT') ||
+              typeVal.contains('AGENCY') ||
+              typeVal.contains('ADMIN') ||
+              typeVal.contains('MANAGER') ||
+              portalVal.contains('EMPLOYEE') ||
+              portalVal.contains('STAFF') ||
+              userTypeVal.contains('EMPLOYEE') ||
+              userTypeVal.contains('STAFF') ||
+              item['is_employee'] == 1 ||
+              item['is_employee'] == '1' ||
+              item['is_employee'] == true ||
+              item['emp_role'] != null;
+
+          if (isStaffOrEmployee) {
             return false;
           }
 
-          if (strictAgencyCheck && rawAgencyId.isNotEmpty) {
-            final rawUserAgency = (item['agency_id'] ?? item['emp_id'] ?? '').toString().trim();
-            if (rawUserAgency.isEmpty) return false;
+          // 2. Accept only standard customer/client roles
+          final isClientRole = roleVal == 'USER' ||
+              roleVal == 'CLIENT' ||
+              roleVal == 'CUSTOMER' ||
+              roleVal == 'PLAYER' ||
+              roleVal == 'MEMBER' ||
+              typeVal == 'USER' ||
+              typeVal == 'CLIENT' ||
+              typeVal == 'CUSTOMER' ||
+              typeVal == 'PLAYER' ||
+              typeVal == 'MEMBER' ||
+              (roleVal.isEmpty && typeVal.isEmpty);
 
-            final userAgencyClean = rawUserAgency.replaceAll(RegExp(r'^\D+'), '');
-            final currentAgencyClean = cleanAgencyId;
-            final fullAgencyUnqId = 'AGENCY-$cleanAgencyId';
+          if (!isClientRole) {
+            return false;
+          }
 
-            final isMatched = rawUserAgency == rawAgencyId ||
-                rawUserAgency == fullAgencyUnqId ||
-                (userAgencyClean.isNotEmpty && userAgencyClean == currentAgencyClean);
+          final itemEmail = (item['email'] ?? '').toString().trim().toLowerCase();
+          final itemId = (item['id'] ?? item['user_id'] ?? '').toString().trim();
+          final myEmail = (currentUser?.email ?? '').trim().toLowerCase();
 
-            if (!isMatched) return false;
+          // Exclude Agency's own account and master admin
+          if (itemEmail == myEmail ||
+              itemEmail == 'admin@gmail.com' ||
+              itemEmail == 'agency@gmail.com' ||
+              (currentUser != null && itemId == currentUser.id)) {
+            return false;
+          }
+
+          // Strict agency check: Agency A can ONLY see Agency A records (never Agency B)
+          if (agencyIdSet.isNotEmpty && currentUser?.isAdmin != true) {
+            final candidateAgencyValues = [
+              item['agency_id'],
+              item['emp_id'],
+              item['agent_id'],
+              item['agency_unq_id'],
+              item['agencyId'],
+              item['assigned_agency'],
+              item['assigned_to'],
+              item['agency'],
+            ];
+
+            bool matched = false;
+            for (final cand in candidateAgencyValues) {
+              if (cand == null) continue;
+              final candStr = cand.toString().trim();
+              if (candStr.isEmpty || candStr == '0' || candStr == 'null') continue;
+              final candClean = candStr.replaceAll(RegExp(r'\D'), '');
+
+              if (agencyIdSet.contains(candStr) || (candClean.isNotEmpty && agencyIdSet.contains(candClean))) {
+                matched = true;
+                break;
+              }
+            }
+
+            if (!matched) return false;
           }
 
           if (searchQuery != null && searchQuery.trim().isNotEmpty) {
             final q = searchQuery.trim().toLowerCase();
-            final name  = (item['name']  ?? '').toString().toLowerCase();
+            final name  = (item['name']  ?? item['username'] ?? '').toString().toLowerCase();
             final email = (item['email'] ?? '').toString().toLowerCase();
-            final mob   = (item['mob']   ?? '').toString().toLowerCase();
+            final mob   = (item['mob']   ?? item['phone'] ?? '').toString().toLowerCase();
             return name.contains(q) || email.contains(q) || mob.contains(q);
           }
           return true;
         }).toList();
       }
 
-      // Filter only users assigned to this agency
-      final filtered = extractAssignedUsers(rawList, strictAgencyCheck: currentAgencyId.isNotEmpty);
+      final filtered = extractAssignedUsers(rawList);
 
       // Apply pagination
       final offset = (page - 1) * limit;
@@ -150,38 +258,18 @@ class AgencyRepositoryImpl implements AgencyRepository {
 
       if (users.isNotEmpty) {
         await _localStorage.saveRecentChats(users);
-        AppLogger.info('fetchAgencyUsers: Loaded ${users.length} assigned users from API.');
-        return users;
+        AppLogger.info('fetchAgencyUsers: Loaded ${users.length} real assigned users from database.');
+      } else {
+        AppLogger.info('fetchAgencyUsers: Database returned 0 assigned users for this agency.');
       }
 
-      // No data from API — try sanitized cache
-      final cached = _localStorage.getCachedRecentChats();
-      final myEmail = (currentUser?.email ?? '').trim().toLowerCase();
-      final sanitizedCache = cached.where((u) {
-        final uEmail = u.email.trim().toLowerCase();
-        final uId = u.id.trim();
-        return uEmail != myEmail &&
-            uEmail != 'admin@gmail.com' &&
-            uEmail != 'agency@gmail.com' &&
-            uId != '1' &&
-            uId != cleanAgencyId;
-      }).toList();
-
-      if (sanitizedCache.isNotEmpty) {
-        AppLogger.info('fetchAgencyUsers: API returned empty. Using ${sanitizedCache.length} sanitized cached users.');
-        return sanitizedCache;
-      }
-
-      AppLogger.info('fetchAgencyUsers: No assigned users found in API or cache.');
-      return [];
+      return users;
     } on NetworkException catch (e) {
-      AppLogger.warning('fetchAgencyUsers NetworkException: ${e.message}. Using cached users.');
-      final cached = _localStorage.getCachedRecentChats();
-      return cached;
+      AppLogger.warning('fetchAgencyUsers NetworkException: ${e.message}');
+      return [];
     } catch (e) {
-      AppLogger.warning('fetchAgencyUsers error: $e. Using cached users.');
-      final cached = _localStorage.getCachedRecentChats();
-      return cached;
+      AppLogger.warning('fetchAgencyUsers error: $e');
+      return [];
     }
   }
 

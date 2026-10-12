@@ -47,7 +47,8 @@ class _EmployeeRechargeVerificationWidgetState
     final records = provider.filteredRecharges;
 
     // Reset pagination when search query or filter changes
-    if (_lastSearch != provider.rechargeSearchQuery || _lastFilter != provider.rechargeFilter) {
+    if (_lastSearch != provider.rechargeSearchQuery ||
+        _lastFilter != provider.rechargeFilter) {
       _lastSearch = provider.rechargeSearchQuery;
       _lastFilter = provider.rechargeFilter;
       _displayedCount = 30;
@@ -59,7 +60,8 @@ class _EmployeeRechargeVerificationWidgetState
 
     return NotificationListener<ScrollNotification>(
       onNotification: (ScrollNotification scrollInfo) {
-        if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 250 &&
+        if (scrollInfo.metrics.pixels >=
+                scrollInfo.metrics.maxScrollExtent - 250 &&
             !_isLoadingMore &&
             hasMore) {
           _loadMoreRecords(totalCount);
@@ -90,14 +92,16 @@ class _EmployeeRechargeVerificationWidgetState
               children: [
                 for (int i = 0; i < paginatedRecords.length; i++) ...[
                   _buildRechargeCard(context, paginatedRecords[i], isDark),
-                  if (i < paginatedRecords.length - 1) const SizedBox(height: 12),
+                  if (i < paginatedRecords.length - 1)
+                    const SizedBox(height: 12),
                 ],
 
                 // Pagination Loading & Footer Status
                 if (_isLoadingMore) ...[
                   const SizedBox(height: 14),
                   Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 16),
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF18152D) : Colors.white,
                       borderRadius: BorderRadius.circular(14),
@@ -138,7 +142,9 @@ class _EmployeeRechargeVerificationWidgetState
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        color: isDark
+                            ? const Color(0xFF64748B)
+                            : const Color(0xFF94A3B8),
                       ),
                     ),
                   ),
@@ -156,9 +162,8 @@ class _EmployeeRechargeVerificationWidgetState
     bool isDark,
   ) {
     final bg = isDark ? const Color(0xFF18152D) : Colors.white;
-    final border = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : const Color(0xFFE2E8F0);
+    final border =
+        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0);
 
     return Column(
       children: [
@@ -339,29 +344,44 @@ class _EmployeeRechargeVerificationWidgetState
     bool isDark,
   ) {
     final statusUpper = item.status.toUpperCase();
-    final isDone = statusUpper.contains('DONE') ||
+    final isApproved = statusUpper == 'EMPLOYEE-DONE' ||
+        statusUpper == 'AGENCY-DONE' ||
+        statusUpper.contains('DONE') ||
         statusUpper.contains('SUCCESS') ||
-        statusUpper.contains('APPROVED');
+        statusUpper.contains('APPROV');
     final isReject = statusUpper.contains('REJECT') ||
-        statusUpper.contains('FAILED') ||
-        statusUpper.contains('DECLINED');
-    final isPending = !isDone && !isReject;
+        statusUpper.contains('FAIL') ||
+        statusUpper.contains('DECLIN');
+    final isAlreadyProcessed = isApproved || isReject;
+    final canVerify = !isAlreadyProcessed;
 
-    final statusColor = isDone
-        ? const Color(0xFF10B981)
-        : (isReject ? const Color(0xFFEF4444) : const Color(0xFFF59E0B));
+    final Color statusColor;
+    final String statusLabel;
+    if (isApproved) {
+      statusColor = const Color(0xFF10B981);
+      statusLabel = (statusUpper == 'AGENCY-DONE')
+          ? 'Agency Approved'
+          : 'Employee Approved';
+    } else if (isReject) {
+      statusColor = const Color(0xFFEF4444);
+      statusLabel = statusUpper.contains('AGENCY')
+          ? 'Agency Rejected'
+          : 'Employee Rejected';
+    } else {
+      statusColor = const Color(0xFFF59E0B);
+      statusLabel = 'Pending Verification';
+    }
 
     final cardBg = isDark ? const Color(0xFF18152D) : Colors.white;
-    final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : const Color(0xFFECEAFE);
+    final borderColor =
+        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFECEAFE);
 
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isPending
+          color: canVerify
               ? const Color(0xFF10B981).withValues(alpha: 0.35)
               : borderColor,
         ),
@@ -390,12 +410,12 @@ class _EmployeeRechargeVerificationWidgetState
                     Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                        color: statusColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.receipt_long_rounded,
-                        color: Color(0xFF10B981),
+                        color: statusColor,
                         size: 18,
                       ),
                     ),
@@ -411,7 +431,9 @@ class _EmployeeRechargeVerificationWidgetState
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -421,7 +443,9 @@ class _EmployeeRechargeVerificationWidgetState
                             style: TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                              color: isDark
+                                  ? Colors.white54
+                                  : const Color(0xFF64748B),
                             ),
                           ),
                         ],
@@ -441,9 +465,7 @@ class _EmployeeRechargeVerificationWidgetState
                         ),
                       ),
                       child: Text(
-                        isDone
-                            ? 'Approved'
-                            : (isReject ? 'Rejected' : 'Pending Verification'),
+                        statusLabel,
                         style: TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w800,
@@ -469,7 +491,9 @@ class _EmployeeRechargeVerificationWidgetState
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                            color: isDark
+                                ? Colors.white38
+                                : const Color(0xFF94A3B8),
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -494,7 +518,9 @@ class _EmployeeRechargeVerificationWidgetState
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                              color: isDark
+                                  ? Colors.white38
+                                  : const Color(0xFF94A3B8),
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -506,7 +532,9 @@ class _EmployeeRechargeVerificationWidgetState
                             style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white70 : const Color(0xFF334155),
+                              color: isDark
+                                  ? Colors.white70
+                                  : const Color(0xFF334155),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -528,19 +556,22 @@ class _EmployeeRechargeVerificationWidgetState
                         Icon(
                           Icons.access_time_rounded,
                           size: 13,
-                          color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                          color:
+                              isDark ? Colors.white38 : const Color(0xFF94A3B8),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           item.date,
                           style: TextStyle(
                             fontSize: 11,
-                            color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                            color: isDark
+                                ? Colors.white38
+                                : const Color(0xFF94A3B8),
                           ),
                         ),
                       ],
                     ),
-                    if (isPending)
+                    if (canVerify)
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
@@ -560,7 +591,8 @@ class _EmployeeRechargeVerificationWidgetState
                               borderRadius: BorderRadius.circular(14),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.45),
+                                  color: const Color(0xFF10B981)
+                                      .withValues(alpha: 0.45),
                                   blurRadius: 10,
                                   offset: const Offset(0, 3),
                                 ),
@@ -601,10 +633,14 @@ class _EmployeeRechargeVerificationWidgetState
                               vertical: 7,
                             ),
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF221E42) : const Color(0xFFEEF2F6),
+                              color: isDark
+                                  ? const Color(0xFF221E42)
+                                  : const Color(0xFFEEF2F6),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isDark ? const Color(0xFF352F5B) : const Color(0xFFCBD5E1),
+                                color: isDark
+                                    ? const Color(0xFF352F5B)
+                                    : const Color(0xFFCBD5E1),
                                 width: 1.1,
                               ),
                             ),
@@ -614,15 +650,21 @@ class _EmployeeRechargeVerificationWidgetState
                                 Icon(
                                   Icons.lock_outline_rounded,
                                   size: 13.5,
-                                  color: isDark ? const Color(0xFF10B981) : const Color(0xFF059669),
+                                  color: isApproved
+                                      ? const Color(0xFF10B981)
+                                      : (isReject
+                                          ? const Color(0xFFEF4444)
+                                          : const Color(0xFF64748B)),
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
-                                  'Locked / Details',
+                                  'Locked & View',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w800,
-                                    color: isDark ? Colors.white70 : const Color(0xFF334155),
+                                    color: isDark
+                                        ? Colors.white70
+                                        : const Color(0xFF334155),
                                   ),
                                 ),
                               ],
@@ -710,10 +752,14 @@ class _EmployeeRechargeVerificationWidgetState
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1C1838) : const Color(0xFFF8F7FF),
+                  color: isDark
+                      ? const Color(0xFF1C1838)
+                      : const Color(0xFFF8F7FF),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF2E2756) : const Color(0xFFECEAFE),
+                    color: isDark
+                        ? const Color(0xFF2E2756)
+                        : const Color(0xFFECEAFE),
                   ),
                 ),
                 child: Column(
@@ -726,43 +772,47 @@ class _EmployeeRechargeVerificationWidgetState
                     const Divider(height: 16),
                     _buildModalRow('Platform / Book', item.bookName, isDark),
                     const Divider(height: 16),
-                    _buildModalRow('Amount', '₹${item.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
+                    _buildModalRow(
+                        'Amount', '₹${item.amount.toStringAsFixed(2)}', isDark,
+                        isHighlight: true),
                     const Divider(height: 16),
-                    _buildModalRow('Transaction / UTR', item.transactionDetails, isDark),
+                    _buildModalRow(
+                        'Transaction / UTR', item.transactionDetails, isDark),
                     const Divider(height: 16),
                     _buildModalRow('Date & Time', item.date, isDark),
                     const Divider(height: 16),
                     _buildModalRow('Status', item.status.toUpperCase(), isDark),
+                    Builder(
+                      builder: (context) {
+                        final st = item.status.toUpperCase();
+                        final isAlreadyProcessed = st.contains('AGENCY-DONE') ||
+                            st.contains('EMPLOYEE-DONE') ||
+                            st.contains('DONE') ||
+                            st.contains('SUCCESS') ||
+                            st.contains('APPROV') ||
+                            st.contains('REJECT') ||
+                            st.contains('FAIL');
+                        if (isAlreadyProcessed) {
+                          return Column(
+                            children: [
+                              const Divider(height: 16),
+                              _buildModalRow(
+                                  'Verification Lock',
+                                  'Verified & Locked (One-Time Action Completed)',
+                                  isDark,
+                                  isHighlight: true),
+                            ],
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                   ],
                 ),
               ),
               if (item.imageUrl != null && item.imageUrl!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Payment Proof Screenshot:',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white70 : const Color(0xFF475569),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.network(
-                    item.imageUrl!,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 70,
-                      color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF1F5F9),
-                      child: const Center(
-                        child: Text('Image not available', style: TextStyle(fontSize: 12)),
-                      ),
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 12),
+                _buildViewScreenshotButton(context, item.imageUrl!, isDark),
               ],
               const SizedBox(height: 20),
               Row(
@@ -773,22 +823,39 @@ class _EmployeeRechargeVerificationWidgetState
                       child: const Text('CLOSE'),
                     ),
                   ),
-                  if (item.status.toUpperCase().contains('PENDING')) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(modalContext);
-                          _showVerifyModal(context, item);
-                        },
-                        icon: const Icon(Icons.verified_rounded, size: 16, color: Colors.white),
-                        label: const Text('VERIFY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
+                  Builder(
+                    builder: (context) {
+                      final st = item.status.toUpperCase();
+                      final isAlreadyProcessed = st.contains('AGENCY-DONE') ||
+                          st.contains('EMPLOYEE-DONE') ||
+                          st.contains('DONE') ||
+                          st.contains('SUCCESS') ||
+                          st.contains('APPROV') ||
+                          st.contains('REJECT') ||
+                          st.contains('FAIL');
+                      if (isAlreadyProcessed) return const SizedBox.shrink();
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 12),
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(modalContext);
+                              _showVerifyModal(context, item);
+                            },
+                            icon: const Icon(Icons.verified_rounded,
+                                size: 16, color: Colors.white),
+                            label: const Text('VERIFY',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                      );
+                    },
+                  ),
                 ],
               ),
             ],
@@ -826,7 +893,8 @@ class _EmployeeRechargeVerificationWidgetState
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF14102B) : Colors.white,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(24)),
                   border: Border.all(
                     color: const Color(0xFF10B981).withValues(alpha: 0.4),
                     width: 1.5,
@@ -853,7 +921,8 @@ class _EmployeeRechargeVerificationWidgetState
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                              color: const Color(0xFF10B981)
+                                  .withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(
@@ -872,7 +941,9 @@ class _EmployeeRechargeVerificationWidgetState
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w900,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
                                   ),
                                 ),
                                 Text(
@@ -900,28 +971,36 @@ class _EmployeeRechargeVerificationWidgetState
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                          color:
+                              isDark ? Colors.white70 : const Color(0xFF475569),
                         ),
                       ),
                       const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF221F3D) : const Color(0xFFF8F7FF),
+                          color: isDark
+                              ? const Color(0xFF221F3D)
+                              : const Color(0xFFF8F7FF),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
+                            color: isDark
+                                ? const Color(0xFF332D4A)
+                                : const Color(0xFFE2E8F0),
                           ),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: selectedStatus,
                             isExpanded: true,
-                            dropdownColor: isDark ? const Color(0xFF221F3D) : Colors.white,
+                            dropdownColor:
+                                isDark ? const Color(0xFF221F3D) : Colors.white,
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
                             ),
                             onChanged: (val) {
                               if (val != null) {
@@ -944,7 +1023,8 @@ class _EmployeeRechargeVerificationWidgetState
                               ),
                               DropdownMenuItem(
                                 value: 'EMPLOYEE-REJECT',
-                                child: Text('Reject Recharge (EMPLOYEE-REJECT)'),
+                                child:
+                                    Text('Reject Recharge (EMPLOYEE-REJECT)'),
                               ),
                             ],
                           ),
@@ -958,28 +1038,35 @@ class _EmployeeRechargeVerificationWidgetState
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                          color:
+                              isDark ? Colors.white70 : const Color(0xFF475569),
                         ),
                       ),
                       const SizedBox(height: 6),
                       Container(
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF221F3D) : const Color(0xFFF8F7FF),
+                          color: isDark
+                              ? const Color(0xFF221F3D)
+                              : const Color(0xFFF8F7FF),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
+                            color: isDark
+                                ? const Color(0xFF332D4A)
+                                : const Color(0xFFE2E8F0),
                           ),
                         ),
                         child: TextField(
                           controller: utrController,
                           style: TextStyle(
                             fontSize: 13,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color:
+                                isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                           decoration: const InputDecoration(
                             hintText: 'Enter verified UTR number...',
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
                           ),
                         ),
                       ),
@@ -991,16 +1078,21 @@ class _EmployeeRechargeVerificationWidgetState
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                          color:
+                              isDark ? Colors.white70 : const Color(0xFF475569),
                         ),
                       ),
                       const SizedBox(height: 6),
                       Container(
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF221F3D) : const Color(0xFFF8F7FF),
+                          color: isDark
+                              ? const Color(0xFF221F3D)
+                              : const Color(0xFFF8F7FF),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
+                            color: isDark
+                                ? const Color(0xFF332D4A)
+                                : const Color(0xFFE2E8F0),
                           ),
                         ),
                         child: TextField(
@@ -1008,7 +1100,8 @@ class _EmployeeRechargeVerificationWidgetState
                           maxLines: 2,
                           style: TextStyle(
                             fontSize: 13,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color:
+                                isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                           decoration: const InputDecoration(
                             hintText: 'Enter employee note...',
@@ -1025,37 +1118,53 @@ class _EmployeeRechargeVerificationWidgetState
                         runSpacing: 4,
                         children: [
                           ActionChip(
-                            label: const Text('Payment Verified', style: TextStyle(fontSize: 11)),
-                            avatar: const Icon(Icons.check, size: 13, color: Color(0xFF10B981)),
+                            label: const Text('Payment Verified',
+                                style: TextStyle(fontSize: 11)),
+                            avatar: const Icon(Icons.check,
+                                size: 13, color: Color(0xFF10B981)),
                             onPressed: () {
                               setDialogState(() {
                                 selectedStatus = 'EMPLOYEE-DONE';
-                                remarkController.text = 'Payment verified and recharge approved.';
+                                remarkController.text =
+                                    'Payment verified and recharge approved.';
                               });
                             },
                           ),
                           ActionChip(
-                            label: const Text('UTR Mismatch', style: TextStyle(fontSize: 11)),
-                            avatar: const Icon(Icons.close, size: 13, color: Color(0xFFEF4444)),
+                            label: const Text('UTR Mismatch',
+                                style: TextStyle(fontSize: 11)),
+                            avatar: const Icon(Icons.close,
+                                size: 13, color: Color(0xFFEF4444)),
                             onPressed: () {
                               setDialogState(() {
                                 selectedStatus = 'EMPLOYEE-REJECT';
-                                remarkController.text = 'UTR / Transaction ID mismatch.';
+                                remarkController.text =
+                                    'UTR / Transaction ID mismatch.';
                               });
                             },
                           ),
                           ActionChip(
-                            label: const Text('Payment Not Received', style: TextStyle(fontSize: 11)),
-                            avatar: const Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFF59E0B)),
+                            label: const Text('Payment Not Received',
+                                style: TextStyle(fontSize: 11)),
+                            avatar: const Icon(Icons.warning_amber_rounded,
+                                size: 13, color: Color(0xFFF59E0B)),
                             onPressed: () {
                               setDialogState(() {
                                 selectedStatus = 'EMPLOYEE-REJECT';
-                                remarkController.text = 'Payment not received in bank account.';
+                                remarkController.text =
+                                    'Payment not received in bank account.';
                               });
                             },
                           ),
                         ],
                       ),
+                      // Payment proof preview if available
+                      if (item.imageUrl != null &&
+                          item.imageUrl!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _buildViewScreenshotButton(
+                            context, item.imageUrl!, isDark),
+                      ],
                       const SizedBox(height: 20),
 
                       // Submit buttons
@@ -1073,21 +1182,24 @@ class _EmployeeRechargeVerificationWidgetState
                               onPressed: isSubmitting
                                   ? null
                                   : () async {
-                                      final messenger = ScaffoldMessenger.of(context);
+                                      final messenger =
+                                          ScaffoldMessenger.of(context);
                                       setDialogState(() => isSubmitting = true);
 
                                       await provider.verifyRecharge(
                                         item: item,
                                         newStatus: selectedStatus,
                                         remark: remarkController.text.trim(),
-                                        transactionId: utrController.text.trim(),
+                                        transactionId:
+                                            utrController.text.trim(),
                                       );
 
                                       if (dialogContext.mounted) {
                                         Navigator.pop(dialogContext);
                                       }
 
-                                      final isApproved = selectedStatus == 'EMPLOYEE-DONE';
+                                      final isApproved =
+                                          selectedStatus == 'EMPLOYEE-DONE';
                                       messenger.showSnackBar(
                                         SnackBar(
                                           content: Text(
@@ -1101,9 +1213,10 @@ class _EmployeeRechargeVerificationWidgetState
                                       );
                                     },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: selectedStatus == 'EMPLOYEE-DONE'
-                                    ? const Color(0xFF10B981)
-                                    : const Color(0xFFEF4444),
+                                backgroundColor:
+                                    selectedStatus == 'EMPLOYEE-DONE'
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFEF4444),
                               ),
                               child: isSubmitting
                                   ? const SizedBox(
@@ -1203,6 +1316,193 @@ class _EmployeeRechargeVerificationWidgetState
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildViewScreenshotButton(
+      BuildContext context, String imageUrl, bool isDark) {
+    return InkWell(
+      onTap: () =>
+          _showImagePreviewDialog(context, imageUrl, 'Payment Screenshot'),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color:
+              const Color(0xFF6366F1).withValues(alpha: isDark ? 0.15 : 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.receipt_long_rounded,
+                size: 18,
+                color: Color(0xFF6366F1),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Click to View Payment Screenshot',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF6366F1),
+                    ),
+                  ),
+                  Text(
+                    'Tap to inspect full proof & zoom',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.open_in_new_rounded,
+              size: 16,
+              color: Color(0xFF6366F1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showImagePreviewDialog(
+      BuildContext context, String imageUrl, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 420),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF16122E) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color:
+                    isDark ? const Color(0xFF332D4A) : const Color(0xFFE2E8F0),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 10, 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.image_outlined,
+                          size: 20, color: Color(0xFF6366F1)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color:
+                                isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () => Navigator.pop(dialogCtx),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(20)),
+                    child: Container(
+                      color: isDark
+                          ? const Color(0xFF0F0B1E)
+                          : const Color(0xFFF8FAFC),
+                      constraints: const BoxConstraints(maxHeight: 450),
+                      width: double.infinity,
+                      child: InteractiveViewer(
+                        minScale: 0.5,
+                        maxScale: 4.0,
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(40),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.broken_image_rounded,
+                                      size: 40,
+                                      color: isDark
+                                          ? Colors.white30
+                                          : Colors.black26,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Failed to load image',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

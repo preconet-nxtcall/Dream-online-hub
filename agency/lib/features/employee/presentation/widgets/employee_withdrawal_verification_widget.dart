@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../../models/user/recharge_record_model.dart';
@@ -339,14 +340,16 @@ class _EmployeeWithdrawalVerificationWidgetState
     bool isDark,
   ) {
     final statusUpper = item.status.toUpperCase();
-    final isDone = statusUpper.contains('DONE') ||
+    final isDone = statusUpper == 'EMPLOYEE-DONE' ||
+        statusUpper == 'AGENCY-DONE' ||
+        statusUpper.contains('DONE') ||
         statusUpper.contains('SUCCESS') ||
-        statusUpper.contains('APPROVED');
+        statusUpper.contains('APPROV');
     final isReject = statusUpper.contains('REJECT') ||
-        statusUpper.contains('FAILED') ||
-        statusUpper.contains('DECLINED');
-    final isPassed = statusUpper.contains('EMPLOYEE-PASS');
-    final isPending = !isDone && !isReject;
+        statusUpper.contains('FAIL') ||
+        statusUpper.contains('DECLIN');
+    final isPassed = statusUpper == 'EMPLOYEE-PASS';
+    final isPending = !isDone && !isReject && !isPassed;
 
     final statusColor = isDone
         ? const Color(0xFF10B981)
@@ -445,10 +448,10 @@ class _EmployeeWithdrawalVerificationWidgetState
                       ),
                       child: Text(
                         isDone
-                            ? 'Approved'
+                            ? (statusUpper == 'AGENCY-DONE' ? 'Agency Completed' : 'Approved')
                             : (isReject
-                                ? 'Rejected'
-                                : (isPassed ? 'Employee Passed' : 'Pending Verification')),
+                                ? (statusUpper == 'AGENCY-REJECT' ? 'Agency Rejected' : 'Employee Rejected')
+                                : (isPassed ? 'Passed to Agency' : 'Pending Verification')),
                         style: TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w800,
@@ -618,7 +621,7 @@ class _EmployeeWithdrawalVerificationWidgetState
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Locked / Details',
+                                  'Locked & View',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
@@ -728,42 +731,14 @@ class _EmployeeWithdrawalVerificationWidgetState
                     const Divider(height: 16),
                     _buildModalRow('Withdraw Amount', '₹${item.amount.toStringAsFixed(2)}', isDark, isHighlight: true),
                     const Divider(height: 16),
-                    _buildModalRow('Bank & Payment Info', item.transactionDetails, isDark),
-                    const Divider(height: 16),
                     _buildModalRow('Date & Time', item.date, isDark),
                     const Divider(height: 16),
                     _buildModalRow('Status', item.status.toUpperCase(), isDark),
                   ],
                 ),
               ),
-              if (item.imageUrl != null && item.imageUrl!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'User QR / Bank Passbook Image:',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white70 : const Color(0xFF475569),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.network(
-                    item.imageUrl!,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 70,
-                      color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF1F5F9),
-                      child: const Center(
-                        child: Text('Image not available', style: TextStyle(fontSize: 12)),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              const SizedBox(height: 14),
+              _buildUserBankAccountCard(item, isDark),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -773,22 +748,33 @@ class _EmployeeWithdrawalVerificationWidgetState
                       child: const Text('CLOSE'),
                     ),
                   ),
-                  if (item.status.toUpperCase().contains('PENDING')) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(modalContext);
-                          _showVerifyModal(context, item);
-                        },
-                        icon: const Icon(Icons.verified_rounded, size: 16, color: Colors.white),
-                        label: const Text('VERIFY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF59E0B),
+                  Builder(
+                    builder: (context) {
+                      final st = item.status.toUpperCase();
+                      final isPending = st != 'EMPLOYEE-DONE' &&
+                          st != 'AGENCY-DONE' &&
+                          st != 'EMPLOYEE-REJECT' &&
+                          st != 'AGENCY-REJECT' &&
+                          st != 'EMPLOYEE-PASS';
+                      if (!isPending) return const SizedBox.shrink();
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 12),
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(modalContext);
+                              _showVerifyModal(context, item);
+                            },
+                            icon: const Icon(Icons.verified_rounded, size: 16, color: Colors.white),
+                            label: const Text('VERIFY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFF59E0B),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                      );
+                    },
+                  ),
                 ],
               ),
             ],
@@ -1176,6 +1162,306 @@ class _EmployeeWithdrawalVerificationWidgetState
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildUserBankAccountCard(RechargeRecordModel item, bool isDark) {
+    final hasBankInfo = (item.bankName != null && item.bankName!.isNotEmpty) ||
+        (item.accountNumber != null && item.accountNumber!.isNotEmpty) ||
+        (item.accountHolderName != null && item.accountHolderName!.isNotEmpty) ||
+        (item.ifscCode != null && item.ifscCode!.isNotEmpty) ||
+        (item.upiId != null && item.upiId!.isNotEmpty);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF16122E) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF3B82F6).withValues(alpha: isDark ? 0.4 : 0.3),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.account_balance_rounded,
+                  color: Color(0xFF3B82F6),
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'User Payout / Bank Details',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (item.accountHolderName != null && item.accountHolderName!.isNotEmpty) ...[
+            _buildCopyableDetailRow('A/C Holder', item.accountHolderName!, isDark, Icons.person_outline),
+            const Divider(height: 12),
+          ],
+          if (item.bankName != null && item.bankName!.isNotEmpty) ...[
+            _buildCopyableDetailRow('Bank Name', item.bankName!, isDark, Icons.account_balance_outlined),
+            const Divider(height: 12),
+          ],
+          if (item.accountNumber != null && item.accountNumber!.isNotEmpty) ...[
+            _buildCopyableDetailRow('A/C Number', item.accountNumber!, isDark, Icons.tag_rounded, canCopy: true),
+            const Divider(height: 12),
+          ],
+          if (item.ifscCode != null && item.ifscCode!.isNotEmpty) ...[
+            _buildCopyableDetailRow('IFSC Code', item.ifscCode!, isDark, Icons.qr_code_2_rounded, canCopy: true),
+            const Divider(height: 12),
+          ],
+          if (item.upiId != null && item.upiId!.isNotEmpty) ...[
+            _buildCopyableDetailRow('UPI ID / VPA', item.upiId!, isDark, Icons.alternate_email_rounded, canCopy: true, isHighlight: true),
+            const Divider(height: 12),
+          ],
+          if (!hasBankInfo) ...[
+            _buildCopyableDetailRow('Payment Details', item.transactionDetails, isDark, Icons.info_outline, canCopy: true),
+          ],
+          if (item.imageUrl != null && item.imageUrl!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildViewQrButton(item.imageUrl!, isDark),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCopyableDetailRow(
+    String label,
+    String value,
+    bool isDark,
+    IconData icon, {
+    bool canCopy = false,
+    bool isHighlight = false,
+  }) {
+    return Builder(
+      builder: (context) {
+        return Row(
+          children: [
+            Icon(icon, size: 14, color: isHighlight ? const Color(0xFF10B981) : const Color(0xFF64748B)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: isHighlight
+                      ? const Color(0xFF10B981)
+                      : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                ),
+              ),
+            ),
+            if (canCopy) ...[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: value));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Copied $label: $value'),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(
+                    Icons.copy_rounded,
+                    size: 13,
+                    color: Color(0xFF3B82F6),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildViewQrButton(String imageUrl, bool isDark) {
+    return Builder(
+      builder: (context) {
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showImagePreviewDialog(context, imageUrl, 'User QR / Bank Passbook', isDark),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF221F3D) : const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFF3B82F6).withValues(alpha: isDark ? 0.45 : 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: Color(0xFF3B82F6),
+                    size: 15,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Click to View QR Code / Passbook',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF1D4ED8),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  const Icon(
+                    Icons.open_in_new_rounded,
+                    size: 13,
+                    color: Color(0xFF3B82F6),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showImagePreviewDialog(BuildContext context, String imageUrl, String title, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF14102B) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.qr_code_2_rounded, color: Color(0xFF3B82F6), size: 18),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(dialogContext),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: InteractiveViewer(
+                    maxScale: 4.0,
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (_, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          height: 200,
+                          alignment: Alignment.center,
+                          child: const CircularProgressIndicator(strokeWidth: 2),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 120,
+                        alignment: Alignment.center,
+                        child: const Text('Image unavailable'),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('CLOSE PREVIEW', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

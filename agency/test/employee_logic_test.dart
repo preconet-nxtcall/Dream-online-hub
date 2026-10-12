@@ -106,7 +106,7 @@ void main() {
           bookName: 'SKYEXCHANGE',
           transactionDetails: 'Bank: SBI, Acc: 1076543210',
           amount: 10.0,
-          status: 'EMPLOYEE-PENDING',
+          status: 'EMPLOYEE-PASS',
           date: '09/25/2026',
           empId: '3',
           agencyId: '3',
@@ -143,30 +143,29 @@ void main() {
       // Agency scoped recharges: excludes Agency 1 (id: other_1)
       expect(provider.agencyScopedRecharges.length, 19);
 
-      // Successful recharges: strictly EMPLOYEE-DONE (10)
+      // Successful recharges: 10
       expect(provider.successfulRechargesCount, 10);
 
-      // Rejected recharges: strictly Option 1 EMPLOYEE-REJECT (1)
-      expect(provider.rejectedRechargesCount, 1);
+      // Rejected recharges: 9 (1 EMPLOYEE-REJECT + 8 AGENCY-REJECT)
+      expect(provider.rejectedRechargesCount, 9);
 
       // Pending recharges: 0
       expect(provider.pendingRechargesCount, 0);
 
-      // All active recharges count: 10 + 1 + 0 = 11
-      expect(provider.allRechargesCount, 11);
+      // All active recharges count: 10 + 9 + 0 = 19
+      expect(provider.allRechargesCount, 19);
 
-      // Filter: 'all' returns only employee relevant items (11)
+      // Filter: 'all' returns all 19 items
       provider.setRechargeFilter('all');
-      expect(provider.filteredRecharges.length, 11);
+      expect(provider.filteredRecharges.length, 19);
 
       // Filter: 'successful' returns 10
       provider.setRechargeFilter('successful');
       expect(provider.filteredRecharges.length, 10);
 
-      // Filter: 'rejected' returns 1
+      // Filter: 'rejected' returns 9
       provider.setRechargeFilter('rejected');
-      expect(provider.filteredRecharges.length, 1);
-      expect(provider.filteredRecharges.first.id, '16');
+      expect(provider.filteredRecharges.length, 9);
 
       // Filter: 'pending' returns 0
       provider.setRechargeFilter('pending');
@@ -243,7 +242,7 @@ void main() {
       expect(provider.filteredRecharges.length, 3);
 
       provider.searchRecharges('');
-      expect(provider.filteredRecharges.length, 11);
+      expect(provider.filteredRecharges.length, 19);
     });
   });
 }

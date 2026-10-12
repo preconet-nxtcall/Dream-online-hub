@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/constants/api_endpoints.dart';
 import '../../../../core/constants/storage_keys.dart';
 import '../../../../models/user/recharge_record_model.dart';
@@ -51,21 +52,38 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
     await _fetchBackendWithdrawals();
   }
 
-  Future<String> _resolveCurrentAgencyId() async {
-    if (widget.userId != null && widget.userId.toString().isNotEmpty) {
-      final digitsOnly = widget.userId.toString().replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) return digitsOnly;
-    }
+  Future<Set<String>> _resolveCurrentAgencyIdSet() async {
+    final ids = <String>{};
     final currentUser = LocalStorageRepositoryImpl().getUser();
-    if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-      final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) return digitsOnly;
+    if (currentUser != null) {
+      if (currentUser.id.isNotEmpty) {
+        ids.add(currentUser.id.trim());
+        final d = currentUser.id.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
+      if (currentUser.agencyId != null && currentUser.agencyId!.isNotEmpty) {
+        ids.add(currentUser.agencyId!.trim());
+        final d = currentUser.agencyId!.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
+      if (currentUser.agencyUnqId != null && currentUser.agencyUnqId!.isNotEmpty) {
+        ids.add(currentUser.agencyUnqId!.trim());
+        final d = currentUser.agencyUnqId!.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
     }
     final storedUserId = await SecureStorageService().read(StorageKeys.userId);
     if (storedUserId != null && storedUserId.isNotEmpty) {
-      final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) return digitsOnly;
+      ids.add(storedUserId.trim());
+      final d = storedUserId.replaceAll(RegExp(r'\D'), '');
+      if (d.isNotEmpty) ids.add(d);
     }
+    return ids;
+  }
+
+  Future<String> _resolveCurrentAgencyId() async {
+    final set = await _resolveCurrentAgencyIdSet();
+    if (set.isNotEmpty) return set.first;
     return '';
   }
 
@@ -77,13 +95,15 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
 
     try {
       final apiClient = ApiClient();
-      final currentAgencyId = await _resolveCurrentAgencyId();
+      final agencyIdSet = await _resolveCurrentAgencyIdSet();
+      final targetClientId = widget.userId?.toString().replaceAll(RegExp(r'\D'), '') ?? '';
 
       final response = await apiClient.post(
         ApiEndpoints.getQrCode,
         data: {
           'action': 'withdraw_records',
           'status_type': 'all',
+          if (targetClientId.isNotEmpty) 'user_id': targetClientId,
         },
       );
 
@@ -93,7 +113,6 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
           (data['status'] == 'success' || data['success'] == true || data['data'] != null || data['withdrawals'] != null)) {
         final List listData = [];
         final rawData = data['data'] ?? data['withdrawals'];
-
         if (rawData is List) {
           listData.addAll(rawData);
         } else if (rawData is Map<String, dynamic>) {
@@ -102,20 +121,40 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
           if (rawData['rejected'] is List) listData.addAll(rawData['rejected'] as List);
         }
 
+        final seenIds = <String>{};
         for (final item in listData) {
           if (item is Map<String, dynamic>) {
-            // Strict Agency Isolation: WHERE agency_id = '$app_u_id'
-            if (currentAgencyId.isNotEmpty) {
-              final itemEmpId = (item['agency_id'] ?? item['emp_id'])?.toString().replaceAll(RegExp(r'\D'), '');
-              if (itemEmpId != null && itemEmpId.isNotEmpty && itemEmpId != currentAgencyId && currentAgencyId != '1') {
+            // Agency Scoping: match logged-in agency if not empty
+            if (agencyIdSet.isNotEmpty) {
+              final rawEmpId = (item['agency_id'] ?? item['emp_id'])?.toString().trim();
+              final cleanEmpId = rawEmpId?.replaceAll(RegExp(r'\D'), '');
+              final matchesAgency = (rawEmpId != null && agencyIdSet.contains(rawEmpId)) ||
+                  (cleanEmpId != null && cleanEmpId.isNotEmpty && agencyIdSet.contains(cleanEmpId));
+              if (!matchesAgency) {
                 continue;
               }
             }
 
+            // Target Client Filtering
+            if (targetClientId.isNotEmpty) {
+              final itemUserId = (item['user_id'] ?? item['userId'])?.toString().replaceAll(RegExp(r'\D'), '');
+              if (itemUserId != null && itemUserId.isNotEmpty && itemUserId != targetClientId) {
+                continue;
+              }
+            }
+
+            final stageStatus = item['stage_status']?.toString() ?? 'EMPLOYEE-PASS';
+            final statusUpper = stageStatus.toUpperCase();
+            if (statusUpper == 'EMPLOYEE-PENDING' || statusUpper == 'PENDING') {
+              continue; // Matches agency-withdraw-req.php: raw requests only appear after EMPLOYEE-PASS
+            }
+
             final idStr = item['withdrawal_id']?.toString() ?? item['id']?.toString() ?? '#01';
             final formattedId = idStr.startsWith('#') ? idStr : '#$idStr';
+            if (seenIds.contains(formattedId)) continue;
+            seenIds.add(formattedId);
+
             final amountVal = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
-            final stageStatus = item['stage_status']?.toString() ?? 'EMPLOYEE-PENDING';
             final bookName = item['book_name']?.toString() ?? item['book']?.toString() ?? 'Official Portal';
             final userName = item['user_name']?.toString() ?? item['name']?.toString() ?? 'Client';
             final formattedDate = item['formatted_date']?.toString() ?? item['date']?.toString() ?? 'Just now';
@@ -146,6 +185,11 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
                 date: formattedDate,
                 imageUrl: item['image_url']?.toString() ?? item['image']?.toString(),
                 invoiceUrl: item['emp_agency_image_url']?.toString() ?? item['emp_agency_image']?.toString(),
+                accountHolderName: acHolder.isNotEmpty ? acHolder : null,
+                accountNumber: acNo.isNotEmpty ? acNo : null,
+                bankName: bankName.isNotEmpty ? bankName : null,
+                ifscCode: ifsc.isNotEmpty ? ifsc : null,
+                upiId: upi.isNotEmpty ? upi : null,
               ),
             );
           }
@@ -167,9 +211,31 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
     }
   }
 
+  Future<void> _markAsReadByAgency(String id) async {
+    try {
+      final rawId = id.replaceAll(RegExp(r'\D'), '');
+      if (rawId.isEmpty) return;
+      final apiClient = ApiClient();
+      final currentAgencyId = await _resolveCurrentAgencyId();
+
+      await apiClient.post(
+        ApiEndpoints.getQrCode,
+        data: {
+          'action': 'admin_withdraw_req_upd_status',
+          'edit_agency_withdraw_pending': 1,
+          'agency_read_status': 'READ',
+          'id': rawId,
+          'agency_id': currentAgencyId,
+          'read_only': 1,
+        },
+      );
+    } catch (_) {}
+  }
+
   // ─── View Withdrawal Details Modal ───────────────────────────────────────
   void _showViewDetailsModal(BuildContext context, RechargeRecordModel item) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    _markAsReadByAgency(item.id);
 
     showModalBottomSheet(
       context: context,
@@ -290,58 +356,8 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
                   ],
                 ),
               ),
-              if (item.imageUrl != null && item.imageUrl!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.image_outlined,
-                      size: 16,
-                      color: Color(0xFFF59E0B),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'User QR / Bank Passbook Image:',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white70 : const Color(0xFF475569),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF2E2756) : const Color(0xFFE2E8F0),
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Image.network(
-                      item.imageUrl!,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        height: 80,
-                        color: isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF1F5F9),
-                        child: Center(
-                          child: Text(
-                            'Image not available',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              const SizedBox(height: 14),
+              _buildUserBankAccountCard(item, isDark),
               const SizedBox(height: 20),
               Builder(
                 builder: (context) {
@@ -673,20 +689,31 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
                                         final remarkText = remarkController.text.trim();
                                         final transactionId = transactionIdController.text.trim();
                                         final currentAgencyId = await _resolveCurrentAgencyId();
+                                        final isSuccess = selectedStatus == 'AGENCY-DONE' || selectedStatus == 'EMPLOYEE-DONE';
+                                        final isReject = selectedStatus.contains('REJECT') || selectedStatus.contains('FAIL');
+                                        final dbStatus = isSuccess ? 'successful' : (isReject ? 'rejected' : 'pending');
 
-                                        await apiClient.post(
-                                          ApiEndpoints.getQrCode,
-                                          data: {
-                                            'action': 'edit_agency_withdraw_pending',
-                                            'edit_agency_withdraw_pending': 1,
-                                            'id': rawId,
-                                            'agency_id': currentAgencyId,
-                                            'amount': item.amount,
-                                            'stage_status': selectedStatus,
-                                            'transaction_id': transactionId,
-                                            'remark': remarkText,
-                                          },
-                                        );
+                                        // Primary api.php
+                                        try {
+                                          await apiClient.post(
+                                            ApiEndpoints.getQrCode,
+                                            data: {
+                                              'action': 'edit_agency_withdraw_pending',
+                                              'edit_agency_withdraw_pending': 1,
+                                              'edit_withdraw': 1,
+                                              'id': rawId,
+                                              'agency_id': currentAgencyId,
+                                              'amount': item.amount,
+                                              'status': dbStatus,
+                                              'stage_status': selectedStatus,
+                                              'agency_read_status': 'READ',
+                                              'transaction_id': transactionId,
+                                              'transection_id': transactionId,
+                                              'remark': remarkText,
+                                              'agency_remark': remarkText,
+                                            },
+                                          );
+                                        } catch (_) {}
                                       } catch (_) {}
 
                                       // Use dialogContext.mounted to check if the dialog is still alive
@@ -787,14 +814,315 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
     );
   }
 
+  Widget _buildUserBankAccountCard(RechargeRecordModel item, bool isDark) {
+    final hasBankInfo = (item.bankName != null && item.bankName!.isNotEmpty) ||
+        (item.accountNumber != null && item.accountNumber!.isNotEmpty) ||
+        (item.accountHolderName != null && item.accountHolderName!.isNotEmpty) ||
+        (item.ifscCode != null && item.ifscCode!.isNotEmpty) ||
+        (item.upiId != null && item.upiId!.isNotEmpty);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF16122E) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF3B82F6).withValues(alpha: isDark ? 0.4 : 0.3),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.account_balance_rounded,
+                  color: Color(0xFF3B82F6),
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'User Payout / Bank Details',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (item.accountHolderName != null && item.accountHolderName!.isNotEmpty) ...[
+            _buildCopyableDetailRow('A/C Holder', item.accountHolderName!, isDark, Icons.person_outline),
+            const Divider(height: 12),
+          ],
+          if (item.bankName != null && item.bankName!.isNotEmpty) ...[
+            _buildCopyableDetailRow('Bank Name', item.bankName!, isDark, Icons.account_balance_outlined),
+            const Divider(height: 12),
+          ],
+          if (item.accountNumber != null && item.accountNumber!.isNotEmpty) ...[
+            _buildCopyableDetailRow('A/C Number', item.accountNumber!, isDark, Icons.tag_rounded, canCopy: true),
+            const Divider(height: 12),
+          ],
+          if (item.ifscCode != null && item.ifscCode!.isNotEmpty) ...[
+            _buildCopyableDetailRow('IFSC Code', item.ifscCode!, isDark, Icons.qr_code_2_rounded, canCopy: true),
+            const Divider(height: 12),
+          ],
+          if (item.upiId != null && item.upiId!.isNotEmpty) ...[
+            _buildCopyableDetailRow('UPI ID / VPA', item.upiId!, isDark, Icons.alternate_email_rounded, canCopy: true, isHighlight: true),
+            const Divider(height: 12),
+          ],
+          if (!hasBankInfo) ...[
+            _buildCopyableDetailRow('Payment Details', item.transactionDetails, isDark, Icons.info_outline, canCopy: true),
+          ],
+          if (item.imageUrl != null && item.imageUrl!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildViewQrButton(item.imageUrl!, isDark),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewQrButton(String imageUrl, bool isDark) {
+    return Builder(
+      builder: (context) {
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showImagePreviewDialog(context, imageUrl, 'User QR / Bank Passbook', isDark),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF221F3D) : const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFF3B82F6).withValues(alpha: isDark ? 0.45 : 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: Color(0xFF3B82F6),
+                    size: 15,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Click to View QR Code / Passbook',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF1D4ED8),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  const Icon(
+                    Icons.open_in_new_rounded,
+                    size: 13,
+                    color: Color(0xFF3B82F6),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showImagePreviewDialog(BuildContext context, String imageUrl, String title, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF14102B) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.qr_code_2_rounded, color: Color(0xFF3B82F6), size: 18),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(dialogContext),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: InteractiveViewer(
+                    maxScale: 4.0,
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (_, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          height: 200,
+                          alignment: Alignment.center,
+                          child: const CircularProgressIndicator(strokeWidth: 2),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 120,
+                        alignment: Alignment.center,
+                        child: const Text('Image unavailable'),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('CLOSE PREVIEW', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCopyableDetailRow(
+    String label,
+    String value,
+    bool isDark,
+    IconData icon, {
+    bool canCopy = false,
+    bool isHighlight = false,
+  }) {
+    return Builder(
+      builder: (context) {
+        return Row(
+          children: [
+            Icon(icon, size: 14, color: isHighlight ? const Color(0xFF10B981) : const Color(0xFF64748B)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: isHighlight
+                      ? const Color(0xFF10B981)
+                      : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                ),
+              ),
+            ),
+            if (canCopy) ...[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: value));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Copied $label: $value'),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(
+                    Icons.copy_rounded,
+                    size: 13,
+                    color: Color(0xFF3B82F6),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
   List<RechargeRecordModel> get _filteredRecords {
     return _records.where((record) {
       if (_selectedStatusFilter != 'all') {
-        final statusLower = record.status.toLowerCase();
-        final isDone = statusLower.contains('done') || statusLower.contains('successful') || statusLower.contains('approved');
-        final isReject = statusLower.contains('reject') || statusLower.contains('failed') || statusLower.contains('declined');
+        final statusUpper = record.status.toUpperCase();
+        final isDone = statusUpper == 'AGENCY-DONE' || statusUpper == 'EMPLOYEE-DONE' || statusUpper == 'SUCCESSFUL' || statusUpper == 'APPROVED';
+        final isReject = statusUpper.contains('REJECT') || statusUpper.contains('FAIL') || statusUpper.contains('DECLIN');
+        final isPending = !isDone && !isReject;
 
-        if (_selectedStatusFilter == 'pending' && (isDone || isReject)) {
+        if (_selectedStatusFilter == 'pending' && !isPending) {
           return false;
         } else if (_selectedStatusFilter == 'successful' && !isDone) {
           return false;
@@ -1332,24 +1660,25 @@ class WithdrawalRequestsWidgetState extends State<WithdrawalRequestsWidget> {
                                   children: [
                                     Builder(
                                       builder: (context) {
-                                        final statusLower = item.status.toLowerCase();
-                                        final isDone = statusLower.contains('done') ||
-                                            statusLower.contains('successful') ||
-                                            statusLower.contains('approved');
-                                        final isReject = statusLower.contains('reject') ||
-                                            statusLower.contains('failed') ||
-                                            statusLower.contains('declined');
+                                        final stUpper = item.status.toUpperCase();
+                                        final isDone = stUpper == 'AGENCY-DONE' || stUpper == 'EMPLOYEE-DONE' || stUpper == 'SUCCESSFUL' || stUpper == 'APPROVED';
+                                        final isPassed = stUpper == 'EMPLOYEE-PASS';
+                                        final isReject = stUpper.contains('REJECT') || stUpper.contains('FAIL') || stUpper.contains('DECLIN');
 
                                         String displayLabel = 'PENDING';
                                         Color badgeFg = const Color(0xFFD97706);
-                                        Color badgeBg = const Color(0xFFFFF7ED);
+                                        Color badgeBg = isDark ? const Color(0xFF332A15) : const Color(0xFFFFF7ED);
 
                                         if (isDone) {
                                           displayLabel = 'SUCCESSFUL';
                                           badgeFg = const Color(0xFF10B981);
                                           badgeBg = isDark ? const Color(0xFF14382B) : const Color(0xFFE6F7ED);
+                                        } else if (isPassed) {
+                                          displayLabel = 'PASSED TO AGENCY';
+                                          badgeFg = const Color(0xFF3B82F6);
+                                          badgeBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF);
                                         } else if (isReject) {
-                                          displayLabel = 'REJECTED';
+                                          displayLabel = stUpper.contains('AGENCY') ? 'AGENCY REJECT' : 'EMPLOYEE REJECT';
                                           badgeFg = const Color(0xFFEF4444);
                                           badgeBg = isDark ? const Color(0xFF381418) : const Color(0xFFFEE2E2);
                                         } else {

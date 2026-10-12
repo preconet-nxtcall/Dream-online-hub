@@ -139,6 +139,12 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
                 invoiceUrl: item['emp_agency_image_url']?.toString() ?? item['emp_agency_image']?.toString(),
                 agencyId: item['agency_id']?.toString(),
                 empId: item['emp_id']?.toString(),
+                accountHolderName: acHolder.isNotEmpty ? acHolder : null,
+                accountNumber: acNo.isNotEmpty ? acNo : null,
+                bankName: bankName.isNotEmpty ? bankName : null,
+                ifscCode: ifsc.isNotEmpty ? ifsc : null,
+                upiId: upi.isNotEmpty ? upi : null,
+                userId: item['user_id']?.toString() ?? item['userId']?.toString(),
               ),
             );
           }
@@ -161,29 +167,32 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
   }) async {
     try {
       final rawId = id.replaceAll(RegExp(r'\D'), '');
-      final response = await _apiClient.post(
+      final isSuccess = status == 'EMPLOYEE-DONE' || status == 'AGENCY-DONE' || status == 'successful' || status == 'APPROVED';
+      final isReject = status.contains('REJECT') || status.contains('FAIL');
+      final dbStatus = isSuccess ? 'successful' : (isReject ? 'rejected' : 'pending');
+
+      final payload = {
+        'action': 'edit_recharge',
+        'edit_recharge': 1,
+        'edit_emp_recharge_pending': 1,
+        'id': rawId,
+        'status': dbStatus,
+        'stage_status': status,
+        'employee_remark': remark,
+        'remark': remark,
+        if (transactionId != null && transactionId.isNotEmpty)
+          'transection_id': transactionId,
+      };
+
+      await _apiClient.post(
         ApiEndpoints.getQrCode,
-        data: {
-          'action': 'edit_recharge',
-          'edit_recharge': 1,
-          'edit_emp_recharge_pending': 1,
-          'id': rawId,
-          'stage_status': status,
-          'employee_remark': remark,
-          'remark': remark,
-          if (transactionId != null && transactionId.isNotEmpty)
-            'transection_id': transactionId,
-        },
+        data: payload,
       );
 
-      final data = response.data;
-      if (data is Map<String, dynamic> && data['success'] == true) {
-        return true;
-      }
       return true;
     } catch (e) {
       AppLogger.error('EmployeeRepository verifyRecharge error: $e');
-      return true; // Graceful optimistic update
+      throw ServerException(message: 'Failed to verify recharge: $e');
     }
   }
 
@@ -196,30 +205,33 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
   }) async {
     try {
       final rawId = id.replaceAll(RegExp(r'\D'), '');
-      final response = await _apiClient.post(
+      final isSuccess = status == 'AGENCY-DONE' || status == 'EMPLOYEE-DONE';
+      final isReject = status.contains('REJECT') || status.contains('FAIL');
+      final dbStatus = isSuccess ? 'successful' : (isReject ? 'rejected' : 'pending');
+
+      final payload = {
+        'action': 'edit_agency_withdraw_pending',
+        'edit_agency_withdraw_pending': 1,
+        'edit_emp_withdraw_pending': 1,
+        'edit_withdraw': 1,
+        'id': rawId,
+        'status': dbStatus,
+        'stage_status': status,
+        'employee_remark': remark,
+        'remark': remark,
+        if (transactionId != null && transactionId.isNotEmpty)
+          'transaction_id': transactionId,
+      };
+
+      await _apiClient.post(
         ApiEndpoints.getQrCode,
-        data: {
-          'action': 'edit_agency_withdraw_pending',
-          'edit_agency_withdraw_pending': 1,
-          'edit_emp_withdraw_pending': 1,
-          'edit_withdraw': 1,
-          'id': rawId,
-          'stage_status': status,
-          'employee_remark': remark,
-          'remark': remark,
-          if (transactionId != null && transactionId.isNotEmpty)
-            'transaction_id': transactionId,
-        },
+        data: payload,
       );
 
-      final data = response.data;
-      if (data is Map<String, dynamic> && data['success'] == true) {
-        return true;
-      }
       return true;
     } catch (e) {
       AppLogger.error('EmployeeRepository verifyWithdrawal error: $e');
-      return true; // Graceful optimistic update
+      throw ServerException(message: 'Failed to verify withdrawal: $e');
     }
   }
 }

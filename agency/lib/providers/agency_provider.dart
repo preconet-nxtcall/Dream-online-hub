@@ -26,6 +26,8 @@ class AgencyProvider extends ChangeNotifier {
 
   int _totalRechargeRequestsCount = 0;
   int _pendingRechargeRequestsCount = 0;
+  int _totalWithdrawRequestsCount = 0;
+  int _pendingWithdrawRequestsCount = 0;
   bool _hasSeenNotifications = false;
 
   AgencyProvider({
@@ -36,11 +38,15 @@ class AgencyProvider extends ChangeNotifier {
 
   int get totalRechargeRequestsCount => _totalRechargeRequestsCount;
   int get pendingRechargeRequestsCount => _pendingRechargeRequestsCount;
+  int get totalWithdrawRequestsCount => _totalWithdrawRequestsCount;
+  int get pendingWithdrawRequestsCount => _pendingWithdrawRequestsCount;
+  int get totalRequestsCount => _totalRechargeRequestsCount + _totalWithdrawRequestsCount;
+  int get totalPendingRequestsCount => _pendingRechargeRequestsCount + _pendingWithdrawRequestsCount;
   bool get hasSeenNotifications => _hasSeenNotifications;
 
   int get unseenNotificationCount {
     if (_hasSeenNotifications) return 0;
-    return _pendingRechargeRequestsCount;
+    return _pendingRechargeRequestsCount + _pendingWithdrawRequestsCount;
   }
 
   List<AgencyUserItem> get users => _users;
@@ -111,14 +117,11 @@ class AgencyProvider extends ChangeNotifier {
       _hasMore = fetchedUsers.length >= _limit;
       await _localStorage.saveRecentChats(_users);
 
-      // Async fetch agency live recharge statistics from database
+      // Async fetch agency live recharge & withdrawal statistics from database
       unawaited(fetchRechargeStats());
     } catch (e) {
       _errorMessage = 'Failed to load agency users. Tap to retry.';
-      final cached = _localStorage.getCachedRecentChats();
-      if (cached.isNotEmpty) {
-        _users = cached;
-      }
+      _users = [];
     } finally {
       _isLoading = false;
       _isRefreshing = false;
@@ -126,66 +129,145 @@ class AgencyProvider extends ChangeNotifier {
     }
   }
 
-  /// Fetch live agency recharge statistics from database
+  /// Fetch live agency recharge & withdrawal statistics with strict agency isolation
   Future<void> fetchRechargeStats() async {
     try {
       final apiClient = ApiClient();
-      final response = await apiClient.post(
-        ApiEndpoints.getQrCode,
-        data: {
-          'action': 'recharge_records',
-        },
-      );
+      final currentUser = _localStorage.getUser();
+      final agencyIdSet = <String>{};
 
-      final data = response.data;
-      if (data is Map<String, dynamic> && (data['success'] == true || data['status'] == 'success' || data['data'] != null)) {
-        final List rawList = [];
-        final rawData = data['data'];
-        if (rawData is List) {
-          rawList.addAll(rawData);
-        } else if (rawData is Map<String, dynamic>) {
-          if (rawData['pending'] is List) rawList.addAll(rawData['pending'] as List);
-          if (rawData['successful'] is List) rawList.addAll(rawData['successful'] as List);
-          if (rawData['rejected'] is List) rawList.addAll(rawData['rejected'] as List);
-        } else if (data['recharges'] is List) {
-          rawList.addAll(data['recharges'] as List);
+      if (currentUser != null) {
+        if (currentUser.id.isNotEmpty) {
+          agencyIdSet.add(currentUser.id.trim());
+          final cleanId = currentUser.id.replaceAll(RegExp(r'\D'), '');
+          if (cleanId.isNotEmpty) agencyIdSet.add(cleanId);
+        }
+        if (currentUser.agencyId != null && currentUser.agencyId!.isNotEmpty) {
+          agencyIdSet.add(currentUser.agencyId!.trim());
+          final cleanAg = currentUser.agencyId!.replaceAll(RegExp(r'\D'), '');
+          if (cleanAg.isNotEmpty) agencyIdSet.add(cleanAg);
+        }
+        if (currentUser.agencyUnqId != null && currentUser.agencyUnqId!.isNotEmpty) {
+          agencyIdSet.add(currentUser.agencyUnqId!.trim());
+          final cleanUnq = currentUser.agencyUnqId!.replaceAll(RegExp(r'\D'), '');
+          if (cleanUnq.isNotEmpty) agencyIdSet.add(cleanUnq);
+        }
+      }
+
+      List<dynamic> extractRawList(dynamic data) {
+        final List raw = [];
+        if (data is Map<String, dynamic>) {
+          final rawData = data['data'];
+          if (rawData is List) {
+            raw.addAll(rawData);
+          } else if (rawData is Map<String, dynamic>) {
+            if (rawData['pending'] is List) raw.addAll(rawData['pending'] as List);
+            if (rawData['successful'] is List) raw.addAll(rawData['successful'] as List);
+            if (rawData['rejected'] is List) raw.addAll(rawData['rejected'] as List);
+          } else if (data['recharges'] is List) {
+            raw.addAll(data['recharges'] as List);
+          } else if (data['withdrawals'] is List) {
+            raw.addAll(data['withdrawals'] as List);
+          } else if (data['categorized'] is Map) {
+            final cat = data['categorized'] as Map;
+            if (cat['pending'] is List) raw.addAll(cat['pending'] as List);
+            if (cat['successful'] is List) raw.addAll(cat['successful'] as List);
+            if (cat['rejected'] is List) raw.addAll(cat['rejected'] as List);
+          }
+        } else if (data is List) {
+          raw.addAll(data);
         }
 
-        final currentUser = _localStorage.getUser();
-        final currentAgencyId = (currentUser?.agencyId != null && currentUser!.agencyId!.isNotEmpty)
-            ? currentUser.agencyId!.replaceAll(RegExp(r'\D'), '')
-            : (currentUser?.id != null ? currentUser!.id.replaceAll(RegExp(r'\D'), '') : '');
-
-        final agencyList = rawList.where((item) {
-          if (item is! Map<String, dynamic>) return false;
-          if (currentAgencyId.isNotEmpty) {
-            final itemEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().replaceAll(RegExp(r'\D'), '');
-            if (itemEmpId != null && itemEmpId.isNotEmpty && itemEmpId != currentAgencyId) {
-              return false;
+        // Deduplicate records by unique ID to guarantee exact database count
+        final seenIds = <String>{};
+        final List deduplicated = [];
+        for (final item in raw) {
+          if (item is Map<String, dynamic>) {
+            final id = (item['id'] ?? item['recharge_id'] ?? item['withdrawal_id'])?.toString();
+            if (id != null && id.isNotEmpty) {
+              if (seenIds.contains(id)) continue;
+              seenIds.add(id);
             }
+          }
+          deduplicated.add(item);
+        }
+        return deduplicated;
+      }
+
+      dynamic rechargeData;
+      dynamic withdrawData;
+
+      try {
+        final res = await apiClient.post(
+          ApiEndpoints.getQrCode,
+          data: {'action': 'recharge_records', 'status_type': 'all'},
+        );
+        rechargeData = res.data;
+      } catch (_) {}
+
+      try {
+        final res = await apiClient.post(
+          ApiEndpoints.getQrCode,
+          data: {'action': 'withdraw_records', 'status_type': 'all'},
+        );
+        withdrawData = res.data;
+      } catch (_) {}
+
+      // 1. Process Recharges strictly for this agency ID
+      if (rechargeData != null) {
+        final rawRecharges = extractRawList(rechargeData);
+        final agencyRecharges = rawRecharges.where((item) {
+          if (item is! Map<String, dynamic>) return false;
+          if (agencyIdSet.isNotEmpty) {
+            final rEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().trim();
+            if (rEmpId == null || rEmpId.isEmpty) return false;
+            final rEmpClean = rEmpId.replaceAll(RegExp(r'\D'), '');
+            return agencyIdSet.contains(rEmpId) || (rEmpClean.isNotEmpty && agencyIdSet.contains(rEmpClean));
           }
           return true;
         }).toList();
 
-        _totalRechargeRequestsCount = agencyList.length;
-        final newPendingCount = agencyList.where((item) {
-          final status = (item['stage_status'] ?? item['status'] ?? item['stage'] ?? '').toString().trim().toLowerCase();
-          return status.contains('pending') ||
+        _totalRechargeRequestsCount = agencyRecharges.length;
+        _pendingRechargeRequestsCount = agencyRecharges.where((item) {
+          final status = (item['stage_status'] ?? item['status'] ?? item['stage'] ?? '').toString().trim().toUpperCase();
+          return status.contains('PENDING') ||
               status == '0' ||
-              status == 'created' ||
-              status == 'submitted' ||
-              status.contains('progress') ||
-              status == 'new';
+              status == 'CREATED' ||
+              status == 'SUBMITTED' ||
+              status.contains('PROGRESS') ||
+              status == 'NEW';
         }).length;
-
-        if (newPendingCount > _pendingRechargeRequestsCount) {
-          _hasSeenNotifications = false;
-        }
-        _pendingRechargeRequestsCount = newPendingCount;
-        notifyListeners();
       }
+
+      // 2. Process Withdrawals strictly for this agency ID
+      if (withdrawData != null) {
+        final rawWithdraws = extractRawList(withdrawData);
+        final agencyWithdraws = rawWithdraws.where((item) {
+          if (item is! Map<String, dynamic>) return false;
+          if (agencyIdSet.isNotEmpty) {
+            final wEmpId = (item['agency_id'] ?? item['emp_id'])?.toString().trim();
+            if (wEmpId == null || wEmpId.isEmpty) return false;
+            final wEmpClean = wEmpId.replaceAll(RegExp(r'\D'), '');
+            return agencyIdSet.contains(wEmpId) || (wEmpClean.isNotEmpty && agencyIdSet.contains(wEmpClean));
+          }
+          return true;
+        }).toList();
+
+        _totalWithdrawRequestsCount = agencyWithdraws.length;
+        _pendingWithdrawRequestsCount = agencyWithdraws.where((item) {
+          final status = (item['stage_status'] ?? item['status'] ?? item['stage'] ?? '').toString().trim().toUpperCase();
+          return status.contains('PENDING') ||
+              status == 'EMPLOYEE-PENDING' ||
+              status == 'AGENCY-PENDING' ||
+              status == '0' ||
+              status == 'CREATED' ||
+              status == 'SUBMITTED';
+        }).length;
+      }
+
+      notifyListeners();
     } catch (_) {
-      // Keep existing count or leave as 0
+      // Keep existing count on error
     }
   }
 

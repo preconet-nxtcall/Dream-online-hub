@@ -27,6 +27,10 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   int _currentNavIndex = 0; // 0: Dashboard, 1: Recharge Requests, 2: Withdraw Requests, 3: Profile
+  final GlobalKey<WithdrawalRequestsWidgetState> _withdrawalRequestsKey =
+      GlobalKey<WithdrawalRequestsWidgetState>();
+  final GlobalKey<ApprovedRechargeWidgetState> _approvedRechargeKey =
+      GlobalKey<ApprovedRechargeWidgetState>();
 
   @override
   void initState() {
@@ -193,7 +197,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Quick Action Buttons Row: [ Recharge Requests ] & [ Withdraw Requests ]
-                _buildQuickActionButtonsRow(isDark),
+                _buildQuickActionButtonsRow(isDark, agencyProvider),
                 const SizedBox(height: 14),
 
                 // Search Input & Filter Button Row
@@ -347,10 +351,21 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
             ],
           ),
         ),
-        const Expanded(
-          child: SingleChildScrollView(
-            physics: BouncingScrollPhysics(),
-            child: ApprovedRechargeWidget(),
+        Expanded(
+          child: RefreshIndicator(
+            color: const Color(0xFF10B981),
+            onRefresh: () async {
+              await _approvedRechargeKey.currentState?.refreshRecords();
+              if (mounted) {
+                await context.read<AgencyProvider>().fetchUsers(isRefresh: true);
+              }
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              child: ApprovedRechargeWidget(key: _approvedRechargeKey),
+            ),
           ),
         ),
       ],
@@ -421,10 +436,21 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
             ],
           ),
         ),
-        const Expanded(
-          child: SingleChildScrollView(
-            physics: BouncingScrollPhysics(),
-            child: WithdrawalRequestsWidget(),
+        Expanded(
+          child: RefreshIndicator(
+            color: const Color(0xFFF59E0B),
+            onRefresh: () async {
+              await _withdrawalRequestsKey.currentState?.refreshRecords();
+              if (mounted) {
+                await context.read<AgencyProvider>().fetchUsers(isRefresh: true);
+              }
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              child: WithdrawalRequestsWidget(key: _withdrawalRequestsKey),
+            ),
           ),
         ),
       ],
@@ -432,7 +458,10 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   }
 
   // ─── QUICK ACTION BUTTONS ROW ─────────────────────────────────────────────
-  Widget _buildQuickActionButtonsRow(bool isDark) {
+  Widget _buildQuickActionButtonsRow(bool isDark, AgencyProvider agencyProvider) {
+    final pendingRechargeCount = agencyProvider.pendingRechargeRequestsCount;
+    final pendingWithdrawCount = agencyProvider.pendingWithdrawRequestsCount;
+
     return Row(
       children: [
         // Recharge Requests Button
@@ -473,6 +502,24 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (pendingRechargeCount > 0) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$pendingRechargeCount',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -518,6 +565,24 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (pendingWithdrawCount > 0) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$pendingWithdrawCount',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1430,7 +1495,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
   // ─── Floating Stat Summary Card ────────────────────────────────────────────
   Widget _buildFloatingStatCard(AgencyProvider provider, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1B1836) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -1444,21 +1509,21 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
       ),
       child: Row(
         children: [
-          // Total Clients Stat
+          // 1. Total Clients Stat
           _buildMetricColumn(
             icon: Icons.people_rounded,
             iconBg: isDark ? const Color(0xFF26214C) : const Color(0xFFEEF2FF),
             iconColor: const Color(0xFF6366F1),
             value: '${provider.users.length}',
-            label: 'Total',
+            label: 'Clients',
             isDark: isDark,
             onTap: () {
               provider.setFilter(AgencyUserFilterTab.all);
             },
           ),
-          Container(width: 1, height: 28, color: Colors.grey.withValues(alpha: 0.15)),
+          Container(width: 1, height: 24, color: Colors.grey.withValues(alpha: 0.15)),
 
-          // Online Clients Stat
+          // 2. Online Clients Stat
           _buildMetricColumn(
             icon: Icons.wifi_rounded,
             iconBg: isDark ? const Color(0xFF173827) : const Color(0xFFECFDF5),
@@ -1470,20 +1535,32 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
               provider.setFilter(AgencyUserFilterTab.online);
             },
           ),
-          Container(width: 1, height: 28, color: Colors.grey.withValues(alpha: 0.15)),
+          Container(width: 1, height: 24, color: Colors.grey.withValues(alpha: 0.15)),
 
-          // Requests Stat (Total Database Recharge Requests)
+          // 3. Recharge Requests Stat (For this Agency ID)
           _buildMetricColumn(
             icon: Icons.receipt_long_rounded,
-            iconBg: isDark ? const Color(0xFF382A15) : const Color(0xFFFFF7ED),
-            iconColor: const Color(0xFFF59E0B),
+            iconBg: isDark ? const Color(0xFF173827) : const Color(0xFFECFDF5),
+            iconColor: const Color(0xFF10B981),
             value: '${provider.totalRechargeRequestsCount}',
-            label: 'Requests',
+            label: 'Recharges',
             isDark: isDark,
             onTap: () {
-              setState(() {
-                _currentNavIndex = 1;
-              });
+              setState(() => _currentNavIndex = 1);
+            },
+          ),
+          Container(width: 1, height: 24, color: Colors.grey.withValues(alpha: 0.15)),
+
+          // 4. Withdraw Requests Stat (For this Agency ID)
+          _buildMetricColumn(
+            icon: Icons.account_balance_wallet_rounded,
+            iconBg: isDark ? const Color(0xFF382A15) : const Color(0xFFFFF7ED),
+            iconColor: const Color(0xFFF59E0B),
+            value: '${provider.totalWithdrawRequestsCount}',
+            label: 'Withdraws',
+            isDark: isDark,
+            onTap: () {
+              setState(() => _currentNavIndex = 2);
             },
           ),
         ],
@@ -1505,20 +1582,20 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
                   color: iconBg,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: iconColor, size: icon == Icons.circle ? 11 : 16),
+                child: Icon(icon, color: iconColor, size: 13),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               Flexible(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1530,7 +1607,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                       child: Text(
                         value,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w900,
                           color: isDark ? Colors.white : const Color(0xFF0F172A),
                         ),
@@ -1539,10 +1616,10 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
                     Text(
                       label,
                       style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
                         color: isDark
-                            ? Colors.white.withValues(alpha: 0.5)
+                            ? Colors.white.withValues(alpha: 0.6)
                             : const Color(0xFF64748B),
                       ),
                       maxLines: 1,

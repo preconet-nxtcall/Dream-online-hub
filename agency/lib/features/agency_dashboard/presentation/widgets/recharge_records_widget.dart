@@ -80,18 +80,33 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
 
 
-  Future<String> _resolveCurrentAgencyId() async {
+  Future<Set<String>> _resolveCurrentAgencyIdSet() async {
+    final ids = <String>{};
     final currentUser = LocalStorageRepositoryImpl().getUser();
-    if (currentUser?.id != null && currentUser!.id.isNotEmpty) {
-      final digitsOnly = currentUser.id.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) return digitsOnly;
+    if (currentUser != null) {
+      if (currentUser.id.isNotEmpty) {
+        ids.add(currentUser.id.trim());
+        final d = currentUser.id.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
+      if (currentUser.agencyId != null && currentUser.agencyId!.isNotEmpty) {
+        ids.add(currentUser.agencyId!.trim());
+        final d = currentUser.agencyId!.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
+      if (currentUser.agencyUnqId != null && currentUser.agencyUnqId!.isNotEmpty) {
+        ids.add(currentUser.agencyUnqId!.trim());
+        final d = currentUser.agencyUnqId!.replaceAll(RegExp(r'\D'), '');
+        if (d.isNotEmpty) ids.add(d);
+      }
     }
     final storedUserId = await SecureStorageService().read(StorageKeys.userId);
     if (storedUserId != null && storedUserId.isNotEmpty) {
-      final digitsOnly = storedUserId.replaceAll(RegExp(r'\D'), '');
-      if (digitsOnly.isNotEmpty) return digitsOnly;
+      ids.add(storedUserId.trim());
+      final d = storedUserId.replaceAll(RegExp(r'\D'), '');
+      if (d.isNotEmpty) ids.add(d);
     }
-    return '';
+    return ids;
   }
 
   Future<void> _fetchBackendRecords({bool silent = false}) async {
@@ -101,7 +116,7 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
       }
 
       final apiClient = ApiClient();
-      final currentAgencyId = await _resolveCurrentAgencyId();
+      final agencyIdSet = await _resolveCurrentAgencyIdSet();
       final targetClientId = widget.userId?.toString().replaceAll(RegExp(r'\D'), '') ?? '';
 
       final List<RechargeRecordModel> fetched = [];
@@ -137,13 +152,17 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           }
         }
 
+        final seenRechargeIds = <String>{};
         for (final item in rawList) {
           if (item is Map<String, dynamic>) {
-            // 1. Strict Agency Isolation: match logged-in agency emp_id
-            if (currentAgencyId.isNotEmpty) {
-              final itemEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().replaceAll(RegExp(r'\D'), '');
-              if (itemEmpId != null && itemEmpId.isNotEmpty && itemEmpId != currentAgencyId) {
-                continue; // Skip records assigned to another agency!
+            // 1. Strict Agency Isolation: match logged-in agency emp_id / agency_id
+            if (agencyIdSet.isNotEmpty) {
+              final rawEmpId = (item['emp_id'] ?? item['agency_id'])?.toString().trim();
+              final cleanEmpId = rawEmpId?.replaceAll(RegExp(r'\D'), '');
+              final matchesAgency = (rawEmpId != null && agencyIdSet.contains(rawEmpId)) ||
+                  (cleanEmpId != null && cleanEmpId.isNotEmpty && agencyIdSet.contains(cleanEmpId));
+              if (!matchesAgency) {
+                continue; // Skip records not belonging to this agency
               }
             }
 
@@ -158,6 +177,10 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
 
           final idVal = item['recharge_id'] ?? item['id'] ?? '';
           final idStr = idVal.toString();
+          if (idStr.isNotEmpty) {
+            if (seenRechargeIds.contains(idStr)) continue;
+            seenRechargeIds.add(idStr);
+          }
           final bookIdVal = item['book_id']?.toString();
           final rawBookName = item['book_name']?.toString() ?? item['book']?.toString();
 
@@ -232,9 +255,34 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
           }
         }
 
+        final seenWithdrawIds = <String>{};
         for (final item in rawWithdrawList) {
+          if (item is Map<String, dynamic>) {
+            // Strict Agency Isolation: match logged-in agency
+            if (agencyIdSet.isNotEmpty) {
+              final rawAgencyId = (item['agency_id'] ?? item['emp_id'])?.toString().trim();
+              final cleanAgencyId = rawAgencyId?.replaceAll(RegExp(r'\D'), '');
+              final matchesAgency = (rawAgencyId != null && agencyIdSet.contains(rawAgencyId)) ||
+                  (cleanAgencyId != null && cleanAgencyId.isNotEmpty && agencyIdSet.contains(cleanAgencyId));
+              if (!matchesAgency) {
+                continue; // Skip records assigned to other agencies!
+              }
+            }
+
+            if (targetClientId.isNotEmpty) {
+              final itemUserId = (item['user_id'] ?? item['userId'])?.toString().replaceAll(RegExp(r'\D'), '');
+              if (itemUserId != null && itemUserId.isNotEmpty && itemUserId != targetClientId) {
+                continue; // Skip records belonging to other users!
+              }
+            }
+          }
+
           final wId = item['withdrawal_id'] ?? item['id'] ?? '';
           final wIdStr = wId.toString();
+          if (wIdStr.isNotEmpty) {
+            if (seenWithdrawIds.contains(wIdStr)) continue;
+            seenWithdrawIds.add(wIdStr);
+          }
           final rawAmount = double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
 
           final rawStatus = (item['stage_status']?.toString().isNotEmpty == true)
@@ -806,21 +854,26 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                 final item = displayedRecords[index];
 
                 if (widget.isCompactSingleLine) {
-                  final statusLower = item.status.toLowerCase();
-                  final isDone = statusLower.contains('done') ||
-                      statusLower.contains('successful') ||
-                      statusLower.contains('approved');
-                  final isReject = statusLower.contains('reject') ||
-                      statusLower.contains('failed') ||
-                      statusLower.contains('declined');
+                  final stUpper = item.status.toUpperCase();
+                  final isEmployeeDone = stUpper == 'EMPLOYEE-DONE';
+                  final isAgencyDone = stUpper == 'AGENCY-DONE';
+                  final isSuccess = stUpper == 'SUCCESSFUL' || stUpper == 'APPROVED' || stUpper == 'DONE';
+                  final isDone = isEmployeeDone || isAgencyDone || isSuccess;
+                  final isReject = stUpper.contains('REJECT') || stUpper.contains('FAIL') || stUpper.contains('DECLIN');
 
                   String displayLabel = 'Pending';
                   Color badgeFg = const Color(0xFFF59E0B);
-                  if (isDone) {
-                    displayLabel = 'Approved';
+                  if (isAgencyDone) {
+                    displayLabel = 'Agency Done';
+                    badgeFg = const Color(0xFF6366F1);
+                  } else if (isEmployeeDone) {
+                    displayLabel = 'Employee Done';
+                    badgeFg = const Color(0xFF10B981);
+                  } else if (isSuccess) {
+                    displayLabel = 'Successful';
                     badgeFg = const Color(0xFF10B981);
                   } else if (isReject) {
-                    displayLabel = 'Rejected';
+                    displayLabel = stUpper.contains('AGENCY') ? 'Agency Rejected' : 'Employee Rejected';
                     badgeFg = const Color(0xFFEF4444);
                   }
 
@@ -970,28 +1023,34 @@ class RechargeRecordsWidgetState extends State<RechargeRecordsWidget> {
                           children: [
                             Builder(
                               builder: (context) {
-                                final statusLower = item.status.toLowerCase();
-                                final isDone = statusLower.contains('done') ||
-                                    statusLower.contains('successful') ||
-                                    statusLower.contains('approved');
-                                final isReject = statusLower.contains('reject') ||
-                                    statusLower.contains('failed') ||
-                                    statusLower.contains('declined');
+                                final stUpper = item.status.toUpperCase();
+                                final isEmployeeDone = stUpper == 'EMPLOYEE-DONE';
+                                final isAgencyDone = stUpper == 'AGENCY-DONE';
+                                final isSuccess = stUpper == 'SUCCESSFUL' || stUpper == 'APPROVED' || stUpper == 'DONE';
+                                final isReject = stUpper.contains('REJECT') || stUpper.contains('FAIL') || stUpper.contains('DECLIN');
 
                                 String displayLabel = 'PENDING';
                                 Color badgeFg = const Color(0xFFD97706);
-                                Color badgeBg = const Color(0xFFFFF7ED);
+                                Color badgeBg = isDark ? const Color(0xFF332A15) : const Color(0xFFFFF7ED);
 
-                                if (isDone) {
+                                if (isAgencyDone) {
+                                  displayLabel = 'AGENCY DONE';
+                                  badgeFg = const Color(0xFF6366F1);
+                                  badgeBg = isDark ? const Color(0xFF232048) : const Color(0xFFEEF2FF);
+                                } else if (isEmployeeDone) {
+                                  displayLabel = 'EMPLOYEE DONE';
+                                  badgeFg = const Color(0xFF10B981);
+                                  badgeBg = isDark ? const Color(0xFF14382B) : const Color(0xFFE6F7ED);
+                                } else if (isSuccess) {
                                   displayLabel = 'SUCCESSFUL';
                                   badgeFg = const Color(0xFF10B981);
                                   badgeBg = isDark ? const Color(0xFF14382B) : const Color(0xFFE6F7ED);
                                 } else if (isReject) {
-                                  displayLabel = 'REJECTED';
+                                  displayLabel = stUpper.contains('AGENCY') ? 'AGENCY REJECT' : 'EMPLOYEE REJECT';
                                   badgeFg = const Color(0xFFEF4444);
                                   badgeBg = isDark ? const Color(0xFF381418) : const Color(0xFFFEE2E2);
                                 } else {
-                                  displayLabel = 'PENDING';
+                                  displayLabel = stUpper.contains('EMPLOYEE') ? 'EMPLOYEE PENDING' : 'PENDING';
                                   badgeFg = const Color(0xFFFFB800);
                                   badgeBg = isDark ? const Color(0xFF332A15) : const Color(0xFFFFF7ED);
                                 }

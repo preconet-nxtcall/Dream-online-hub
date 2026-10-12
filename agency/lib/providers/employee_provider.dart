@@ -16,7 +16,8 @@ class EmployeeProvider extends ChangeNotifier {
   String _rechargeSearchQuery = '';
   String _withdrawalSearchQuery = '';
   String _rechargeFilter = 'all'; // 'all', 'pending', 'successful', 'rejected'
-  String _withdrawalFilter = 'all'; // 'all', 'pending', 'successful', 'rejected'
+  String _withdrawalFilter =
+      'all'; // 'all', 'pending', 'successful', 'rejected'
 
   String? _currentAgencyId;
   String? _currentEmployeeUserId;
@@ -72,28 +73,20 @@ class EmployeeProvider extends ChangeNotifier {
   }
 
   List<RechargeRecordModel> get agencyScopedRecharges {
-    final cleanEmpUser = _currentEmployeeUserId?.replaceAll(RegExp(r'\D'), '');
     final cleanAgency = _currentAgencyId?.replaceAll(RegExp(r'\D'), '');
+    final cleanEmpUser = _currentEmployeeUserId?.replaceAll(RegExp(r'\D'), '');
+    final targetId = (cleanAgency != null && cleanAgency.isNotEmpty)
+        ? cleanAgency
+        : cleanEmpUser;
 
-    // Priority 1: Strict Employee ID isolation (Employee A only sees Employee A's assigned records)
-    if (cleanEmpUser != null && cleanEmpUser.isNotEmpty) {
+    // Agency Employee manages their Agency's records (Agency and Agency Employee share agency ID scope)
+    if (targetId != null && targetId.isNotEmpty) {
       return _recharges.where((r) {
-        final rEmpId = (r.empId ?? r.agencyId)?.replaceAll(RegExp(r'\D'), '');
-        if (rEmpId != null && rEmpId.isNotEmpty) {
-          final matchesEmp = rEmpId == cleanEmpUser;
-          final matchesAgency = cleanAgency != null && cleanAgency.isNotEmpty && rEmpId == cleanAgency;
-          return matchesEmp || matchesAgency;
-        }
-        return true;
-      }).toList();
-    }
-
-    // Priority 2: Agency level isolation
-    if (cleanAgency != null && cleanAgency.isNotEmpty) {
-      return _recharges.where((r) {
-        final rEmpId = (r.empId ?? r.agencyId)?.replaceAll(RegExp(r'\D'), '');
-        if (rEmpId != null && rEmpId.isNotEmpty) {
-          return rEmpId == cleanAgency;
+        final rAgency = r.agencyId?.replaceAll(RegExp(r'\D'), '');
+        final rEmp = r.empId?.replaceAll(RegExp(r'\D'), '');
+        if ((rAgency != null && rAgency.isNotEmpty) ||
+            (rEmp != null && rEmp.isNotEmpty)) {
+          return rAgency == targetId || rEmp == targetId;
         }
         return true;
       }).toList();
@@ -103,34 +96,38 @@ class EmployeeProvider extends ChangeNotifier {
   }
 
   List<RechargeRecordModel> get agencyScopedWithdrawals {
-    final cleanEmpUser = _currentEmployeeUserId?.replaceAll(RegExp(r'\D'), '');
     final cleanAgency = _currentAgencyId?.replaceAll(RegExp(r'\D'), '');
+    final cleanEmpUser = _currentEmployeeUserId?.replaceAll(RegExp(r'\D'), '');
+    final targetId = (cleanAgency != null && cleanAgency.isNotEmpty)
+        ? cleanAgency
+        : cleanEmpUser;
 
-    // Priority 1: Strict Employee ID isolation (Employee A only sees Employee A's assigned records)
-    if (cleanEmpUser != null && cleanEmpUser.isNotEmpty) {
+    // Agency Employee manages their Agency's withdrawals (Matches agency-withdraw-req.php & agency-withdraw-pending.php)
+    // Raw EMPLOYEE-PENDING records belong only to Central Head Office Employee (emp-withdraw-req.php)
+    if (targetId != null && targetId.isNotEmpty) {
       return _withdrawals.where((w) {
-        final wEmpId = (w.empId ?? w.agencyId)?.replaceAll(RegExp(r'\D'), '');
-        if (wEmpId != null && wEmpId.isNotEmpty) {
-          final matchesEmp = wEmpId == cleanEmpUser;
-          final matchesAgency = cleanAgency != null && cleanAgency.isNotEmpty && wEmpId == cleanAgency;
-          return matchesEmp || matchesAgency;
+        final wAgency = w.agencyId?.replaceAll(RegExp(r'\D'), '');
+        final wEmp = w.empId?.replaceAll(RegExp(r'\D'), '');
+        final matchesAgency = (wAgency != null && wAgency.isNotEmpty) ||
+                (wEmp != null && wEmp.isNotEmpty)
+            ? (wAgency == targetId || wEmp == targetId)
+            : true;
+        if (!matchesAgency) return false;
+
+        // Exclude unpassed EMPLOYEE-PENDING requests from Agency portal
+        final statusUpper = w.status.toUpperCase();
+        if (statusUpper == 'EMPLOYEE-PENDING' || statusUpper == 'PENDING') {
+          return false;
         }
+
         return true;
       }).toList();
     }
 
-    // Priority 2: Agency level isolation
-    if (cleanAgency != null && cleanAgency.isNotEmpty) {
-      return _withdrawals.where((w) {
-        final wAgencyId = (w.agencyId ?? w.empId)?.replaceAll(RegExp(r'\D'), '');
-        if (wAgencyId != null && wAgencyId.isNotEmpty) {
-          return wAgencyId == cleanAgency;
-        }
-        return true;
-      }).toList();
-    }
-
-    return _withdrawals;
+    return _withdrawals.where((w) {
+      final statusUpper = w.status.toUpperCase();
+      return statusUpper != 'EMPLOYEE-PENDING' && statusUpper != 'PENDING';
+    }).toList();
   }
 
   int get allRechargesCount =>
@@ -138,25 +135,37 @@ class EmployeeProvider extends ChangeNotifier {
 
   int get successfulRechargesCount => agencyScopedRecharges.where((r) {
         final st = r.status.toUpperCase();
-        return st == 'EMPLOYEE-DONE' || st.contains('EMPLOYEE-DONE');
+        return st == 'EMPLOYEE-DONE' ||
+            st == 'AGENCY-DONE' ||
+            st.contains('DONE') ||
+            st.contains('SUCCESS') ||
+            st.contains('APPROV');
       }).length;
 
   int get rejectedRechargesCount => agencyScopedRecharges.where((r) {
         final st = r.status.toUpperCase();
-        return st == 'EMPLOYEE-REJECT' || st.contains('EMPLOYEE-REJECT');
+        return st.contains('REJECT') ||
+            st.contains('FAIL') ||
+            st.contains('DECLIN');
       }).length;
 
   int get pendingRechargesCount => agencyScopedRecharges.where((r) {
         final st = r.status.toUpperCase();
-        return st.contains('PENDING') ||
-            st == '0' ||
-            st == 'CREATED' ||
-            st == 'SUBMITTED' ||
-            st.contains('PROGRESS');
+        final isDone = st == 'EMPLOYEE-DONE' ||
+            st == 'AGENCY-DONE' ||
+            st.contains('DONE') ||
+            st.contains('SUCCESS') ||
+            st.contains('APPROV');
+        final isReject = st.contains('REJECT') ||
+            st.contains('FAIL') ||
+            st.contains('DECLIN');
+        return !isDone && !isReject;
       }).length;
 
   int get allWithdrawalsCount =>
-      pendingWithdrawalsCount + successfulWithdrawalsCount + rejectedWithdrawalsCount;
+      pendingWithdrawalsCount +
+      successfulWithdrawalsCount +
+      rejectedWithdrawalsCount;
 
   int get successfulWithdrawalsCount => agencyScopedWithdrawals.where((w) {
         final st = w.status.toUpperCase();
@@ -164,22 +173,27 @@ class EmployeeProvider extends ChangeNotifier {
             st == 'AGENCY-DONE' ||
             st.contains('DONE') ||
             st.contains('SUCCESS') ||
-            st.contains('APPROVED');
+            st.contains('APPROV');
       }).length;
 
   int get rejectedWithdrawalsCount => agencyScopedWithdrawals.where((w) {
         final st = w.status.toUpperCase();
-        return st == 'EMPLOYEE-REJECT' || st.contains('EMPLOYEE-REJECT');
+        return st.contains('REJECT') ||
+            st.contains('FAIL') ||
+            st.contains('DECLIN');
       }).length;
 
   int get pendingWithdrawalsCount => agencyScopedWithdrawals.where((w) {
         final st = w.status.toUpperCase();
-        return st.contains('PENDING') ||
-            st.contains('PASS') ||
-            st == '0' ||
-            st == 'CREATED' ||
-            st == 'SUBMITTED' ||
-            st.contains('PROGRESS');
+        final isDone = st == 'EMPLOYEE-DONE' ||
+            st == 'AGENCY-DONE' ||
+            st.contains('DONE') ||
+            st.contains('SUCCESS') ||
+            st.contains('APPROV');
+        final isReject = st.contains('REJECT') ||
+            st.contains('FAIL') ||
+            st.contains('DECLIN');
+        return !isDone && !isReject;
       }).length;
 
   int get totalPendingCount => pendingRechargesCount + pendingWithdrawalsCount;
@@ -187,13 +201,15 @@ class EmployeeProvider extends ChangeNotifier {
   List<RechargeRecordModel> get filteredRecharges {
     return agencyScopedRecharges.where((record) {
       final statusUpper = record.status.toUpperCase();
-      final isDone = statusUpper == 'EMPLOYEE-DONE' || statusUpper.contains('EMPLOYEE-DONE');
-      final isReject = statusUpper == 'EMPLOYEE-REJECT' || statusUpper.contains('EMPLOYEE-REJECT');
-      final isPending = statusUpper.contains('PENDING') ||
-          statusUpper == '0' ||
-          statusUpper == 'CREATED' ||
-          statusUpper == 'SUBMITTED' ||
-          statusUpper.contains('PROGRESS');
+      final isDone = statusUpper == 'EMPLOYEE-DONE' ||
+          statusUpper == 'AGENCY-DONE' ||
+          statusUpper.contains('DONE') ||
+          statusUpper.contains('SUCCESS') ||
+          statusUpper.contains('APPROV');
+      final isReject = statusUpper.contains('REJECT') ||
+          statusUpper.contains('FAIL') ||
+          statusUpper.contains('DECLIN');
+      final isPending = !isDone && !isReject;
 
       // Filter by chip status
       if (_rechargeFilter == 'pending' && !isPending) {
@@ -202,7 +218,8 @@ class EmployeeProvider extends ChangeNotifier {
         return false;
       } else if (_rechargeFilter == 'rejected' && !isReject) {
         return false;
-      } else if (_rechargeFilter == 'all' && (!isDone && !isReject && !isPending)) {
+      } else if (_rechargeFilter == 'all' &&
+          (!isDone && !isReject && !isPending)) {
         return false;
       }
 
@@ -228,17 +245,15 @@ class EmployeeProvider extends ChangeNotifier {
   List<RechargeRecordModel> get filteredWithdrawals {
     return agencyScopedWithdrawals.where((record) {
       final statusUpper = record.status.toUpperCase();
-      final isDone = statusUpper.contains('DONE') ||
+      final isDone = statusUpper == 'EMPLOYEE-DONE' ||
+          statusUpper == 'AGENCY-DONE' ||
+          statusUpper.contains('DONE') ||
           statusUpper.contains('SUCCESS') ||
-          statusUpper.contains('APPROVED');
-      final isReject = statusUpper == 'EMPLOYEE-REJECT' ||
-          statusUpper.contains('EMPLOYEE-REJECT');
-      final isPending = statusUpper.contains('PENDING') ||
-          statusUpper.contains('PASS') ||
-          statusUpper == '0' ||
-          statusUpper == 'CREATED' ||
-          statusUpper == 'SUBMITTED' ||
-          statusUpper.contains('PROGRESS');
+          statusUpper.contains('APPROV');
+      final isReject = statusUpper.contains('REJECT') ||
+          statusUpper.contains('FAIL') ||
+          statusUpper.contains('DECLIN');
+      final isPending = !isDone && !isReject;
 
       if (_withdrawalFilter == 'pending' && !isPending) {
         return false;
@@ -246,7 +261,8 @@ class EmployeeProvider extends ChangeNotifier {
         return false;
       } else if (_withdrawalFilter == 'rejected' && !isReject) {
         return false;
-      } else if (_withdrawalFilter == 'all' && (!isDone && !isReject && !isPending)) {
+      } else if (_withdrawalFilter == 'all' &&
+          (!isDone && !isReject && !isPending)) {
         return false;
       }
 
@@ -268,7 +284,6 @@ class EmployeeProvider extends ChangeNotifier {
       return true;
     }).toList();
   }
-
 
   /// Fetch all employee data
   Future<void> refreshAll() async {
@@ -333,7 +348,9 @@ class EmployeeProvider extends ChangeNotifier {
       // Update in-memory state immediately
       final cleanTargetId = item.id.replaceAll(RegExp(r'\D'), '');
       final idx = _recharges.indexWhere(
-        (r) => r.id == item.id || r.id.replaceAll(RegExp(r'\D'), '') == cleanTargetId,
+        (r) =>
+            r.id == item.id ||
+            r.id.replaceAll(RegExp(r'\D'), '') == cleanTargetId,
       );
 
       if (idx != -1) {
@@ -341,9 +358,10 @@ class EmployeeProvider extends ChangeNotifier {
           id: _recharges[idx].id,
           bookName: _recharges[idx].bookName,
           userName: _recharges[idx].userName,
-          transactionDetails: (transactionId != null && transactionId.isNotEmpty)
-              ? transactionId
-              : _recharges[idx].transactionDetails,
+          transactionDetails:
+              (transactionId != null && transactionId.isNotEmpty)
+                  ? transactionId
+                  : _recharges[idx].transactionDetails,
           amount: _recharges[idx].amount,
           status: newStatus,
           date: _recharges[idx].date,
@@ -380,7 +398,9 @@ class EmployeeProvider extends ChangeNotifier {
       // Update in-memory state immediately
       final cleanTargetId = item.id.replaceAll(RegExp(r'\D'), '');
       final idx = _withdrawals.indexWhere(
-        (w) => w.id == item.id || w.id.replaceAll(RegExp(r'\D'), '') == cleanTargetId,
+        (w) =>
+            w.id == item.id ||
+            w.id.replaceAll(RegExp(r'\D'), '') == cleanTargetId,
       );
 
       if (idx != -1) {
